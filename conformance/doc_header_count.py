@@ -74,8 +74,21 @@ _NUMBER = (
 # which the first pattern cannot see, since it requires the number FIRST. A
 # gate that refuses the count's PRESENCE has to refuse it in the order a person
 # would actually write it, not only in the order the last defect used.
+#
+# RESID-008. A SENTENCE END closes the clause the same way a comma and a cell
+# boundary do, and it is what makes joining a hard-wrapped block safe. The
+# scanner reads LOGICAL lines now (`_logical_lines`), because "all fourteen
+# `x-nr-*`" ended line 11 of `check_conformance.py` and "headers" began line 12
+# -- a line-bounded pattern can never reach the noun it needs, so every claim
+# an author wrapped was invisible, which is most of the long ones. But joining
+# alone would weld two honest sentences into one false hit: "Retries default to
+# three." followed by "`x-nr-request-id` headers correlate every attempt" reads
+# as a hard-coded header count the moment the newline becomes a space. The `.`
+# is the temper that keeps the join honest, and it costs nothing: a header name
+# contains no period, and no count ever sat on the far side of a full stop from
+# the noun it counted.
 COUNT_BEFORE_RE = re.compile(
-    rf"\b{_NUMBER}\b[^\n|,]{{0,40}}?`?x-nr-[^\n|,]{{0,40}}?header",
+    rf"\b{_NUMBER}\b[^\n|,.]{{0,40}}?`?x-nr-[^\n|,.]{{0,40}}?header",
     re.IGNORECASE,
 )
 # The mirror's gap is TEMPERED, not merely bounded. A comma alone is not enough
@@ -96,9 +109,12 @@ COUNT_BEFORE_RE = re.compile(
 #   * the number must not be immediately followed by a NAMED other noun, so
 #     "the `x-nr-*` headers, the nine error codes" stays clean too.
 _OTHER_NOUN = r"(?:error|code|operation|wire|endpoint|sdk|test|language|route)"
+#   * a SENTENCE END ends it too, for the RESID-008 reason above: this pattern
+#     reads joined lines now, and "`x-nr-*` headers are documented." followed
+#     by "Three retries by default." must not read as a header count.
 COUNT_AFTER_RE = re.compile(
-    rf"`?x-nr-[^\n|,]{{0,40}}?headers?\b"
-    rf"(?:(?!\b(?:and|or|plus)\b)[^\n|]){{0,30}}?\b{_NUMBER}\b"
+    rf"`?x-nr-[^\n|,.]{{0,40}}?headers?\b"
+    rf"(?:(?!\b(?:and|or|plus)\b)[^\n|.]){{0,30}}?\b{_NUMBER}\b"
     rf"(?!\s+{_OTHER_NOUN})",
     re.IGNORECASE,
 )
@@ -126,7 +142,7 @@ def check_doc_header_count(root: Path = ROOT) -> list[str]:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        for lineno, line in enumerate(text.splitlines(), 1):
+        for lineno, line in _logical_lines(text):
             match = next(
                 (m for m in (p.search(line) for p in PATTERNS) if m),
                 None,
@@ -303,6 +319,60 @@ def _blocks(text: str) -> list[tuple[str, int, list[str]]]:
             j += 1
         out.append((kind, i + 1, lines[i:j]))
         i = j
+    return out
+
+
+def _logical_lines(text: str) -> list[tuple[int, str]]:
+    """Join hard-wrapped continuation lines into (first_lineno, text) claims.
+
+    RESID-008. `check_conformance.py`'s own docstring carried "all fourteen
+    `x-nr-*` headers" against a derived set of fifteen for an unknown period,
+    and the count scanner never saw it: "all fourteen `x-nr-*`" ended line 11
+    and "headers" began line 12. The promise scanner already joins a block's
+    lines for exactly this reason (`check_doc_header_enumeration`), so this is
+    that same join reused, not a second mechanism -- the block split is
+    `_blocks`, unchanged.
+
+    It is one degree FINER than the promise scanner's join, and deliberately.
+    A promise is one claim about a whole section, so welding a section's lines
+    together is what that gate wants. A count belongs to ONE clause, so a
+    boundary an author already drew must survive the join:
+
+      * a TABLE row and a HEADING stay whole lines. Rows are separate claims,
+        and the `|` exclusion in both patterns already ends a span at a cell
+        edge -- joining rows would put a count from one row's cell next to the
+        header noun in another's.
+      * a LIST ITEM starts a new claim; its own wrapped continuation lines are
+        joined onto it. Two bullets are never welded: "nine typed error codes"
+        in one and "`x-nr-cost-status` headers" in the next are both honest.
+      * a FENCE is left line by line -- it is a code example, not prose.
+      * a PARAGRAPH joins whole, which is the case this card exists for. The
+        sentence-end temper in both patterns is what keeps that safe.
+
+    Every block `_blocks` emits is a contiguous slice of the source, so
+    `first + offset` is the exact physical line and the failure keeps pointing
+    at the line a person has to edit.
+    """
+    out: list[tuple[int, str]] = []
+    for kind, first, lines in _blocks(text):
+        if kind in ("table", "heading", "fence"):
+            out.extend((first + off, ln) for off, ln in enumerate(lines))
+            continue
+        if kind == "list":
+            start: int | None = None
+            buf: list[str] = []
+            for off, ln in enumerate(lines):
+                if _LIST_ITEM.match(ln) and buf:
+                    out.append((start, " ".join(buf)))
+                    start, buf = first + off, [ln.strip()]
+                    continue
+                if start is None:
+                    start = first + off
+                buf.append(ln.strip())
+            if buf:
+                out.append((start, " ".join(buf)))
+            continue
+        out.append((first, " ".join(ln.strip() for ln in lines)))
     return out
 
 
@@ -501,6 +571,36 @@ def self_test(root: Path = ROOT) -> int:
         "count of another noun, header count still hard-coded",
         "Typed errors from nine codes and all fourteen `x-nr-*` headers.",
         True,
+    )
+
+    # ---- RESID-008: the claim an author HARD-WRAPPED ----------------------
+    # The exact sentence `4ea7938` had to fix by hand. It survived this gate
+    # because "all fourteen `x-nr-*`" ended one line and "headers" began the
+    # next, and a line-bounded pattern can never reach the noun it needs.
+    case(
+        "wrapped count across a hard line break",
+        "the base URL, the environment variable, the key prefix, all fourteen `x-nr-*`\n"
+        "headers and all nine error codes. Every one of the ten SDKs must also expose a\n"
+        "typed response-metadata accessor.\n",
+        True,
+    )
+    # ...and the FALSE-POSITIVE direction, which is why joining alone is not
+    # the fix. Two honest sentences, the count belonging to the first and the
+    # header noun to the second, welded together by the join. A sentence end
+    # closes the clause exactly as a comma and a cell boundary already do.
+    case(
+        "number and header noun adjacent only across a line break",
+        "Retries default to three.\n"
+        "`x-nr-request-id` headers correlate every attempt in the log.\n",
+        False,
+    )
+    # The same shape one block down: two list items, each honest on its own.
+    # A bullet boundary starts a new claim, so they are never welded either.
+    case(
+        "count in one bullet, header noun in the next",
+        "- The gateway classifies nine typed error codes.\n"
+        "- `x-nr-cost-status` headers report `exact` or `unpriced`.\n",
+        False,
     )
 
     # ---- SDKENUM-001: a completeness PROMISE followed by an ENUMERATION ----
