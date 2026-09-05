@@ -1,0 +1,8 @@
+{
+  "name": "demo-e2e-sdk-example",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end nRouter npm SDK example: a priced call, and what a refused one looks like.",
+  "scripts": { "start": "node index.mjs" },
+  "dependencies": { "@nrouter_ai/sdk": "^2.2.1", "dotenv": "^17.4.2" }
+}
