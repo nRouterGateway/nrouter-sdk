@@ -194,6 +194,48 @@ export {
   type TransportResponse,
 } from './multimodal';
 
+// The shapes every `Multimodal` method takes and returns.
+//
+// Same reason `chatTextDiagnostic` is listed explicitly above (DIPTESH-094):
+// this entry is a named list, not `export *`, so a type stays unreachable to a
+// package consumer until it appears here. Withholding them shipped the class
+// and the helpers while hiding every argument and result, which left a
+// TypeScript caller writing a voice wrapper no option but to re-declare
+// `SpeechParams` by hand — a copy that drifts from the real one silently,
+// because nothing compiles the two against each other.
+//
+// TYPE EXPORTS ONLY. Interfaces and type aliases have no runtime value, so
+// none of these adds a key to `dist/index.js` and none belongs in the
+// hand-written runtime re-export list in `src/index.mjs`. `AudioFormat` and
+// `WaitForVideoOptions` above are the precedent. `test/audio-exports.test.ts`
+// compiles a fixture against `dist/index.d.ts` to prove each name is really
+// reachable — Node strips types rather than checking them, so an `import type`
+// in a test erases to nothing and proves nothing — and asserts none of them
+// appears as a runtime export, which is what keeps
+// `test/package-entry-parity.mjs` green.
+//
+// `JsonValue` and `AbortSignalLike` are here because they are the component
+// types of two names on this list: `JsonObject` is `{ [k: string]: JsonValue }`
+// and `CallOptions` is `{ signal?: AbortSignalLike }`. Exporting a container
+// while withholding what goes inside it lets a caller declare the object and
+// not name its parts, which is half an export.
+export type {
+  SpeechParams,
+  SpeechResponseFormat,
+  BinaryResult,
+  TranscriptionParams,
+  TranslationParams,
+  TranscriptionFormat,
+  TranscriptionResult,
+  ImageParams,
+  VideoParams,
+  EmbeddingsParams,
+  CallOptions,
+  JsonObject,
+  JsonValue,
+  AbortSignalLike,
+} from './multimodal';
+
 export {
   diagnoseReasoningExhaustion,
   type ReasoningExhaustionReport,
