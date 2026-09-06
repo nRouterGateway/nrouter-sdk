@@ -746,16 +746,66 @@ class ExampleBodyFieldContractTests(unittest.TestCase):
     )
 
     @staticmethod
-    def _object_spans(text: str, opener: "re.Pattern") -> list:
+    def _mask_braces_in_literals(text: str) -> str:
+        """Return `text` with every `{`/`}` that sits inside a string literal or
+        a comment replaced by a space, CHARACTER FOR CHARACTER so that every
+        offset still lines up with the original.
+
+        Without this the brace walker below counts a brace in `"use { and }"` or
+        in a `${...}` template placeholder, which silently collapses or extends
+        an object span and misclassifies the fields in it. Only braces are
+        masked, never the quotes or the key names, so a quoted key such as
+        `"nrouter_units":` is still matched exactly where it really is.
+        """
+        out = list(text)
+        index, length = 0, len(text)
+        quote = None  # the delimiter we are inside, or None
+        comment = None  # "line" or "block", or None
+        while index < length:
+            char = text[index]
+            if comment == "line":
+                if char == "\n":
+                    comment = None
+                elif char in "{}":
+                    out[index] = " "
+            elif comment == "block":
+                if char == "*" and text[index + 1 : index + 2] == "/":
+                    comment = None
+                    index += 1
+                elif char in "{}":
+                    out[index] = " "
+            elif quote is not None:
+                if char == "\\":
+                    index += 2
+                    continue
+                if char == quote:
+                    quote = None
+                elif char in "{}":
+                    out[index] = " "
+            elif char in "\"'`":
+                quote = char
+            elif char == "/" and text[index + 1 : index + 2] == "/":
+                comment = "line"
+                index += 1
+            elif char == "/" and text[index + 1 : index + 2] == "*":
+                comment = "block"
+                index += 1
+            index += 1
+        return "".join(out)
+
+    @classmethod
+    def _object_spans(cls, text: str, opener: "re.Pattern") -> list:
         """Half-open (start, end) offsets of every brace-balanced object literal
         introduced by `opener`. Nesting is walked, so an inner `metadata` object
-        keeps the outer `log` span around it."""
+        keeps the outer `log` span around it. Braces inside string literals and
+        comments are masked first, so they cannot skew the depth."""
         spans = []
+        masked = cls._mask_braces_in_literals(text)
         for match in opener.finditer(text):
             depth = 0
             index = match.end() - 1  # the `{` itself
-            while index < len(text):
-                char = text[index]
+            while index < len(masked):
+                char = masked[index]
                 if char == "{":
                     depth += 1
                 elif char == "}":
@@ -828,7 +878,13 @@ class ExampleBodyFieldContractTests(unittest.TestCase):
     def _spec_metadata_fields(self) -> set:
         """The customer-visible spend-row `metadata` keys, derived in
         nrouter-app's `src/lib/logs/sanitize-log-metadata.ts` allowlist and
-        published in the spec. `$`-prefixed entries are annotations."""
+        published in the spec. `$`-prefixed entries are annotations.
+
+        The section documents the whole surface; this scanner only ENFORCES the
+        `nrouter_` namespace, because `FIELD_IN_VALUE_POSITION` is anchored on
+        that prefix. `tags` is therefore published and unenforced — it is the
+        caller's own key, so there is nothing to refuse.
+        """
         section = self._spec()["spend_row_metadata_fields"]
         fields = {key for key in section if not key.startswith("$")}
         self.assertTrue(fields, "the spec declares no spend_row_metadata_fields")
@@ -867,13 +923,51 @@ class ExampleBodyFieldContractTests(unittest.TestCase):
         as an example teaching customers to send those fields."""
         suite = SDK_ROOT / "examples" / "typescript" / "chat_agent_suite.js"
         self.assertTrue(suite.is_file(), f"{suite} is missing")
+        body = suite.read_text(encoding="utf-8")
+
+        # Assert the ACCEPT PATH was actually exercised before asserting the
+        # absence of offenders. Without this the test is green either because
+        # the mock is correctly classified, or because the mock no longer has a
+        # `log.metadata` shape at all — and only the first is what it claims.
+        classified = self._classify(body)
+        for field in ("nrouter_units", "nrouter_cost"):
+            self.assertIn(
+                "spend-row-metadata",
+                classified.get(field, set()),
+                f"{field} is no longer recognised inside the suite's spend-row "
+                f"`log.metadata` envelope, so this positive control proves "
+                f"nothing",
+            )
         self.assertEqual(
             self._offenders(
-                suite.read_text(encoding="utf-8"),
-                self._spec_fields(),
-                self._spec_metadata_fields(),
+                body, self._spec_fields(), self._spec_metadata_fields()
             ),
             {},
+        )
+
+    def test_a_brace_in_a_string_or_comment_cannot_skew_a_span(self) -> None:
+        """A `{` inside a JS string, a template placeholder or a comment is not
+        structure. Counting it splits or extends an object span, which silently
+        moves fields between the two allowlists — so the masking is pinned here
+        rather than left to the file walk to notice years later."""
+        # The stray braces sit INSIDE the `log` envelope and are unbalanced, so
+        # an unmasked walker closes that span early, the `metadata` object falls
+        # outside it, and the key is misread as a request field.
+        fixture = """
+        const payload = {
+          log: {
+            note: 'an unbalanced } brace inside a string',
+            // and a lone } inside a comment
+            metadata: { nrouter_secret_thing: 1 },
+          },
+          total: 1,
+        };
+        """
+        self.assertEqual(
+            self._offenders(
+                fixture, self._spec_fields(), self._spec_metadata_fields()
+            ),
+            {"nrouter_secret_thing": ["spend-row-metadata"]},
         )
 
     def test_metadata_context_is_an_allowlist_not_an_escape_hatch(self) -> None:

@@ -359,9 +359,9 @@
     }
   },
   "spend_row_metadata_fields": {
-    "$comment": "RESPONSE surface, not a request body. These are the customer-visible keys the dashboard spend-row route (GET /api/nrouter-proxy/spend/by-key) returns inside a log row's `metadata`. Sending one as a request field is a defect: the gateway does not read them and forwards them to the provider verbatim. Derived from nrouter-app src/lib/logs/sanitize-log-metadata.ts (CUSTOMER_FACING_NROUTER_META_KEYS, the allowlist the drawer scrubs against) — re-derive, never retype. Every other nrouter_* key in that blob is gateway-internal and is stripped before a customer ever sees it.",
+    "$comment": "RESPONSE surface, not a request body. These are the customer-visible keys the dashboard spend-row route (GET /api/nrouter-proxy/spend/by-key) returns inside a log row's `metadata`. Sending one as a request field is a defect: the gateway does not read them and forwards them to the provider verbatim. Derived from nrouter-app src/lib/logs/sanitize-log-metadata.ts (CUSTOMER_FACING_NROUTER_META_KEYS, the allowlist the drawer scrubs against) — re-derive, never retype. Every other nrouter_* key in that blob is gateway-internal and is stripped before a customer ever sees it. The examples gate enforces the nrouter_ namespace only; `tags` is the caller's own key, published here to document the surface, with nothing to refuse.",
     "nrouter_cost": {
-      "type": "number|null",
+      "type": ["number", "null"],
       "description": "What the customer is CHARGED for the request, in USD; null when unpriced, never a zero."
     },
     "nrouter_tenancy": {
@@ -393,7 +393,7 @@
       "description": "The id the customer quotes in support; pairs with the x-nr-request-id response header."
     },
     "nrouter_response_cache": {
-      "type": "string|null",
+      "type": ["string", "null"],
       "description": "hit or miss for an eligible buffered text request; null when caching does not apply."
     },
     "nrouter_postflight": {
