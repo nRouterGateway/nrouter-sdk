@@ -140,7 +140,7 @@ seconds transcribed" measures its own input rather than reading it back.
 
 The general rule and the rest of `meta` are in [cost.md](./cost.md).
 
-## Three things that do not exist here
+## Two things that do not exist here
 
 - **No streaming TTS.** A `stream_format` passed through `extra` is buffered:
   you get the complete audio when the call returns, not a first byte sooner.
@@ -148,14 +148,31 @@ The general rule and the rest of `meta` are in [cost.md](./cost.md).
   that never starts.
 - **No realtime or WebSocket surface.** Voice is a request/response cascade on
   these three routes, not a session.
-- **No guardrail posture on an audio response.** `meta.guardrails` is not
-  published on the audio routes, and `null` there means the gateway made no
-  claim — never "nothing ran". Pre-call guardrails *do* run, and they scan every
-  text field you send: `input` and `instructions` on speech, `prompt` on an
-  upload. What no guardrail reads is the generated audio itself. No `Check` in
-  the chain scans bytes, so the response body is declared unscanned rather than
-  quietly reported as a clean pass — an honest skip instead of a false one. If
-  the spoken output matters to your policy, transcribe it and scan the text.
+
+## `meta.guardrails` on an audio response
+
+The guardrail posture **is** published on all three audio routes:
+`meta.guardrails` carries the same `none | monitor | pass | partial | blocked`
+token here as on the text wires, read from `x-nr-guardrails`. It reports the
+PRE-CALL chain's posture over your REQUEST, upgraded to `blocked` when a
+post-call chain withheld the response.
+
+**Expect `partial` on `transcribe()` and `translate()`, and do not alarm on it.**
+Those two wires carry an upload that is not itself a text channel, so an
+enforcing chain answers `partial` on the ordinary path rather than `pass`. A
+client that treats `partial` as an anomaly will treat every speech-to-text call
+it makes as one. On `speech()` an enforcing chain that inspected the whole
+request answers `pass`.
+
+It is still not a claim about the audio. Pre-call guardrails scan the text you
+send — `input` and `instructions` on speech, `prompt` on an upload — and no
+`Check` in the chain scans bytes, so the generated audio is never inspected. A
+`pass` on `speech()` means *your request was inspected and allowed*, never *the
+spoken output is clean*. If the spoken output matters to your policy, transcribe
+it and scan the text.
+
+`null` remains possible and still means the gateway made no claim — never
+"nothing ran", which is the explicit `none`.
 
 ## The voice cascade
 

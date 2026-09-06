@@ -54,8 +54,16 @@ export interface ResponseMeta {
    *
    * Null means the gateway made NO guardrail claim about this response (a
    * `/v1/models` call, an auth refusal that never reached preflight) — never
-   * "no guardrail applied", which is the explicit `none`. Not published on the
-   * image, audio or video routes.
+   * "no guardrail applied", which is the explicit `none`.
+   *
+   * It is published on every wire that runs a pre-call chain: the four text
+   * wires, and `image()`, `speech()`, `transcribe()`, `translate()`,
+   * `embeddings()` and the video create, `video()`. It is absent on the two
+   * free video collection calls, `videoStatus()` and `videoContent()`, which
+   * resolve no chain at all — absence there is the contract, not a gap.
+   *
+   * `partial` is the ordinary answer on `transcribe()` and `translate()`, not
+   * an anomaly: alarm on it and you alarm on every speech-to-text call.
    *
    * Posture only, by design: the policy name, its id, the detector family, the
    * rule count and — for `partial` — which channel went uninspected are all

@@ -181,6 +181,27 @@ would write to a zero-byte file.
 The download is bounded at **512 MiB** at the gateway. Write the bytes with the
 extension the `contentType` implies rather than one you hoped for.
 
+## `meta.guardrails` splits the same way the money does
+
+The guardrail posture follows the create/collection line exactly. `video()`
+publishes `x-nr-guardrails`, so `meta.guardrails` carries the same
+`none | monitor | pass | partial | blocked` token there as on the text wires: the
+PRE-CALL chain's posture over the request you sent, upgraded to `blocked` when a
+post-call chain withheld the response.
+
+`videoStatus()` and `videoContent()` publish nothing, and `meta.guardrails` is
+`null` on both. **That absence is the contract, not a gap.** The two collection
+routes resolve no chain at all, so `none` would be a worse answer than silence —
+it is an explicit posture asserting a chain was looked for and found empty, which
+on those routes was never true. Decide the bucket from the route, exactly as you
+already do for cost: the create makes a guardrail claim and the collections make
+none.
+
+It is still not a claim about the video. No `Check` in the chain reads bytes, so
+neither the render nor the downloaded MP4 is ever inspected. A `pass` on the
+create means *your prompt was inspected and allowed*, never *the rendered video
+is clean*.
+
 ## A runnable one
 
 [`examples/typescript/video-agent/`](../../../examples/typescript/video-agent/)

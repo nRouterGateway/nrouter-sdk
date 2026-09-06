@@ -59,14 +59,22 @@ integration expensive.
 | `/v1/audio/transcriptions` — `gpt-4o-mini-transcribe` | **token** | Priced `exact`. |
 | `/v1/audio/transcriptions` — `whisper-1` | **second of audio** | ⚠ The duration is only visible to the gateway in a `verbose_json` body. Ask for plain `json` and the call settles **unpriced**. This example sends `response_format=verbose_json` automatically for any whisper model. |
 
-Two things the headers deliberately do **not** carry:
+One thing the headers deliberately do **not** carry:
 
 - **No quantity header.** There is no `x-nr-characters` or `x-nr-audio-seconds`.
   The unit count that produced the price lives server-side on the spend row, so
   a client cannot recompute the bill — it can only report what was settled.
-- **No guardrail posture on audio.** `meta.guardrails` is `null` on the speech
-  and transcription wires. That is "the gateway made no claim", not "no guardrail
-  applied" — never render it as a reassurance.
+
+And one that they do, with a reading that surprises people:
+
+- **Guardrail posture is published on all three audio wires.**
+  `meta.guardrails` carries the usual `none | monitor | pass | partial | blocked`
+  token. Expect `partial` on transcription and translation and do not alarm on
+  it: those wires carry an upload that is not itself a text channel, so an
+  enforcing chain answers `partial` on the ordinary path. The token is a posture
+  over your REQUEST — no check scans bytes, so it never claims the spoken output
+  is clean. `null` still means the gateway made no claim at all, not "no
+  guardrail applied".
 
 ### `unpriced` is a real state, not an error
 

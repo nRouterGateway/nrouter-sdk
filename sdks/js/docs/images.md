@@ -117,16 +117,20 @@ are in [cost.md](./cost.md).
 
 ## `meta.guardrails` on an image response
 
-The guardrail posture is published on the text wires. On the images route the
-SDK's `meta.guardrails` is `null`, and `null` means **the gateway made no
-claim** — it is not the explicit `none` posture and it is not a statement that
-nothing was inspected. Never render it as a reassurance.
+The guardrail posture **is** published on this route: `meta.guardrails` carries
+the same `none | monitor | pass | partial | blocked` token here as on the text
+wires, read from `x-nr-guardrails`. It reports the PRE-CALL chain's posture over
+your REQUEST, upgraded to `blocked` when a post-call chain withheld the response.
 
-Pre-call guardrails do run, and they read the text you sent: the `prompt` is a
-text field like any other. What no guardrail reads is the generated image. No
-check in the chain scans bytes, so the rendered result is unscanned rather than
-quietly reported as a clean pass. If the picture matters to your policy, that is
-a decision for your own pipeline.
+It is still not a claim about the picture. Pre-call guardrails read the text you
+sent — the `prompt` is a text field like any other — and no check in the chain
+scans bytes, so the generated image is never inspected. A `pass` therefore means
+*your request was inspected and allowed*, never *the rendered image is clean*.
+If the picture matters to your policy, that is a decision for your own pipeline.
+
+`null` remains possible and still means **the gateway made no claim** — an auth
+refusal that never reached preflight, say. It is not the explicit `none` posture,
+and it is never a reassurance.
 
 ## A runnable one
 

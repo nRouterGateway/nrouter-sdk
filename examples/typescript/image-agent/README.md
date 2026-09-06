@@ -21,10 +21,10 @@ format    provider default (gpt-image-* always returns b64_json and rejects the 
 
 prompt 1: A flat vector illustration of a lighthouse on a rocky shore at dusk, three colours, no text.
       wrote out/image-1-1.png (1104382 bytes)
-[image] p=1 req_01J... gpt-image-1-mini exact $0.011200 n=1 1024x1024 low tokens=41/1056 guardrails=— gw=9412ms client=9980ms  generate
+[image] p=1 req_01J... gpt-image-1-mini exact $0.011200 n=1 1024x1024 low tokens=41/1056 guardrails=pass gw=9412ms client=9980ms  generate
 prompt 2: An isometric diagram of a small server rack with routed cables, muted palette, no text.
       wrote out/image-2-1.png (1233008 bytes)
-[image] p=2 req_01J... gpt-image-1-mini exact $0.011900 n=1 1024x1024 low tokens=41/1120 guardrails=— gw=8801ms client=9350ms  generate
+[image] p=2 req_01J... gpt-image-1-mini exact $0.011900 n=1 1024x1024 low tokens=41/1120 guardrails=pass gw=8801ms client=9350ms  generate
 
 SESSION SUMMARY
   calls            2
@@ -151,13 +151,21 @@ raising `NROUTER_IMAGE_N`:
 - Every retry is a fresh reservation and a fresh bill. This file has no retry
   loop and pins `maxRetries: 0` explicitly.
 
-### `guardrails` is `—`, and that is not "clean"
+### `guardrails` is a posture over your PROMPT, not over the picture
 
-`meta.guardrails` is `null` on the image route: the gateway publishes a guardrail
-posture on the text wires only. The example prints `guardrails=—` and logs
-`null`. That means **the gateway made no claim** — it is not the explicit `none`
-posture, and it is not a statement that nothing was inspected. Never render it as
-a reassurance.
+`meta.guardrails` **is** published on the image route: the example prints the
+`none | monitor | pass | partial | blocked` token and logs it. It reports the
+PRE-CALL chain's posture over the request you sent — the `prompt` is a text field
+like any other — upgraded to `blocked` when a post-call chain withheld the
+response.
+
+It says nothing about the rendered image. No check in the chain scans bytes, so
+`guardrails=pass` means *your prompt was inspected and allowed*, never *this
+picture is clean*. Never render it as a reassurance about the output.
+
+The example still prints `guardrails=—` when the value is `null`, which means
+**the gateway made no claim at all** — not the explicit `none` posture, and not a
+statement that nothing was inspected.
 
 ## Run it
 
@@ -293,9 +301,10 @@ Stated plainly, because an example that quietly omits things teaches the omissio
 - **No prompt-rewrite reporting.** Some providers revise the prompt before
   rendering and return the revision in the body; this example logs neither the
   revision nor the original beyond the prompt it sent.
-- **No moderation posture.** `meta.guardrails` is null on this route (above), and
-  a provider-side content refusal arrives as a typed error, not as a guardrail
-  claim.
+- **No moderation posture on the OUTPUT.** `meta.guardrails` reports the
+  pre-call chain over your prompt (above), never a verdict on the rendered image,
+  and a provider-side content refusal arrives as a typed error rather than as a
+  guardrail claim.
 - **One guard is not exercised.** `metered` wraps its post-response `enrich`
   callback so that nothing after a successful billed call can be mistaken for a
   failed one. The suite cannot reach that arm — the only `enrich` body here is
