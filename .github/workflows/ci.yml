@@ -81,6 +81,32 @@ jobs:
       - name: Build TypeScript bundle & types
         run: npm run build
 
+      # The mock-gateway half of the demo E2E suite: step 0's static preflight
+      # (example .env documentation and the .env ignore rules that keep a key
+      # off this PUBLIC repo) plus the in-process gateway suites for the voice,
+      # chat, image and video examples. Each suite starts its own gateway, so it
+      # needs NO API key, NO network and NO credits, and it runs in a few
+      # seconds. It consumes the sdks/js/dist build produced by the step above,
+      # so it must stay after it, and it runs from the repository root rather
+      # than this job's sdks/js default.
+      #
+      # Two things stop this printing green while checking nothing. The script
+      # owns the count: `assert_steps_run` fails the run when fewer suites
+      # executed than the mode promised, and an unrecognised flag exits 2 rather
+      # than falling through. This step owns the reach: `pipefail` keeps the
+      # script's exit status through the tee, and the banner grep proves the run
+      # ended on the --mock-only success path rather than some earlier exit 0
+      # (--static-only prints a different banner). The suite COUNT is
+      # deliberately not repeated here -- it is derived in the script, and a
+      # number hand-typed in this file would drift the moment a suite is added.
+      - name: Mock-gateway example suites (no key, no network)
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -o pipefail
+          bash tests/demo-e2e-record.test.sh --mock-only \
+            | tee "$RUNNER_TEMP/mock-only.log"
+          grep -q 'MOCK-GATEWAY SUITES PASSED' "$RUNNER_TEMP/mock-only.log"
+
   python:
     name: Python SDK (${{ matrix.python-version }})
     runs-on: ubuntu-latest
