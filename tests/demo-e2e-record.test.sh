@@ -3,14 +3,120 @@ set -euo pipefail
 
 # nRouter Multi-Language SDK End-to-End Demo Certification Test
 # Verifies all active SDKs against demo key configuration
+#
+# Step 0 is a CHEAP STATIC preflight and runs no SDK and no network. Run it
+# alone with `--static-only`; steps 1-5 make real, billed provider calls.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 cd "$ROOT_DIR"
 
+# Step 0. Static: examples/demo-e2e-sdk-example must track the in-repo JS SDK's
+# MAJOR. The example is the only runnable end-to-end npm consumer we ship, so a
+# major drift means it demonstrates an API the SDK no longer has — and it fails
+# at a customer's `npm start`, not here. A `file:` spec resolves through to the
+# linked package's own version, so the check is identical before and after the
+# npm publish that lets the spec go back to a plain `^N.x` range.
+static_preflight() {
+  echo ""
+  echo ">>> [0/5] Static: demo-e2e-sdk-example SDK major matches sdks/js..."
+  node <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+
+const EXAMPLE_DIR = 'examples/demo-e2e-sdk-example';
+const PKG_NAME = '@nrouter_ai/sdk';
+const read = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
+
+const fail = (msg) => {
+  console.error(`FAIL: ${msg}`);
+  process.exit(1);
+};
+
+const sdkVersion = read('sdks/js/package.json').version;
+const sdkMajor = Number(String(sdkVersion).split('.')[0]);
+if (!Number.isInteger(sdkMajor)) fail(`sdks/js/package.json version is unparseable: ${sdkVersion}`);
+
+const examplePkg = read(path.join(EXAMPLE_DIR, 'package.json'));
+const spec = (examplePkg.dependencies || {})[PKG_NAME];
+if (!spec) fail(`${EXAMPLE_DIR}/package.json declares no ${PKG_NAME} dependency`);
+
+// Resolve the spec to the major it will actually install.
+let exampleMajor;
+let how;
+if (spec.startsWith('file:')) {
+  const target = path.resolve(EXAMPLE_DIR, spec.slice('file:'.length));
+  const targetPkgPath = path.join(target, 'package.json');
+  if (!fs.existsSync(targetPkgPath)) fail(`${spec} points at ${target}, which has no package.json`);
+  const targetPkg = read(targetPkgPath);
+  if (targetPkg.name !== PKG_NAME) {
+    fail(`${spec} points at package "${targetPkg.name}", not ${PKG_NAME}`);
+  }
+  exampleMajor = Number(String(targetPkg.version).split('.')[0]);
+  how = `${spec} -> ${targetPkg.version}`;
+} else {
+  const m = /^[\^~>=<\s v]*(\d+)\./.exec(spec);
+  if (!m) fail(`cannot read a major version out of ${PKG_NAME} spec "${spec}"`);
+  exampleMajor = Number(m[1]);
+  how = spec;
+}
+
+if (exampleMajor !== sdkMajor) {
+  fail(
+    `${EXAMPLE_DIR} installs ${PKG_NAME} major ${exampleMajor} (${how}) but ` +
+      `sdks/js is ${sdkVersion} (major ${sdkMajor}). The shipped example would ` +
+      `demonstrate a different SDK than the one in this repo.`,
+  );
+}
+
+// The lockfile must agree with package.json, or `npm ci` installs the old major
+// while package.json reads correct.
+const lockPath = path.join(EXAMPLE_DIR, 'package-lock.json');
+if (!fs.existsSync(lockPath)) fail(`${lockPath} is missing; run \`npm install\` in ${EXAMPLE_DIR}`);
+const lockSpec = ((read(lockPath).packages || {})[''] || {}).dependencies || {};
+if (lockSpec[PKG_NAME] !== spec) {
+  fail(
+    `${lockPath} is stale: it records ${PKG_NAME} "${lockSpec[PKG_NAME]}" but ` +
+      `package.json says "${spec}". Run \`npm install\` in ${EXAMPLE_DIR}.`,
+  );
+}
+
+// Every env var index.mjs reads must be documented, or it is invisible to the
+// reader. The list is DERIVED from the source, never hardcoded here: a hardcoded
+// list stays green when index.mjs adds or renames a variable, which is exactly
+// the drift this is meant to catch.
+const env = fs.readFileSync(path.join(EXAMPLE_DIR, '.env.example'), 'utf8');
+const src = fs.readFileSync(path.join(EXAMPLE_DIR, 'index.mjs'), 'utf8');
+const referenced = [...new Set(src.match(/NROUTER_[A-Z0-9_]+/g) || [])].sort();
+if (referenced.length === 0) fail(`${EXAMPLE_DIR}/index.mjs references no NROUTER_* env var`);
+for (const name of referenced) {
+  if (!new RegExp(`^#?\\s*${name}=`, 'm').test(env)) {
+    fail(`${EXAMPLE_DIR}/index.mjs reads ${name} but .env.example does not document it`);
+  }
+}
+
+// This repo is PUBLIC and the run instructions say `cp .env.example .env`, so a
+// missing ignore rule turns the next `git add` into a disclosed API key.
+const ignore = fs.readFileSync(path.join(EXAMPLE_DIR, '.gitignore'), 'utf8');
+if (!/^\.env\s*$/m.test(ignore)) {
+  fail(`${EXAMPLE_DIR}/.gitignore does not ignore .env, and this repo is public`);
+}
+
+console.log(`      ok: example major ${exampleMajor} (${how}) == sdks/js ${sdkVersion}`);
+NODE
+}
+
 echo "======================================================================"
 echo "nRouter SDK Multi-Language Demo & End-to-End Test Suite"
 echo "======================================================================"
+
+static_preflight
+
+if [ "${1:-}" = "--static-only" ]; then
+  echo ""
+  echo "STATIC PREFLIGHT PASSED (--static-only: skipping the 5 billed E2E suites)"
+  exit 0
+fi
 
 # 1. Run Python Demo E2E
 echo ""
