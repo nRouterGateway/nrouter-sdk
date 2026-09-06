@@ -24,8 +24,10 @@ sdks/js/dist/
 # --- jvm: kotlin + android ---
 sdks/kotlin/build/
 sdks/kotlin/.gradle/
+sdks/kotlin/.kotlin/
 sdks/android/build/
 sdks/android/.gradle/
+sdks/android/.kotlin/
 # Machine-specific SDK location; never committed.
 sdks/android/local.properties
 # --- java ---
