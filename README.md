@@ -565,7 +565,8 @@ Every language under `examples/` holds standalone, runnable starter scripts and 
 ## Response Headers
 
 The gateway's public `x-nr-*` response headers, and what each one means. Most
-are conditional; `x-nr-request-id` is the one present on every response. The
+are conditional; `x-nr-request-id` and `x-nr-latency-ms` are the two present on
+every response. The
 authoritative set is
 [`spec/gateway-response-headers.json`](spec/gateway-response-headers.json),
 derived from the gateway and held against all ten SDKs by
@@ -575,6 +576,8 @@ not itself the register of which ones exist.
 | Header | Type | Description |
 |--------|------|-------------|
 | `x-nr-request-id` | string | Unique request ID (always present) |
+| `x-nr-latency-ms` | integer | Milliseconds from edge arrival until the response headers are ready; time-to-headers, not time to the final streamed event (always present) |
+| `x-nr-trace-id` | string | OpenTelemetry trace ID for this request; absent when no valid trace exists |
 | `x-nr-request-cost` | float | Exact cost in USD; absent when the model is unpriced |
 | `x-nr-cost-status` | string | `exact` or `unpriced` when cost metadata is available |
 | `x-nr-model` | string | Model that served the request |

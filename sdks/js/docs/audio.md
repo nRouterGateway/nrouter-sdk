@@ -173,8 +173,10 @@ A runnable version, with a per-call cost table and a session total that reports
 `TOTAL INCOMPLETE` the moment any leg comes back unpriced, is at
 [`examples/typescript/voice-agent/`](../../../examples/typescript/voice-agent/).
 
-Two things worth copying from it. Latency is the sum of the legs, so the STT
-model is a UX decision and not only a cost one. And a failed leg is not a failed
+Two things worth copying from it. Latency is the sum of the legs, and each leg
+reports its own on `meta.latencyMs` — milliseconds from the gateway's edge until
+that response's headers were ready, present on every response — so the STT model
+is a UX decision measurable per leg and not only a cost one. And a failed leg is not a failed
 turn: a transcription that throws leaves you holding audio you were billed for,
 which is worth logging with its request id rather than retrying blind — the
 retry is a second call and a second bill.
