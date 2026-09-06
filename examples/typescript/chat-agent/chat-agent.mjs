@@ -77,6 +77,26 @@ if (!API_KEY) {
   process.exit(1);
 }
 
+/**
+ * The master key is NEVER used for inference, and never for the spend lookup
+ * either. Refused HERE, before the first call, rather than left to the gateway:
+ * every call in this file is a billed inference request, so a master-shaped key
+ * reaching this point is a mistake worth stopping while it is still free.
+ *
+ * The lookup added below sends the SAME key, so one guard covers both. A key
+ * that could authenticate the join but not the call — or the reverse — would be
+ * a second credential in a file whose whole claim is that there is only one.
+ */
+const MASTER_KEY_SHAPES = [/^sk-nrouter-master/i, /^sk-master-/i, /^sk-admin-/i];
+if (MASTER_KEY_SHAPES.some((shape) => shape.test(API_KEY))) {
+  console.error(
+    'NROUTER_API_KEY looks like a MASTER key. This example makes billed inference calls and reads ' +
+      'a spend row back; both take your own sk-nrouter-… virtual key. Refusing before anything is ' +
+      'sent.',
+  );
+  process.exit(1);
+}
+
 const BASE_URL = env.NROUTER_BASE_URL || 'https://api.nrouter.ai/v1';
 
 // THE WIRE IS CHOSEN BY THE MODEL ID, and `client.nr.chat()` does the choosing.
@@ -91,6 +111,18 @@ const CHAT_MODEL = env.NROUTER_CHAT_MODEL || 'gpt-4.1-mini';
 const RESPONSES_MODEL = env.NROUTER_RESPONSES_MODEL || 'gpt-4.1-mini';
 
 const MAX_TOKENS = positiveInt(env.NROUTER_MAX_TOKENS, 120, 'NROUTER_MAX_TOKENS');
+
+/**
+ * How many completions to ask for on the Messages call.
+ *
+ * Above 1 this is REFUSED BEFORE THE SOCKET OPENS: the Anthropic Messages wire
+ * returns exactly one completion, so the SDK raises a `configuration` error
+ * rather than dropping the field and reporting success for a request that asked
+ * for more and was billed. That refusal is the fourth failure class this example
+ * accounts for — see `sentToGateway` below — and it is the one that costs
+ * nothing, which is exactly why it must not be logged as if it might have.
+ */
+const COMPLETIONS_N = positiveInt(env.NROUTER_COMPLETIONS_N, 1, 'NROUTER_COMPLETIONS_N');
 const TURNS = positiveInt(env.NROUTER_TURNS, 2, 'NROUTER_TURNS');
 
 /**
@@ -126,6 +158,28 @@ if (RECOMPUTE_STREAM_COST && RATE_IN_PER_MTOK === 0 && RATE_OUT_PER_MTOK === 0) 
 // it. Resolving against the script rather than the shell's cwd keeps a run from
 // scattering logs wherever it happened to be started.
 const LOG_PATH = path.resolve(HERE, env.NROUTER_CHAT_LOG || './chat-agent.log.jsonl');
+
+/**
+ * OPTIONAL. The DASHBOARD host — a different host from the gateway, and this is
+ * the one place the two are not interchangeable.
+ *
+ * Inference goes to `NROUTER_BASE_URL` (`api.nrouter.ai/v1`). The settled spend
+ * row is read from the dashboard app (`nrouter.ai`), so deriving one from the
+ * other is wrong in both directions. Unset by default: without it the session
+ * still runs and simply reports that the join was skipped.
+ *
+ * It is the ONLY way to see what a STREAMED call cost. That response carries no
+ * price and never will, so the spend row is not a nicety here — it is the
+ * figure itself.
+ */
+const DASHBOARD_URL = (env.NROUTER_DASHBOARD_URL || '').replace(/\/+$/, '');
+
+// A settled row can take a moment to appear after a stream closes, so a single
+// `null` is not final — poll `total` a few times before believing it. Bounded,
+// because the route is rate limited to 60 lookups per minute per key and an
+// unbounded poll on a dozen request ids is how an example becomes a 429.
+const SETTLED_POLL_ATTEMPTS = positiveInt(env.NROUTER_SETTLED_POLL_ATTEMPTS, 3, 'NROUTER_SETTLED_POLL_ATTEMPTS');
+const SETTLED_POLL_MS = positiveInt(env.NROUTER_SETTLED_POLL_MS, 500, 'NROUTER_SETTLED_POLL_MS');
 
 const SYSTEM_PROMPT =
   env.NROUTER_SYSTEM_PROMPT ||
@@ -337,6 +391,11 @@ async function metered(step, turn, label, wire, call, options = {}) {
       gatewayMs: meta.latencyMs ?? null,
       latencyMs,
       ok: true,
+      // A response came back, so the request reached the gateway and is billed
+      // per its own cost fields above. See the error path for the three-valued
+      // contract this field carries.
+      sentToGateway: true,
+      billed: true,
     });
 
     console.log(
@@ -381,6 +440,29 @@ async function metered(step, turn, label, wire, call, options = {}) {
     return result;
   } catch (error) {
     const meta = error instanceof nRouterError ? error.meta : undefined;
+
+    // THREE-VALUED, and the third value is the honest one.
+    //
+    //   false  the SDK refused BEFORE anything left this process — a
+    //          `configuration` error. Nothing was sent, so nothing can have
+    //          been billed, and saying it "may have been" sends an operator to
+    //          check an invoice line that cannot exist.
+    //   true   the gateway answered. It reached us, so it is billed per its own
+    //          rules whatever the status was.
+    //   null   we got NO answer: a transport failure or a timeout. The request
+    //          may well have arrived and been billed, and this is the state that
+    //          must never be flattened into either of the other two.
+    //
+    // Keyed on the ERROR KIND, never on a missing request id: a gateway that
+    // answered without one still charged for the call, and reading absence as
+    // "never sent" would write that charge off.
+    const sentToGateway =
+      error instanceof nRouterError && error.kind === 'configuration'
+        ? false
+        : meta?.requestId
+          ? true
+          : null;
+
     await append({
       ts: new Date().toISOString(),
       step,
@@ -406,6 +488,9 @@ async function metered(step, turn, label, wire, call, options = {}) {
       gatewayMs: meta?.latencyMs ?? null,
       latencyMs: Date.now() - started,
       ok: false,
+      sentToGateway,
+      // Anything that was not refused locally may have cost money.
+      billed: sentToGateway !== false,
       error:
         error instanceof nRouterError
           ? `${error.kind}: ${error.message}`
@@ -415,12 +500,162 @@ async function metered(step, turn, label, wire, call, options = {}) {
   }
 }
 
+// --------------------------------------------------------------------------
+// The settled join — the only way to see what a streamed call cost
+// --------------------------------------------------------------------------
+
+/**
+ * One request id's settled spend row, polled until it lands or the budget runs
+ * out.
+ *
+ * `{ "log": null, "total": 0 }` with HTTP 200 is the answer for BOTH a request
+ * id that belongs to another organization and one that never existed — the
+ * route is scoped to the organization on your key and deliberately reveals
+ * nothing about ids outside it. It is also, briefly, the answer for a row that
+ * has not landed yet. None of those three is `$0`.
+ */
+async function lookupSettled(requestId) {
+  const url = `${DASHBOARD_URL}/api/nrouter-proxy/spend/by-key?request_id=${encodeURIComponent(requestId)}`;
+  for (let attempt = 1; attempt <= SETTLED_POLL_ATTEMPTS; attempt += 1) {
+    const res = await fetch(url, {
+      // The SAME virtual key that made the call. There is no second credential.
+      headers: { authorization: `Bearer ${API_KEY}`, accept: 'application/json' },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (res.status === 401) {
+      throw new Error(
+        'the spend lookup refused this key (401). It takes the same sk-nrouter-… virtual key the ' +
+          'calls were made with — a master-shaped key is refused by design.',
+      );
+    }
+    if (res.status === 429) {
+      throw new Error(
+        'the spend lookup is rate limited to 60 lookups per minute per key, and this run exceeded ' +
+          'it. Lower NROUTER_TURNS or NROUTER_SETTLED_POLL_ATTEMPTS.',
+      );
+    }
+    if (!res.ok) throw new Error(`the spend lookup answered HTTP ${res.status}`);
+    const json = await res.json();
+    if (json && json.total > 0 && json.log) return json.log;
+    if (attempt < SETTLED_POLL_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, SETTLED_POLL_MS));
+    }
+  }
+  return null;
+}
+
+/**
+ * The calls that have a spend row to read back — ONE predicate, used by both the
+ * join and the summary.
+ *
+ * Two copies of "which calls are billed?" drift, and they drift in the direction
+ * where the summary counts a call the join never looked up, then reports the
+ * missing total without being able to say which row is missing.
+ *
+ * The free `count_tokens` calls are excluded: they write no spend row at all, so
+ * looking them up would spend rate-limit budget to learn nothing and a `null`
+ * from one would look like a missing row rather than a route that never writes
+ * one. An entry with no request id is excluded too — there is nothing to join
+ * on — which is why the exclusion lives here rather than being re-derived.
+ */
+function hasSpendRow(entry) {
+  return entry.ok === true && typeof entry.requestId === 'string' && entry.requestId.length > 0 && (entry.streamed || entry.priced);
+}
+
+/**
+ * Read the settled figure back for every call that has a spend row, and write it
+ * onto the log.
+ */
+async function joinSettledRows() {
+  const billed = calls.filter(hasSpendRow);
+  console.log(`\nSETTLED JOIN — ${billed.length} lookup(s) against ${DASHBOARD_URL}`);
+
+  for (const entry of billed) {
+    const row = await lookupSettled(entry.requestId);
+
+    if (row === null) {
+      // NOT $0, and the message says all three reasons out loud because the
+      // operator reading it cannot tell them apart from here either.
+      entry.settledFound = false;
+      entry.settledUsd = null;
+      entry.settledCostStatus = null;
+      entry.settledBasisKnown = false;
+      console.log(
+        `[settled] ${entry.requestId} not yet settled / not visible — a row that has not landed, ` +
+          'an id from another organization and an id that never existed all answer {"log":null}. ' +
+          'NOT $0.',
+      );
+      continue;
+    }
+
+    // `spend` is null when the gateway could not price the request; the request
+    // was still settled against the balance at the amount reserved for it.
+    // `?? null`, never `?? 0`.
+    const spend = typeof row.spend === 'number' ? row.spend : null;
+    entry.settledFound = true;
+    entry.settledUsd = spend;
+    entry.settledCostStatus = row.cost_status ?? null;
+    // FALSE, deliberately and always. The row says what it settled at; it does
+    // not say how that figure was derived, and this client cannot verify it.
+    // A field that claimed otherwise would turn "we read a number" into "we
+    // checked the number", which is the claim nobody here is entitled to make.
+    entry.settledBasisKnown = false;
+
+    console.log(
+      `[settled] ${entry.requestId} ${money(spend)} ${row.cost_status ?? '(no cost status)'} ` +
+        `stream=${entry.streamed} tokens=${tokenPair(row.prompt_tokens ?? null, row.completion_tokens ?? null)}`,
+    );
+
+    if (spend === null) {
+      console.warn(
+        '      ⚠ the spend row carries no amount (cost_status=' +
+          `${row.cost_status ?? 'absent'}). Unknown, not free — it settled at the reserved amount.`,
+      );
+    }
+
+    // THE STREAM'S DELTA. This is the comparison the whole join exists for: the
+    // response could not price the call, we estimated it from the frames, and
+    // this is the first time the two numbers can be put side by side.
+    if (entry.streamed && spend !== null && typeof entry.recomputedUsd === 'number') {
+      const delta = spend - entry.recomputedUsd;
+      const pct = entry.recomputedUsd === 0 ? null : (delta / entry.recomputedUsd) * 100;
+      console.log(
+        `      ↳ delta: settled ${money(spend)} − recomputed ${money(entry.recomputedUsd)} = ` +
+          `${delta >= 0 ? '+' : '−'}$${Math.abs(delta).toFixed(6)}` +
+          `${pct === null ? '' : ` (${delta >= 0 ? '+' : '−'}${Math.abs(pct).toFixed(1)}%)`}. ` +
+          'The settled figure is the invoice; the recompute was only ever a check on it.',
+      );
+    }
+
+    // A buffered call reported a price in its own headers AND has a spend row.
+    // They must agree, and a disagreement is worth saying out loud rather than
+    // silently preferring one.
+    if (!entry.streamed && typeof entry.cost === 'number' && spend !== null && Math.abs(spend - entry.cost) > 1e-9) {
+      console.warn(
+        `      ⚠ the response header said ${money(entry.cost)} and the spend row says ${money(spend)}. ` +
+          'The spend row is authoritative; report the discrepancy.',
+      );
+    }
+  }
+
+  // The log is APPEND-ONLY during the session and rewritten ONCE here, because
+  // the settled figure does not exist when a call record is written. A crash
+  // before this point therefore still leaves every per-call record on disk.
+  await writeFile(LOG_PATH, calls.map((entry) => `${JSON.stringify(entry)}\n`).join(''));
+}
+
 function printSummary() {
   // FIVE buckets, and the separations are the point. A FAILED call is not a
   // call "served without a price". A STREAMED call is not an unpriceable model.
   // A FREE call is not a missing measurement. Collapsing any pair of them tells
   // the operator something false about where to look.
-  const failed = calls.filter((entry) => !entry.ok);
+  // A LOCAL REFUSAL IS ITS OWN CLASS, and the cheapest one. The SDK refused
+  // before anything left this process, so nothing was sent and nothing can have
+  // been billed — telling an operator it "may have been" sends them to check an
+  // invoice line that cannot exist. Keyed on `sentToGateway === false`, never on
+  // a missing request id.
+  const refusedLocally = calls.filter((entry) => !entry.ok && entry.sentToGateway === false);
+  const failed = calls.filter((entry) => !entry.ok && entry.sentToGateway !== false);
   const served = calls.filter((entry) => entry.ok);
   const streamed = served.filter((entry) => entry.streamed);
   const free = served.filter((entry) => !entry.streamed && entry.free);
@@ -437,9 +672,33 @@ function printSummary() {
   console.log(`  freeCalls        ${free.length}`);
   console.log(`  unpricedCalls    ${unpriced.length}`);
   console.log(`  failedCalls      ${failed.length}`);
+  console.log(`  localRefusals    ${refusedLocally.length}`);
   console.log(`  cacheHits        ${cacheHits.length}`);
   console.log(`  cacheMisses      ${cacheMisses.length}`);
   console.log(`  pricedTotalUsd   ${pricedTotalUsd.toFixed(8)}`);
+
+  // THE SETTLED TOTAL — read back from the spend rows, and the only figure here
+  // that includes the streamed calls. Printed only when EVERY billed call
+  // resolved to an amount: a partial sum labelled as a total is the same defect
+  // as summing an unpriced call at zero, one level up.
+  const billed = calls.filter(hasSpendRow);
+  const settled = billed.filter((entry) => typeof entry.settledUsd === 'number');
+  if (!DASHBOARD_URL) {
+    console.log(
+      '  settledTotalUsd  —   <- set NROUTER_DASHBOARD_URL to read the settled spend rows back; ' +
+        'without it a streamed call\'s cost is not visible from this client at all',
+    );
+  } else if (settled.length === billed.length && billed.length > 0) {
+    const settledTotal = settled.reduce((sum, entry) => sum + entry.settledUsd, 0);
+    console.log(`  settledTotalUsd  ${settledTotal.toFixed(8)}   <- from the spend rows, INCLUDING the streamed calls`);
+  } else {
+    const pending = billed.filter((entry) => entry.settledFound === false).length;
+    const unpricedRow = billed.filter((entry) => entry.settledFound === true && entry.settledUsd === null).length;
+    console.log(
+      `  settledTotalUsd  —   <- ${pending} row(s) not yet settled or not visible, ` +
+        `${unpricedRow} settled without an amount. Neither is $0, so there is no total to print.`,
+    );
+  }
 
   // A SEPARATE LINE, never folded into the figure above. One is what the
   // gateway settled and reported; the other is arithmetic this process did from
@@ -467,7 +726,8 @@ function printSummary() {
       // "may": the gateway releases what it reserved on a routing or upstream
       // failure, but a call refused after the provider ran was still billed
       // upstream. The log rows say which calls, and the request ids say where
-      // to check.
+      // to check. `refusedLocally` is deliberately NOT in this sentence — those
+      // never reached the gateway.
       reasons.push(`${failed.length} call(s) FAILED and may still have been billed`);
     }
     console.log(
@@ -479,6 +739,14 @@ function printSummary() {
       '  TOTAL COMPLETE — every BILLED call in this session was priced exactly. ' +
         `${streamed.length} streamed call(s) settle server-side and ${free.length} free call(s) ` +
         'cost nothing; neither is missing from the total.',
+    );
+  }
+
+  if (refusedLocally.length > 0) {
+    console.log(
+      `\n  ${refusedLocally.length} call(s) were REFUSED LOCALLY — the SDK rejected them before ` +
+        'anything was sent, so they cost nothing, carry no request id and have no spend row. They ' +
+        'are NOT part of the incomplete total above and must not be reported as possibly billed.',
     );
   }
 
@@ -643,6 +911,8 @@ async function main() {
           systemPrompt: SYSTEM_PROMPT,
           messages: history,
           maxTokens: MAX_TOKENS,
+          // Only when asked for. `n > 1` here is refused locally, at no cost.
+          ...(COMPLETIONS_N > 1 ? { extra: { n: COMPLETIONS_N } } : {}),
         }),
     );
     console.log(`      messages : ${client.nr.text(viaMessages).trim() || '(no text in the reply)'}`);
@@ -763,6 +1033,20 @@ try {
   }
   process.exitCode = 1;
 } finally {
+  // The join runs BEFORE the summary, so `settledTotalUsd` can use it — and
+  // inside its own try/catch, because a lookup that fails must never cost the
+  // operator the itemisation of what they already spent. It runs after a
+  // REFUSAL too: the calls that succeeded before it were still billed, and
+  // their rows are exactly the ones worth reading back.
+  if (DASHBOARD_URL) {
+    try {
+      await joinSettledRows();
+    } catch (error) {
+      console.error(`\n✗ the settled join failed: ${error?.message ?? error}`);
+      console.error('  The session totals below are unaffected; only the spend-row read-back is missing.');
+    }
+  }
+
   // ALWAYS. Money was spent before the failure too, and a run that dies without
   // reporting what it already billed is the worst possible outcome for the
   // person reading this output.

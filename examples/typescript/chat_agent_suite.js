@@ -85,6 +85,12 @@ const RATE_OUT_PER_MTOK = 1.6;
 const STREAM_INPUT_TOKENS = 55;
 const STREAM_OUTPUT_TOKENS = 25;
 
+// What the gateway SETTLED a streamed call at, server-side. Deliberately NOT
+// equal to the client-side recompute (55/1e6*0.4 + 25/1e6*1.6 = $0.000062):
+// a settled figure that matched the estimate exactly could not tell a real
+// read-back from an example that just echoed its own arithmetic back.
+const SETTLED_STREAM_USD = 0.000071;
+
 // A shaped placeholder, never a key: the mock only checks the `sk-nrouter-` prefix.
 const DEMO_KEY = `sk-nrouter-${'chatagentsuite'.padEnd(38, '0')}`;
 
@@ -116,6 +122,7 @@ function startMock(options = {}) {
     unpriceResponses = false,
     refuseChatWith429 = false,
     cacheDisabled = false,
+    dropChatConnection = false,
     omitStreamUsage = false,
     omitStreamLatency = false,
     streamCarriesCost = false,
@@ -124,6 +131,11 @@ function startMock(options = {}) {
   let requests = 0;
   let expectedPricedTotal = 0;
   const seenChatBodies = new Set();
+  // requestId -> the spend row the DASHBOARD mock will serve for it. The
+  // gateway records what it settled; the dashboard hands it back. That split is
+  // the point: a streamed call's figure exists only here, never in the
+  // response the client saw.
+  const ledger = new Map();
   const counts = {
     messages: 0,
     chatCompletionsBuffered: 0,
@@ -176,6 +188,15 @@ function startMock(options = {}) {
           'x-nr-output-tokens': '25',
           'x-nr-total-tokens': '80',
         });
+        ledger.set(requestId, {
+          call_type: 'messages',
+          model: 'mock-claude-1',
+          spend: COST.messages,
+          cost_status: 'exact',
+          prompt_tokens: 55,
+          completion_tokens: 25,
+          stream: false,
+        });
         res.end(
           JSON.stringify({
             id: `msg-chat-${counts.messages}`,
@@ -222,6 +243,17 @@ function startMock(options = {}) {
           headers['x-nr-request-cost'] = COST.responses.toFixed(6);
           expectedPricedTotal += COST.responses;
         }
+        ledger.set(requestId, {
+          call_type: 'responses',
+          model: 'mock-responses-1',
+          // NULL when unpriced, never 0 — the spend row and the response header
+          // agree about that, which is the invariant under test.
+          spend: unpriceResponses ? null : COST.responses,
+          cost_status: unpriceResponses ? 'unpriced' : 'exact',
+          prompt_tokens: 40,
+          completion_tokens: 18,
+          stream: false,
+        });
         res.writeHead(200, headers);
         res.end(
           JSON.stringify({
@@ -261,6 +293,17 @@ function startMock(options = {}) {
           if (!cacheDisabled) headers['x-nr-response-cache'] = 'bypass';
           if (streamCarriesCost) headers['x-nr-request-cost'] = COST.stream.toFixed(6);
           if (!omitStreamLatency) headers['x-nr-latency-ms'] = String(GATEWAY_MS.stream);
+          // THE FIGURE THE RESPONSE NEVER CARRIES. It exists only on the spend
+          // row, which is why the join is the only way a client ever sees it.
+          ledger.set(requestId, {
+            call_type: 'chat_completions',
+            model: 'mock-chat-1',
+            spend: SETTLED_STREAM_USD,
+            cost_status: 'exact',
+            prompt_tokens: STREAM_INPUT_TOKENS,
+            completion_tokens: STREAM_OUTPUT_TOKENS,
+            stream: true,
+          });
           res.writeHead(200, headers);
 
           const frames = [
@@ -285,6 +328,16 @@ function startMock(options = {}) {
             res.write(`data: ${JSON.stringify(frame)}\n\n`);
           }
           res.end('data: [DONE]\n\n');
+          return;
+        }
+
+        // NO ANSWER AT ALL. The socket dies with the request already delivered,
+        // which is the shape of a transport failure or a timeout: the gateway
+        // may well have received it and billed it, and the client cannot know.
+        // This is the ONLY way to produce `sentToGateway: null`.
+        if (dropChatConnection && counts.chatCompletionsBuffered === 0) {
+          counts.chatCompletionsBuffered += 1;
+          req.socket.destroy();
           return;
         }
 
@@ -337,6 +390,16 @@ function startMock(options = {}) {
           if (repeated) counts.cacheHits += 1;
           else counts.cacheMisses += 1;
         }
+        ledger.set(requestId, {
+          call_type: 'chat_completions',
+          model: 'mock-chat-1',
+          spend: cost,
+          cost_status: 'exact',
+          prompt_tokens: 55,
+          completion_tokens: 25,
+          stream: false,
+          cache_hit: repeated,
+        });
         res.writeHead(200, headers);
         res.end(
           JSON.stringify({
@@ -359,7 +422,97 @@ function startMock(options = {}) {
     server,
     counts: () => ({ ...counts, requests }),
     expectedPricedTotal: () => expectedPricedTotal,
+    ledger,
   };
+}
+
+/**
+ * The DASHBOARD app, on its OWN port.
+ *
+ * A second server, not a second path on the gateway mock, because the example
+ * must read `NROUTER_DASHBOARD_URL` and not derive the host from
+ * `NROUTER_BASE_URL`. Deriving one from the other is wrong in both directions
+ * in production, and a single-server fixture could not tell the two apart.
+ *
+ *   pendingStreams          every streamed id answers `{"log":null,"total":0}`,
+ *                           the shape a row that has not landed yet returns —
+ *                           and the same shape a foreign or unknown id returns.
+ *   divergeBufferedSettled  the spend row for a buffered call disagrees with
+ *                           the cost its own response header reported.
+ */
+function startDashboardMock(ledger, { pendingStreams = false, divergeBufferedSettled = false } = {}) {
+  const lookups = [];
+
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url || '/', 'http://dashboard.invalid');
+    const auth = req.headers['authorization'] || '';
+    const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+
+    // A master-shaped key is refused here exactly as the real route refuses it.
+    // The example must never get this far with one — it refuses before the
+    // first call — but a fixture that ACCEPTED one could not prove that.
+    if (!bearer.startsWith('sk-nrouter-') || /^sk-nrouter-master|^sk-master-|^sk-admin-/i.test(bearer)) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'invalid_api_key' }));
+      return;
+    }
+
+    if (url.pathname !== '/api/nrouter-proxy/spend/by-key') {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: `no dashboard route for ${url.pathname}` } }));
+      return;
+    }
+
+    const requestId = url.searchParams.get('request_id') || '';
+    lookups.push(requestId);
+    const row = ledger.get(requestId);
+
+    // A foreign id, an unknown id and a row that has not landed all answer the
+    // SAME thing with HTTP 200. The route reveals nothing about ids outside the
+    // caller's organization.
+    if (!row || (pendingStreams && row.stream)) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ log: null, total: 0 }));
+      return;
+    }
+
+    const spend =
+      divergeBufferedSettled && !row.stream && typeof row.spend === 'number' ? row.spend + 0.000005 : row.spend;
+
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        log: {
+          request_id: requestId,
+          call_type: row.call_type,
+          model: row.model,
+          model_group: row.model,
+          spend,
+          spend_unpriced: spend === null,
+          cost_status: row.cost_status,
+          prompt_tokens: row.prompt_tokens,
+          completion_tokens: row.completion_tokens,
+          total_tokens: row.prompt_tokens + row.completion_tokens,
+          startTime: '2026-09-06T00:00:00.000Z',
+          endTime: '2026-09-06T00:00:01.000Z',
+          request_duration_ms: 1000,
+          completionStartTime: '2026-09-06T00:00:00.300Z',
+          cache_hit: row.cache_hit ?? false,
+          status: 'success',
+          metadata: {
+            nrouter_units: 'tokens',
+            nrouter_cost: spend,
+            nrouter_modality: 'text',
+            nrouter_stream: row.stream,
+            tags: [],
+          },
+        },
+        total: 1,
+      }),
+    );
+  });
+
+  return { server, lookups: () => [...lookups] };
 }
 
 function listen(server) {
@@ -374,7 +527,7 @@ function listen(server) {
  * child on its first request and the suite reports a hang as a failure of the
  * example.
  */
-async function runExample({ port, turns, workDir, extraEnv = {} }) {
+async function runExample({ port, turns, workDir, dashboardPort = null, extraEnv = {} }) {
   const logPath = path.join(workDir, 'chat-agent.log.jsonl');
 
   // Start from the ambient environment MINUS every NROUTER_* variable. A
@@ -395,6 +548,15 @@ async function runExample({ port, turns, workDir, extraEnv = {} }) {
     NROUTER_TURNS: String(turns),
     NROUTER_CHAT_LOG: logPath,
   });
+  if (dashboardPort !== null) {
+    // A DIFFERENT port from the gateway. If the example derived this host from
+    // NROUTER_BASE_URL instead of reading its own variable, every lookup would
+    // 404 against the gateway mock and this suite would say so.
+    env.NROUTER_DASHBOARD_URL = `http://127.0.0.1:${dashboardPort}`;
+    // The real route is rate limited to 60 lookups/minute per key; the poll
+    // delay is shortened here so the pending case does not add seconds.
+    env.NROUTER_SETTLED_POLL_MS = '10';
+  }
   Object.assign(env, extraEnv);
 
   const child = await new Promise((resolve, reject) => {
@@ -477,7 +639,7 @@ async function main() {
 
   try {
     // ---------------------------------------------------------------- run 1
-    console.log('\n[1/6] Fully priced session, cache miss then hit (2 turns)...');
+    console.log('\n[1/11] Fully priced session, cache miss then hit (2 turns)...');
     const green = startMock();
     const greenPort = await listen(green.server);
     const workA = path.join(workRoot, 'green');
@@ -641,6 +803,27 @@ async function main() {
       !a.child.stdout.includes('TOTAL INCOMPLETE'),
       'a session whose only unpriced calls are streamed-by-design must not be incomplete',
     );
+    // NROUTER_DASHBOARD_URL is unset in this run, so the join must be SKIPPED
+    // and said to be skipped — not silently absent, which reads as "there was
+    // nothing to settle".
+    assert.ok(!/SETTLED JOIN/.test(a.child.stdout), 'no join may run without a dashboard URL');
+    assert.ok(
+      /settledTotalUsd {2}—.*set NROUTER_DASHBOARD_URL/.test(a.child.stdout),
+      'a skipped join must say so, and say what would enable it',
+    );
+    for (const rec of a.records) {
+      // ALL FOUR, not just the amount: a bug that wrote `settledFound` or
+      // `settledBasisKnown` without `settledUsd` would slip past a one-field
+      // check while still claiming a lookup had happened.
+      for (const field of ['settledFound', 'settledUsd', 'settledCostStatus', 'settledBasisKnown']) {
+        // Absent, not null: a `null` here could not be told apart from a lookup
+        // that ran and found nothing.
+        assert.ok(!(field in rec), `a skipped join must write no ${field}: ${JSON.stringify(rec)}`);
+      }
+      // Every record carries the send verdict, whether or not the join ran.
+      assert.equal(rec.sentToGateway, true, `a served call reached the gateway: ${JSON.stringify(rec)}`);
+      assert.equal(rec.billed, true);
+    }
 
     // --- the wires, proven by the SERVER rather than by the record ---------
     // The record's `wire` is the example's CLAIM. These counters are the mock's
@@ -675,7 +858,7 @@ async function main() {
     // One BUFFERED call comes back unpriced. The session still succeeds —
     // unpriced is a served request, not an error — but the total is INCOMPLETE
     // and must say so rather than silently under-reporting by one call.
-    console.log('\n[2/6] One unpriced buffered call (1 turn)...');
+    console.log('\n[2/11] One unpriced buffered call (1 turn)...');
     const mixed = startMock({ unpriceResponses: true });
     const mixedPort = await listen(mixed.server);
     const workB = path.join(workRoot, 'unpriced');
@@ -731,7 +914,7 @@ async function main() {
     // are easy to lose: the process must exit NON-ZERO so a scripted caller
     // notices, it must print WHICH limit measured it, and it must still report
     // the money it had already spent before the refusal.
-    console.log('\n[3/6] A rate-limited chat call mid-session (1 turn)...');
+    console.log('\n[3/11] A rate-limited chat call mid-session (1 turn)...');
     const limited = startMock({ refuseChatWith429: true });
     const limitedPort = await listen(limited.server);
     const workC = path.join(workRoot, 'limited');
@@ -758,6 +941,10 @@ async function main() {
       'a failed call must log why',
     );
     assert.ok(failedRecord.requestId, 'a refusal still carries a request id to join on');
+    // The gateway ANSWERED, so this one reached it and is billed per its own
+    // rules — the opposite of the local refusal in run 10.
+    assert.equal(failedRecord.sentToGateway, true);
+    assert.equal(failedRecord.billed, true);
 
     // Failure is its OWN bucket: a refused call was not "served without a
     // price", and telling the operator it was sends them to the wrong page.
@@ -782,7 +969,7 @@ async function main() {
     // A deployment that never opted into response caching, and a provider that
     // sent no usage frame. NULL is not `miss` and NULL is not `0`: three
     // absences that a careless reader turns into three measurements.
-    console.log('\n[4/6] Caching off, no stream usage frame, no stream latency (1 turn)...');
+    console.log('\n[4/11] Caching off, no stream usage frame, no stream latency (1 turn)...');
     const bare = startMock({ cacheDisabled: true, omitStreamUsage: true, omitStreamLatency: true });
     const barePort = await listen(bare.server);
     const workD = path.join(workRoot, 'bare');
@@ -841,7 +1028,7 @@ async function main() {
     // A stream whose HEADERS carry an exact cost. Today's gateway cannot do
     // this — which is exactly why it is worth testing: the exclusion must hold
     // by construction, not because the fixture happened to omit the header.
-    console.log('\n[5/6] A stream carrying an exact cost header (1 turn)...');
+    console.log('\n[5/11] A stream carrying an exact cost header (1 turn)...');
     const oddStream = startMock({ streamCarriesCost: true });
     const oddPort = await listen(oddStream.server);
     const workE = path.join(workRoot, 'stream-cost');
@@ -886,7 +1073,7 @@ async function main() {
     // can only ever print `$0.000000` under a `RECOMPUTED` label, and a
     // labelled zero is read as a price. It must refuse before it spends
     // anything, which is why this run needs no mock.
-    console.log('\n[6/6] Both client rates at 0 must be refused, not printed as $0...');
+    console.log('\n[6/11] Both client rates at 0 must be refused, not printed as $0...');
     const refusal = await new Promise((resolve, reject) => {
       const env = {};
       for (const [key, value] of Object.entries(process.env)) {
@@ -930,6 +1117,303 @@ async function main() {
       'nothing may be labelled RECOMPUTED when the rates cannot produce a real figure',
     );
     console.log('      exit=1 before any call, with the reason named');
+
+    // ---------------------------------------------------------------- run 7
+    // THE SETTLED JOIN. The streamed call's cost exists only on the spend row,
+    // and this is the run that proves the example can actually see it.
+    console.log('\n[7/11] The settled join — every billed call resolves, streams included (1 turn)...');
+    const joinGw = startMock();
+    const joinGwPort = await listen(joinGw.server);
+    const joinDash = startDashboardMock(joinGw.ledger);
+    const joinDashPort = await listen(joinDash.server);
+    const workF = path.join(workRoot, 'join');
+    fs.mkdirSync(workF);
+    const f = await runExample({
+      port: joinGwPort,
+      turns: 1,
+      workDir: workF,
+      dashboardPort: joinDashPort,
+      extraEnv: {
+        NROUTER_STREAM_RATE_IN_PER_MTOK: String(RATE_IN_PER_MTOK),
+        NROUTER_STREAM_RATE_OUT_PER_MTOK: String(RATE_OUT_PER_MTOK),
+      },
+    });
+    joinGw.server.close();
+    joinDash.server.close();
+
+    if (f.child.status !== 0) {
+      fail('run 7', f.child);
+      throw new Error(`example exited ${f.child.status}, expected 0`);
+    }
+
+    // Only the BILLED calls are looked up. The free count_tokens writes no spend
+    // row, so looking it up would spend rate-limit budget to learn nothing and
+    // its `null` would look like a missing row rather than a route that never
+    // writes one.
+    const joinBilled = f.records.filter((r) => r.streamed || r.priced);
+    assert.equal(joinBilled.length, 5, '4 priced (messages, chat, responses, the cache repeat) + 1 streamed');
+    const joinLookups = joinDash.lookups();
+    assert.equal(joinLookups.length, joinBilled.length, 'one lookup per billed call, and none for the free one');
+    const freeRecord = f.records.find((r) => r.step === 'count');
+    assert.ok(
+      !joinLookups.includes(freeRecord.requestId),
+      'a free call writes no spend row and must not be looked up',
+    );
+
+    for (const rec of joinBilled) {
+      assert.equal(rec.settledFound, true, `no spend row read back: ${JSON.stringify(rec)}`);
+      assert.equal(typeof rec.settledUsd, 'number');
+      assert.equal(rec.settledCostStatus, 'exact');
+      // ALWAYS false. The row says what it settled at; it does not say how that
+      // figure was derived, and this client cannot verify it.
+      assert.equal(rec.settledBasisKnown, false, 'this client cannot vouch for the basis of a settled figure');
+    }
+
+    const joinStream = f.records.find((r) => r.step === 'stream');
+    // THE WHOLE POINT: the response carried no price, and the spend row does.
+    assert.equal(joinStream.cost, null, 'the streamed RESPONSE still carries no price');
+    assert.equal(joinStream.costStatus, 'unpriced');
+    assert.equal(joinStream.settledUsd, SETTLED_STREAM_USD, 'the settled figure came from the spend row');
+    assert.ok(
+      Math.abs(joinStream.settledUsd - joinStream.recomputedUsd) > 1e-9,
+      'the fixture cannot tell a real read-back from an echoed estimate',
+    );
+    assert.ok(
+      /↳ delta: settled .* − recomputed .* = /.test(f.child.stdout),
+      `the stream's settled-vs-recomputed delta was not printed:\n${f.child.stdout}`,
+    );
+    assert.ok(
+      /\[settled\] .* stream=true /.test(f.child.stdout),
+      'the per-lookup line must say which calls were streams',
+    );
+
+    // The settled total INCLUDES the streamed call, which is the one figure
+    // `pricedTotalUsd` can never contain.
+    const settledTotal = summaryNumber(f.child.stdout, 'settledTotalUsd');
+    const expectedSettled =
+      COST.messages + COST.chat + COST.responses + COST.cacheHit + SETTLED_STREAM_USD;
+    assert.equal(settledTotal.toFixed(8), expectedSettled.toFixed(8));
+    const joinPriced = summaryNumber(f.child.stdout, 'pricedTotalUsd');
+    assert.ok(
+      settledTotal > joinPriced,
+      'the settled total must exceed the priced total by exactly the streamed call',
+    );
+    assert.ok(Math.abs(settledTotal - joinPriced - SETTLED_STREAM_USD) < 1e-12);
+    // No disagreement between a buffered response header and its spend row here.
+    assert.ok(!/spend row says/.test(f.child.stdout));
+
+    console.log(
+      `      lookups=${joinLookups.length} settledTotalUsd=${settledTotal.toFixed(8)} ` +
+        `(priced ${joinPriced.toFixed(8)} + stream ${SETTLED_STREAM_USD.toFixed(6)})`,
+    );
+
+    // ---------------------------------------------------------------- run 8
+    // The row has not landed yet. `{"log":null,"total":0}` is ALSO what a
+    // foreign id and an unknown id return, so it can never be read as $0.
+    console.log('\n[8/11] A stream whose spend row has not landed — pending, never $0 (1 turn)...');
+    const pendGw = startMock();
+    const pendGwPort = await listen(pendGw.server);
+    const pendDash = startDashboardMock(pendGw.ledger, {
+      pendingStreams: true,
+      divergeBufferedSettled: true,
+    });
+    const pendDashPort = await listen(pendDash.server);
+    const workG = path.join(workRoot, 'pending');
+    fs.mkdirSync(workG);
+    const g = await runExample({
+      port: pendGwPort,
+      turns: 1,
+      workDir: workG,
+      dashboardPort: pendDashPort,
+      extraEnv: {
+        NROUTER_STREAM_RATE_IN_PER_MTOK: String(RATE_IN_PER_MTOK),
+        NROUTER_STREAM_RATE_OUT_PER_MTOK: String(RATE_OUT_PER_MTOK),
+      },
+    });
+    pendGw.server.close();
+    pendDash.server.close();
+
+    if (g.child.status !== 0) {
+      fail('run 8', g.child);
+      throw new Error(`example exited ${g.child.status}, expected 0 (a pending row is not a failure)`);
+    }
+
+    const pendStream = g.records.find((r) => r.step === 'stream');
+    assert.equal(pendStream.settledFound, false);
+    assert.equal(pendStream.settledUsd, null, 'a pending row must log null, never 0');
+    assert.equal(pendStream.settledCostStatus, null);
+    // FALSE on the not-found path too. Both branches write it, so a test that
+    // only checked the found one left half the field unpinned.
+    assert.equal(pendStream.settledBasisKnown, false, 'a row that was never read cannot have a known basis');
+    assert.ok(
+      /not yet settled \/ not visible/.test(g.child.stdout),
+      'a missing row must be reported as pending, not as free',
+    );
+    assert.ok(/NOT \$0/.test(g.child.stdout));
+    // POLLED rather than believed on the first null: the docs say a row can
+    // take a moment to appear after a stream closes.
+    const pendLookups = pendDash.lookups().filter((id) => id === pendStream.requestId);
+    assert.equal(pendLookups.length, 3, 'a null must be polled, not taken as final on the first read');
+
+    // No total, and the reason named — a partial sum labelled as a total is the
+    // same defect as summing an unpriced call at zero.
+    assert.ok(
+      /settledTotalUsd {2}—.*not yet settled or not visible/.test(g.child.stdout),
+      `a partial join must refuse to print a total:\n${g.child.stdout}`,
+    );
+    assert.ok(
+      !new RegExp(`settledTotalUsd {2}[0-9]`).test(g.child.stdout),
+      'no settled total may be printed while a row is missing',
+    );
+    // The buffered rows disagree with their own response headers in this run,
+    // and the example must say so rather than silently preferring one.
+    // `console.warn` goes to stderr, so both streams are searched — asserting
+    // on stdout alone would have made this pass for the wrong reason.
+    const pendOutput = `${g.child.stdout}\n${g.child.stderr}`;
+    assert.ok(
+      /the response header said .* and the spend row says /.test(pendOutput),
+      `a header/spend-row disagreement must be reported:\n${pendOutput}`,
+    );
+    assert.ok(/spend row is authoritative/.test(pendOutput));
+
+    console.log(`      polled ${pendLookups.length}x, reported pending, no settled total printed`);
+
+    // ---------------------------------------------------------------- run 9
+    // A MASTER-shaped key. Every call here is billed inference and the join
+    // sends the same key, so it must be refused BEFORE anything is sent —
+    // proven by the gateway seeing zero requests, not by reading the message.
+    console.log('\n[9/11] A master-shaped key must be refused before the first call...');
+    const masterGw = startMock();
+    const masterGwPort = await listen(masterGw.server);
+    const masterDash = startDashboardMock(masterGw.ledger);
+    const masterDashPort = await listen(masterDash.server);
+    const workH = path.join(workRoot, 'master');
+    fs.mkdirSync(workH);
+    const h = await runExample({
+      port: masterGwPort,
+      turns: 1,
+      workDir: workH,
+      dashboardPort: masterDashPort,
+      // placeholder shaped like a master key, never a credential
+      extraEnv: { NROUTER_API_KEY: `sk-nrouter-master-${'0'.repeat(24)}` },
+    });
+    masterGw.server.close();
+    masterDash.server.close();
+
+    assert.equal(h.child.status, 1, 'a master-shaped key must be refused');
+    assert.ok(/MASTER key/i.test(h.child.stderr), `the refusal must name the reason:\n${h.child.stderr}`);
+    // THE ASSERTION THAT MATTERS: nothing was sent. A refusal that arrives after
+    // the first billed call has already cost money.
+    assert.equal(masterGw.counts().requests, 0, 'not one request may reach the gateway');
+    assert.equal(masterDash.lookups().length, 0, 'not one lookup may reach the dashboard');
+
+    console.log('      exit=1, 0 gateway requests, 0 dashboard lookups');
+
+    // --------------------------------------------------------------- run 10
+    // THE FOURTH FAILURE CLASS: refused by the SDK before anything was sent.
+    // `n > 1` on the Anthropic Messages wire returns exactly one completion, so
+    // the SDK raises a `configuration` error rather than dropping the field and
+    // reporting success for a request that asked for more and was billed.
+    //
+    // It costs nothing, and the whole assertion is that the log says so: a
+    // summary that lumps it in with "FAILED and may still have been billed"
+    // sends an operator to check an invoice line that cannot exist.
+    console.log('\n[10/11] A local refusal — nothing sent, nothing billed (1 turn)...');
+    const localGw = startMock();
+    const localGwPort = await listen(localGw.server);
+    const workI = path.join(workRoot, 'local-refusal');
+    fs.mkdirSync(workI);
+    const i = await runExample({
+      port: localGwPort,
+      turns: 1,
+      workDir: workI,
+      extraEnv: { NROUTER_COMPLETIONS_N: '2' },
+    });
+    localGw.server.close();
+
+    assert.equal(i.child.status, 1, 'a refused call must exit non-zero');
+    // THE ASSERTION THAT MATTERS: not one byte left the process.
+    assert.equal(localGw.counts().requests, 0, 'a local refusal must reach the gateway zero times');
+
+    assert.equal(i.records.length, 1, 'the run stops at the first refusal');
+    const localRecord = i.records[0];
+    assert.equal(localRecord.ok, false);
+    // FALSE, not null — and decided by the error KIND, never by the absent id.
+    assert.equal(localRecord.sentToGateway, false, 'a configuration error means nothing was sent');
+    assert.equal(localRecord.billed, false, 'nothing sent is nothing billed');
+    assert.equal(localRecord.requestId, null, 'a request that was never sent has no id');
+    assert.equal(localRecord.cost, null);
+    assert.equal(localRecord.priced, false);
+    assert.match(localRecord.error, /configuration/, 'the record must name the error kind');
+
+    // The summary must count it separately and must NOT say it may have been
+    // billed. Both directions are checked: the counter is right AND the
+    // maybe-billed sentence is absent.
+    assert.equal(summaryNumber(i.child.stdout, 'localRefusals'), 1);
+    assert.equal(summaryNumber(i.child.stdout, 'failedCalls'), 0, 'a local refusal is not a billed failure');
+    assert.ok(
+      !/may still have been billed/.test(i.child.stdout),
+      `a locally refused call must never be reported as possibly billed:\n${i.child.stdout}`,
+    );
+    assert.ok(/REFUSED LOCALLY/.test(i.child.stdout));
+    assert.ok(/cost nothing/.test(i.child.stdout));
+    // Nothing to join on either.
+    assert.ok(!/SETTLED JOIN/.test(i.child.stdout));
+
+    console.log('      exit=1, 0 gateway requests, billed=false, not reported as maybe-billed');
+
+    // --------------------------------------------------------------- run 11
+    // NO ANSWER. The socket dies with the request already delivered — a
+    // transport failure or a timeout. The gateway may have received it and
+    // billed it, and this client cannot know, so `sentToGateway` is NULL and
+    // the call stays counted as billed.
+    //
+    // This run is what makes the three-valued field a tested property rather
+    // than a comment: every other run produces `true` or `false`, so a
+    // classifier keyed on a missing request id, or a `billed` derived as
+    // `=== true`, is indistinguishable from the correct one without it.
+    console.log('\n[11/11] A dropped connection — no answer, so BILLED is unknown-but-assumed (1 turn)...');
+    const dropGw = startMock({ dropChatConnection: true });
+    const dropGwPort = await listen(dropGw.server);
+    const workJ = path.join(workRoot, 'dropped');
+    fs.mkdirSync(workJ);
+    const j = await runExample({ port: dropGwPort, turns: 1, workDir: workJ });
+    dropGw.server.close();
+
+    assert.equal(j.child.status, 1, 'a transport failure must exit non-zero');
+    // The request DID leave this process and DID reach the mock.
+    assert.equal(dropGw.counts().chatCompletionsBuffered, 1, 'the request reached the gateway');
+
+    assert.deepEqual(j.records.map((r) => r.step), ['messages', 'chat']);
+    const droppedRecord = j.records[1];
+    assert.equal(droppedRecord.ok, false);
+    assert.equal(droppedRecord.requestId, null, 'no answer means no request id came back');
+    // NULL, not false — and this is exactly where a classifier keyed on the
+    // absent request id would wrongly say "never sent".
+    assert.equal(
+      droppedRecord.sentToGateway,
+      null,
+      'a transport failure is not a local refusal: nothing answered, but it may have arrived',
+    );
+    // ...and it stays BILLED, because a charge may exist.
+    assert.equal(droppedRecord.billed, true, 'no answer must not be written off as unbilled');
+
+    // It is a FAILURE, not a local refusal, and the summary must say the money
+    // is in doubt.
+    assert.equal(summaryNumber(j.child.stdout, 'failedCalls'), 1);
+    assert.equal(summaryNumber(j.child.stdout, 'localRefusals'), 0, 'nothing was refused locally here');
+    assert.ok(
+      /may still have been billed/.test(j.child.stdout),
+      `a call with no answer must be flagged as possibly billed:\n${j.child.stdout}`,
+    );
+    assert.ok(j.child.stdout.includes('TOTAL INCOMPLETE'));
+    // The money spent before it must still be reported.
+    assert.equal(
+      summaryNumber(j.child.stdout, 'pricedTotalUsd').toFixed(8),
+      dropGw.expectedPricedTotal().toFixed(8),
+    );
+
+    console.log('      exit=1, sentToGateway=null, billed=true, reported as possibly billed');
 
     console.log('\n======================================================================');
     console.log('Result: PASS (chat-agent cost, usage, streaming, cache and logging verified)');

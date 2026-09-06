@@ -100,6 +100,60 @@ What you do instead:
    authoritative. The estimate is a sanity check against the spend row, never a
    substitute for it, and it is never added to `pricedTotalUsd`.
 
+### Seeing what the stream actually cost: the settled join
+
+Set **`NROUTER_DASHBOARD_URL`** and, after the session, the example reads each
+billed call's settled spend row back:
+
+```
+GET <dashboard>/api/nrouter-proxy/spend/by-key?request_id=<id>
+Authorization: Bearer <the same sk-nrouter-… virtual key>
+```
+
+```
+SETTLED JOIN — 5 lookup(s) against https://nrouter.ai
+[settled] req_01J... $0.003120 exact stream=false tokens=55/25
+[settled] req_01J... $0.000071 exact stream=true  tokens=55/25
+      ↳ delta: settled $0.000071 − recomputed $0.000062 = +$0.000009 (+14.5%).
+        The settled figure is the invoice; the recompute was only ever a check on it.
+
+  settledTotalUsd  0.00506100   <- from the spend rows, INCLUDING the streamed calls
+```
+
+**This is the only way a client ever sees a streamed call's cost.** The response
+carried none and never will; the spend row has it, and `x-nr-request-id` is the
+join key.
+
+Four things that decide whether you read it correctly:
+
+- **The dashboard host is not the gateway host.** Inference goes to
+  `api.nrouter.ai/v1`; the spend row is read from the dashboard app. Deriving
+  one from the other is wrong in both directions, so this is its own variable.
+- **`{"log":null,"total":0}` is never `$0`.** A row that has not landed yet, a
+  request id belonging to another organization, and an id that never existed all
+  return exactly that, with HTTP 200 — the route is scoped to the organization on
+  your key and deliberately reveals nothing about ids outside it. The example
+  prints *not yet settled / not visible* and refuses to print a
+  `settledTotalUsd` at all while any row is missing. A settled row can take a
+  moment to appear after a stream closes, so the lookup **polls `total`** rather
+  than believing the first empty answer.
+- **`spend: null` with `cost_status: "unpriced"` means unknown, not free.** The
+  request was still settled against your balance at the amount reserved for it.
+- **`settledBasisKnown` is always `false`.** The row says what it settled at; it
+  does not say how that figure was derived, and this client cannot verify it.
+  A field claiming otherwise would turn *we read a number* into *we checked the
+  number*.
+
+The lookup takes the **same virtual key** the calls were made with — there is no
+second credential — and it is rate limited to **60 lookups per minute per key**,
+which is why the poll is bounded and why the free `count_tokens` calls are not
+looked up at all (they write no spend row, so a `null` from one would look like
+a missing row rather than a route that never writes one).
+
+A master-shaped key (`sk-nrouter-master…`, `sk-master-…`, `sk-admin-…`) is
+refused **before the first call**, not at the gateway: every call here is billed
+inference and the join sends the same key.
+
 `meta.guardrails` **is** reported on a stream (`none | monitor | pass | partial |
 blocked`). A `null` there is "the gateway made no claim", not "no guardrail
 applied" — never render it as a reassurance.
@@ -131,12 +185,29 @@ a customer their cache opt-out is working, check the operator gate on that plane
 — a toggle over a disabled gate answers a compliance question with a control
 that does nothing.
 
-## Refusals
+## Refusals: `sentToGateway` is three-valued, and the third value is the honest one
 
 A refusal exits **non-zero** and still prints the summary: money spent before the
 failure is money you were billed, and a run that dies without itemising it is the
 worst possible output. The typed error carries `kind`, `status`, `requestId`,
 `authReason` and `limitSource`.
+
+Every record carries `sentToGateway`, and `billed` is derived from it as
+`sentToGateway !== false`:
+
+| `sentToGateway` | When | Billed? |
+|---|---|---|
+| `false` | the SDK refused **before anything left the process** — `err.kind === 'configuration'`, e.g. `n > 1` on the Messages wire, which returns exactly one completion | **no.** Nothing was sent, so nothing can have been charged |
+| `true` | the gateway answered, whatever the status | yes, per its own rules |
+| `null` | **no answer at all** — a transport failure or a timeout | treat as **yes**: the request may well have arrived and been billed |
+
+The `null` is the one that must never be flattened. Calling it `false` writes off
+a charge that may exist; calling it `true` claims knowledge nobody has.
+
+It is keyed on the **error kind, never on a missing `requestId`** — a gateway
+that answered without one still charged for the call. A locally refused call is
+counted under `localRefusals`, is excluded from `TOTAL INCOMPLETE`, and is never
+described as possibly billed.
 
 `limitSource` on a `429` is one of `key | plan | team | user | budget`, and
 `null` means the gateway did not say. **Do not guess** — sending a customer to
@@ -159,9 +230,13 @@ node --env-file=.env chat-agent.mjs
 | `NROUTER_RESPONSES_MODEL` | `gpt-4.1-mini` | takes `/v1/responses` |
 | `NROUTER_TURNS` | `2` | five billed calls + one free call per turn |
 | `NROUTER_MAX_TOKENS` | `120` | |
+| `NROUTER_COMPLETIONS_N` | `1` | above 1 is refused locally on the Messages wire, at no cost |
 | `NROUTER_CHAT_LOG` | `./chat-agent.log.jsonl` | one JSONL record per call; gitignored |
 | `NROUTER_STREAM_RATE_IN_PER_MTOK` | unset | optional; see *Streaming* above |
 | `NROUTER_STREAM_RATE_OUT_PER_MTOK` | unset | optional; both required together |
+| `NROUTER_DASHBOARD_URL` | unset | optional; the **dashboard** host, not the gateway. Enables the settled join |
+| `NROUTER_SETTLED_POLL_ATTEMPTS` | `3` | a spend row may lag a closing stream |
+| `NROUTER_SETTLED_POLL_MS` | `500` | bounded: the lookup allows 60/min per key |
 
 <!-- nrouter-doc-wire: messages -->
 The wire is chosen by the **model id**, not by you: `client.nr.chat()` sends an
@@ -188,7 +263,8 @@ bad run is itemised rather than lost:
  "priced":false,"streamed":true,"free":false,"inputTokens":55,"outputTokens":25,
  "totalTokens":80,"usageFrom":"stream-usage-frame","recomputedUsd":null,
  "responseCache":"bypass","responseCacheAge":null,"guardrails":"pass",
- "gatewayMs":88,"latencyMs":903,"ok":true}
+ "gatewayMs":88,"latencyMs":903,"ok":true,
+ "settledFound":true,"settledUsd":0.000071,"settledCostStatus":"exact","settledBasisKnown":false}
 ```
 
 `gatewayMs` is `x-nr-latency-ms` — edge arrival until the response headers were
@@ -204,9 +280,11 @@ makes the claim checkable, by counting requests per route on a server it owns.
 
 ## What this example does NOT prove
 
-- **The settled cost of a streamed call.** It is on the spend row, and this SDK
-  has no spend-lookup call to read it back with. `requestId` is the join key;
-  the dashboard Logs page is where the number lives.
+- **How a settled figure was derived.** The join reads the amount, not its
+  basis — hence `settledBasisKnown: false` on every record it writes.
+- **Anything without `NROUTER_DASHBOARD_URL` set.** Unset, the join is skipped
+  and the summary says so; a streamed call's cost is then not visible from this
+  client at all.
 - **That the cache is enabled on your plane.** It reports what it observed. See
   the four states above.
 - **Cross-tenant isolation of the cache.** The cache key includes the tenant;
@@ -229,4 +307,13 @@ produce `TOTAL INCOMPLETE`; a `429` carrying `x-nr-limit-source` that must exit
 non-zero and still report what was already billed; a plane with caching off and
 no stream usage frame, where every absence must log `null` rather than `0` or
 `"miss"`; and a stream whose headers carry an exact cost, which must **still** be
-excluded and announced.
+excluded and announced; a settled join where every billed call resolves and the
+streamed call's cost finally becomes visible; a stream whose spend row has not
+landed, which must be reported as pending and must not produce a total; and a
+master-shaped key, which must be refused with **zero** requests reaching either
+server; and a local `configuration` refusal, which must reach the gateway zero
+times and must never be reported as possibly billed.
+
+The last four fields of the log record above are written by the join and are
+**absent** — not `null` — when it did not run: a `null` there could not be told
+apart from a lookup that ran and found nothing.
