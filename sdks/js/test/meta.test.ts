@@ -1,5 +1,5 @@
 // Case 1 + Case 2 from the review brief: unpriced is not free, and every one
-// of the fifteen `x-nr-*` headers has a real parse site.
+// of the `x-nr-*` headers has a real parse site.
 //
 // Ported from sdks/go/client_test.go (TestAllThirteenHeadersAreRead,
 // TestUnpricedIsNilNotZero, TestUnparseableNumericHeaderIsNilNotZero), with
@@ -12,8 +12,24 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 const meta = require('../dist/meta');
 const { HEADER_NAMES } = require('../dist/types');
+
+// DERIVED, never a literal. The count used to sit here as `15` and was a third
+// snapshot of a set that already has two: the spec and HEADER_NAMES. It rotted
+// the day the gateway shipped `x-nr-latency-ms` and `x-nr-trace-id`. Reading
+// the spec makes this test fail for the RIGHT reason — the SDK disagrees with
+// the published contract — instead of for a stale number.
+const SPEC = JSON.parse(
+  fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'spec', 'nrouter-sdk-spec.json'),
+    'utf8'
+  )
+);
+const SPEC_HEADER_NAMES: string[] = Object.keys(SPEC.response_headers);
 
 const {
   metaFromHeaders,
@@ -35,6 +51,10 @@ const {
  */
 const FIXTURE: Record<string, string> = {
   'x-nr-request-id': 'nrouter-abc123',
+  // Whole milliseconds, edge arrival to headers ready.
+  'x-nr-latency-ms': '318',
+  // A 32-hex-digit W3C trace id, which is what the gateway emits.
+  'x-nr-trace-id': '4bf92f3577b34da6a3ce929d0e0e4736',
   'x-nr-request-cost': '0.00347',
   'x-nr-cost-status': 'exact',
   'x-nr-model': 'claude-sonnet-4-5',
@@ -53,10 +73,10 @@ const FIXTURE: Record<string, string> = {
 };
 
 test('HEADER_NAMES and this test fixture agree in BOTH directions', () => {
-  assert.equal(
-    HEADER_NAMES.length,
-    15,
-    'the spec fixes fifteen response headers'
+  assert.deepEqual(
+    [...HEADER_NAMES].sort(),
+    [...SPEC_HEADER_NAMES].sort(),
+    'HEADER_NAMES must be exactly the spec\'s response_headers set'
   );
   for (const name of HEADER_NAMES) {
     assert.ok(
@@ -78,10 +98,12 @@ test('meta re-exports the same HEADER_NAMES array, not a second copy', () => {
   assert.equal(meta.HEADER_NAMES, HEADER_NAMES);
 });
 
-test('every one of the fifteen headers is actually read', () => {
+test('every one of the declared headers is actually read', () => {
   const parsed = metaFromHeaders(FIXTURE);
 
   assert.equal(parsed.requestId, 'nrouter-abc123');
+  assert.equal(parsed.latencyMs, 318);
+  assert.equal(parsed.traceId, '4bf92f3577b34da6a3ce929d0e0e4736');
   assert.equal(parsed.cost, 0.00347);
   assert.equal(parsed.costStatus, 'exact');
   assert.equal(parsed.model, 'claude-sonnet-4-5');
@@ -106,7 +128,7 @@ test('every one of the fifteen headers is actually read', () => {
 });
 
 test('each header on its own moves at least one field off EMPTY_META', () => {
-  // The strong form of "all fifteen are read". A name added to HEADER_NAMES
+  // The strong form of "all of them are read". A name added to HEADER_NAMES
   // with no parse site produces a meta identical to EMPTY_META, and this loop
   // is what turns that silent no-op into a failing test.
   for (const name of HEADER_NAMES) {
@@ -151,10 +173,16 @@ test('an UNPARSEABLE numeric header parses to null, never 0', () => {
     'x-nr-request-cost': 'also-not',
     'x-nr-input-tokens': 'not-a-number',
     'x-nr-total-tokens': '',
+    'x-nr-latency-ms': '4.5',
     'x-nr-response-cache-age': '12abc',
   });
   assert.equal(parsed.cost, null);
   assert.equal(parsed.inputTokens, null);
+  assert.equal(
+    parsed.latencyMs,
+    null,
+    'the gateway sends whole milliseconds; a fractional value is a mangled header, not a measurement'
+  );
   assert.equal(parsed.totalTokens, null, "Number('') is 0 in JavaScript; that must not reach a caller");
   assert.equal(parsed.responseCacheAge, null, "parseInt('12abc') is 12; a trailing-garbage header is not a measurement");
   assert.equal(isPriced(parsed), false);

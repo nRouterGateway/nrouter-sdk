@@ -246,9 +246,11 @@ func TestRequestCarriesBearerAuthAndPath(t *testing.T) {
 
 // --- metadata ---------------------------------------------------------------
 
-func TestAllFifteenHeadersAreRead(t *testing.T) {
+func TestEveryDeclaredHeaderIsRead(t *testing.T) {
 	headers := map[string]string{
 		"x-nr-request-id":         "nrouter-abc123",
+		"x-nr-latency-ms":         "318",
+		"x-nr-trace-id":           "4bf92f3577b34da6a3ce929d0e0e4736",
 		"x-nr-request-cost":       "0.00347",
 		"x-nr-cost-status":        "exact",
 		"x-nr-model":              "claude-sonnet-4-5",
@@ -281,6 +283,12 @@ func TestAllFifteenHeadersAreRead(t *testing.T) {
 	m := res.Meta
 	if m.RequestID != "nrouter-abc123" || m.CostStatus != "exact" || m.Model != "claude-sonnet-4-5" {
 		t.Fatalf("string headers not parsed: %+v", m)
+	}
+	if m.TraceID != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("trace id not parsed: %q", m.TraceID)
+	}
+	if m.LatencyMs == nil || *m.LatencyMs != 318 {
+		t.Fatalf("latency not parsed: %v", m.LatencyMs)
 	}
 	if m.Cost == nil || *m.Cost != 0.00347 {
 		t.Fatalf("cost not parsed: %v", m.Cost)
@@ -324,6 +332,9 @@ func TestUnparseableNumericHeaderIsNilNotZero(t *testing.T) {
 	c := newTestClient(t, jsonHandler(200, map[string]string{
 		"x-nr-input-tokens": "not-a-number",
 		"x-nr-request-cost": "also-not",
+		// The gateway sends WHOLE milliseconds, so a fractional value is a
+		// mangled header, not a latency a caller should chart.
+		"x-nr-latency-ms": "4.5",
 	}, map[string]any{"ok": true}))
 	res, err := c.Models(context.Background())
 	if err != nil {
@@ -331,6 +342,9 @@ func TestUnparseableNumericHeaderIsNilNotZero(t *testing.T) {
 	}
 	if res.Meta.InputTokens != nil || res.Meta.Cost != nil {
 		t.Fatal("an unparseable numeric header must be nil, never a zero")
+	}
+	if res.Meta.LatencyMs != nil {
+		t.Fatalf("a fractional x-nr-latency-ms must be nil, got %v", *res.Meta.LatencyMs)
 	}
 }
 

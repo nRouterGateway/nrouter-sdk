@@ -86,6 +86,8 @@ field is a pointer, deliberately:
 | Field | Header | Nil means |
 |---|---|---|
 | `RequestID` | `x-nr-request-id` | — (always present) |
+| `LatencyMs` | `x-nr-latency-ms` | the header was absent or unparseable; the edge stamps it on every response, and it is time-to-HEADERS, never time to the last streamed byte |
+| `TraceID` | `x-nr-trace-id` | no valid trace existed for this request |
 | `Cost` | `x-nr-request-cost` | **unpriced, not free** |
 | `CostStatus` | `x-nr-cost-status` | `exact` or `unpriced` |
 | `Model` | `x-nr-model` | the model that served it |

@@ -24,9 +24,10 @@ fn constants_match_the_spec() {
 
 #[test]
 fn every_spec_header_is_read() {
-    assert_eq!(HEADER_NAMES.len(), 15);
     for name in [
         "x-nr-request-id",
+        "x-nr-latency-ms",
+        "x-nr-trace-id",
         "x-nr-request-cost",
         "x-nr-cost-status",
         "x-nr-model",
@@ -46,6 +47,32 @@ fn every_spec_header_is_read() {
             HEADER_NAMES.contains(&name),
             "{name} is not read by this SDK"
         );
+    }
+}
+
+#[test]
+fn latency_and_trace_reach_the_metadata() {
+    // Both are advertised in HEADER_NAMES, so both owe a real parse site — a
+    // name in that list the parser ignores is a promise the SDK does not keep.
+    let meta = ResponseMeta::from_lookup(|n| match n {
+        "x-nr-latency-ms" => Some("318".into()),
+        "x-nr-trace-id" => Some("4bf92f3577b34da6a3ce929d0e0e4736".into()),
+        _ => None,
+    });
+    assert_eq!(meta.latency_ms, Some(318));
+    assert_eq!(
+        meta.trace_id.as_deref(),
+        Some("4bf92f3577b34da6a3ce929d0e0e4736")
+    );
+
+    // Whole milliseconds only. A fractional or garbage value is a mangled
+    // header, not a latency a caller should chart.
+    for hostile in ["4.5", "not-a-number", "-1", ""] {
+        let meta = ResponseMeta::from_lookup(|n| match n {
+            "x-nr-latency-ms" => Some(hostile.into()),
+            _ => None,
+        });
+        assert_eq!(meta.latency_ms, None, "x-nr-latency-ms: {hostile:?}");
     }
 }
 

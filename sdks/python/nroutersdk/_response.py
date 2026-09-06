@@ -14,6 +14,15 @@ class nRouterResponseMeta:
 
     Attributes:
         request_id: Unique request identifier, present on every response.
+        latency_ms: Milliseconds the gateway measured from edge arrival to
+            response headers ready. TIME TO HEADERS — on a streamed response
+            the headers precede the first token, so this is never a
+            total-generation figure.
+        trace_id: The gateway's OpenTelemetry trace id, ``None`` when no valid
+            trace exists. A caller may SEND ``x-nr-trace-id`` (and
+            ``x-nr-session-id``) to correlate its own spans; the gateway
+            overwrites the response value with its own, so join on this one
+            rather than assuming it echoes what was sent.
         cost: Exact USD request cost, absent when the model is unpriced.
         cost_status: Cost result (``exact`` or ``unpriced``).
         model: Model that served the request.
@@ -43,6 +52,8 @@ class nRouterResponseMeta:
     """
 
     request_id: str | None = None
+    latency_ms: int | None = None
+    trace_id: str | None = None
     cost: float | None = None
     cost_status: str | None = None
     model: str | None = None
@@ -68,6 +79,8 @@ class nRouterResponseMeta:
     #: serialized response — and can be overridden per instance.
     HEADER_NAMES: ClassVar[tuple[str, ...]] = (
         "x-nr-request-id",
+        "x-nr-latency-ms",
+        "x-nr-trace-id",
         "x-nr-request-cost",
         "x-nr-cost-status",
         "x-nr-model",
@@ -118,6 +131,11 @@ class nRouterResponseMeta:
 
         return cls(
             request_id=norm.get("x-nr-request-id"),
+            # `optional_int`, not a raw read: the gateway sends whole
+            # milliseconds, so a fractional or non-numeric value is a mangled
+            # header rather than a latency a caller should chart.
+            latency_ms=optional_int("x-nr-latency-ms"),
+            trace_id=norm.get("x-nr-trace-id"),
             cost=cost,
             cost_status=norm.get("x-nr-cost-status"),
             model=norm.get("x-nr-model"),

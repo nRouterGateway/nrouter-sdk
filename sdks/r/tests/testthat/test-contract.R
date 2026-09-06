@@ -17,16 +17,39 @@ test_that("nrouter_uses_messages_wire routes correctly", {
 
 test_that("every spec header is read", {
   expected <- c(
-    "x-nr-request-id", "x-nr-request-cost", "x-nr-cost-status", "x-nr-model",
+    "x-nr-request-id", "x-nr-latency-ms", "x-nr-trace-id",
+    "x-nr-request-cost", "x-nr-cost-status", "x-nr-model",
     "x-nr-input-tokens", "x-nr-output-tokens", "x-nr-total-tokens",
     "x-nr-cache-read-tokens", "x-nr-cache-write-tokens", "x-nr-limit-source",
     "x-nr-auth-reason", "x-nr-response-cache", "x-nr-response-cache-age",
     "x-nr-budget-warning", "x-nr-guardrails"
   )
-  expect_length(nrouter_header_names(), 15)
+  expect_length(nrouter_header_names(), length(expected))
   for (name in expected) {
     expect_true(name %in% nrouter_header_names(), info = name)
   }
+})
+
+test_that("latency and trace reach the metadata", {
+  # Both are advertised by nrouter_header_names(), so both owe a real parse
+  # site — a name in that list the parser ignores is a promise the SDK does
+  # not keep.
+  meta <- nrouter_meta(list(
+    "x-nr-latency-ms" = "318",
+    "x-nr-trace-id" = "4bf92f3577b34da6a3ce929d0e0e4736"
+  ))
+  expect_equal(meta$latency_ms, 318)
+  expect_equal(meta$trace_id, "4bf92f3577b34da6a3ce929d0e0e4736")
+
+  # Whole milliseconds only, matching every other SDK. "4.5" is the case that
+  # matters: as.numeric would accept it and as.integer would silently truncate
+  # it to 4, turning a mangled header into a plausible measurement.
+  for (hostile in c("4.5", "not-a-number", "-1", "1e3", "")) {
+    expect_null(nrouter_meta(list("x-nr-latency-ms" = hostile))$latency_ms,
+                info = hostile)
+  }
+  expect_null(nrouter_meta(list())$latency_ms)
+  expect_null(nrouter_meta(list())$trace_id)
 })
 
 test_that("each gateway code maps to its condition class", {

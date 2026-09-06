@@ -16,6 +16,23 @@
 export interface ResponseMeta {
   /** Present on every response; the join key for a spend row or a support ticket. */
   requestId: string | null;
+  /**
+   * Milliseconds the gateway measured from edge arrival to response headers.
+   *
+   * TIME TO HEADERS, not time to the last byte: on a streamed response the
+   * headers are ready before the first token, so this is never a
+   * total-generation figure. Null only when the header was absent or
+   * unparseable — the edge stamps it on every response it produces.
+   */
+  latencyMs: number | null;
+  /**
+   * The gateway's OpenTelemetry trace id, or null when no valid trace exists.
+   *
+   * A caller may SEND `x-nr-trace-id` (and `x-nr-session-id`) to correlate its
+   * own spans; the gateway overwrites the response value with its own, so this
+   * is what to join on — never assume it echoes what you sent.
+   */
+  traceId: string | null;
   /** Exact settled cost in USD. `null` when unpriced. Never treat null as 0. */
   cost: number | null;
   /** `exact` or `unpriced`. */
@@ -62,6 +79,8 @@ export interface ResponseMeta {
  */
 export const HEADER_NAMES = [
   'x-nr-request-id',
+  'x-nr-latency-ms',
+  'x-nr-trace-id',
   'x-nr-request-cost',
   'x-nr-cost-status',
   'x-nr-model',

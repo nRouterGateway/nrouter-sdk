@@ -274,20 +274,55 @@ def test_a_code_when_present_beats_the_status():
 
 
 def test_the_header_name_list_matches_what_is_parsed():
+    import json
+    from pathlib import Path
+
     from nroutersdk import nRouterResponseMeta
 
-    assert len(nRouterResponseMeta.HEADER_NAMES) == 15
+    # DERIVED from the published spec, never a literal. The count sat here as
+    # `15` and was a third snapshot of a set the spec and HEADER_NAMES already
+    # hold; it rotted the day the gateway shipped `x-nr-latency-ms` and
+    # `x-nr-trace-id`. Comparing the SETS also catches a rename, which a length
+    # check never could.
+    spec = json.loads(
+        (Path(__file__).resolve().parents[3] / "spec" / "nrouter-sdk-spec.json").read_text()
+    )
+    assert set(nRouterResponseMeta.HEADER_NAMES) == set(spec["response_headers"])
     meta = nRouterResponseMeta.from_headers(
         {name: "1" for name in nRouterResponseMeta.HEADER_NAMES}
     )
     # Every advertised header must reach a field; a name in the list that the
     # parser ignores is a promise the SDK does not keep.
     assert meta.request_id is not None
+    assert meta.latency_ms is not None
+    assert meta.trace_id is not None
     assert meta.cost is not None
     assert meta.limit_source is not None
     assert meta.response_cache is not None
     assert meta.budget_warning is not None
     assert meta.guardrails is not None
+
+
+def test_latency_and_trace_reach_the_metadata():
+    """Both are advertised in HEADER_NAMES, so both owe a real parse site.
+
+    `latency_ms` is an INT: the gateway sends whole milliseconds, so a
+    fractional or garbage value is a mangled header rather than a latency a
+    caller should chart, and must stay None instead of becoming a number.
+    """
+    from nroutersdk import nRouterResponseMeta
+
+    meta = nRouterResponseMeta.from_headers(
+        {
+            "x-nr-latency-ms": "318",
+            "x-nr-trace-id": "4bf92f3577b34da6a3ce929d0e0e4736",
+        }
+    )
+    assert meta.latency_ms == 318
+    assert meta.trace_id == "4bf92f3577b34da6a3ce929d0e0e4736"
+
+    for hostile in ("4.5", "not-a-number", "", "  "):
+        assert nRouterResponseMeta.from_headers({"x-nr-latency-ms": hostile}).latency_ms is None
 
 
 def test_auth_reason_reaches_the_metadata():

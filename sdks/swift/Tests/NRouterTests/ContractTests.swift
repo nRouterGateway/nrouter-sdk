@@ -21,18 +21,37 @@ final class ContractTests: XCTestCase {
 
     func testEverySpecHeaderIsRead() {
         let expected = [
-            "x-nr-request-id", "x-nr-request-cost", "x-nr-cost-status", "x-nr-model",
+            "x-nr-request-id", "x-nr-latency-ms", "x-nr-trace-id",
+            "x-nr-request-cost", "x-nr-cost-status", "x-nr-model",
             "x-nr-input-tokens", "x-nr-output-tokens", "x-nr-total-tokens",
             "x-nr-cache-read-tokens", "x-nr-cache-write-tokens", "x-nr-limit-source",
             "x-nr-auth-reason", "x-nr-response-cache", "x-nr-response-cache-age",
             "x-nr-budget-warning", "x-nr-guardrails",
         ]
-        XCTAssertEqual(NRouterResponseMeta.headerNames.count, 15)
+        XCTAssertEqual(NRouterResponseMeta.headerNames.count, expected.count)
         for name in expected {
             XCTAssertTrue(
                 NRouterResponseMeta.headerNames.contains(name),
                 "\(name) is not read by this SDK"
             )
+        }
+    }
+
+    func testLatencyAndTraceReachTheMetadata() {
+        // Both are advertised in headerNames, so both owe a real parse site.
+        let headers = [
+            "x-nr-latency-ms": "318",
+            "x-nr-trace-id": "4bf92f3577b34da6a3ce929d0e0e4736",
+        ]
+        let meta = NRouterResponseMeta { headers[$0] }
+        XCTAssertEqual(meta.latencyMs, 318)
+        XCTAssertEqual(meta.traceID, "4bf92f3577b34da6a3ce929d0e0e4736")
+
+        // Whole milliseconds only: a fractional or garbage value is a mangled
+        // header, not a latency a caller should chart.
+        for hostile in ["4.5", "not-a-number", ""] {
+            let mangled = NRouterResponseMeta { $0 == "x-nr-latency-ms" ? hostile : nil }
+            XCTAssertNil(mangled.latencyMs, "x-nr-latency-ms: \(hostile)")
         }
     }
 

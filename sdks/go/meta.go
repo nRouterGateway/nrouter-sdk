@@ -20,6 +20,23 @@ type ResponseMeta struct {
 	// a support ticket.
 	RequestID string
 
+	// LatencyMs is the milliseconds the gateway measured from edge arrival to
+	// response headers ready.
+	//
+	// TIME TO HEADERS, not time to the last byte: on a streamed response the
+	// headers are ready before the first token, so this is never a
+	// total-generation figure. Nil only when the header was absent or
+	// unparseable — the edge stamps it on every response it produces.
+	LatencyMs *uint64
+
+	// TraceID is the gateway's OpenTelemetry trace id, empty when no valid
+	// trace exists.
+	//
+	// A caller may SEND x-nr-trace-id (and x-nr-session-id) to correlate its
+	// own spans; the gateway overwrites the response value with its own, so
+	// join on this rather than assuming it echoes what was sent.
+	TraceID string
+
 	// Cost is the exact settled cost in USD. Nil when unpriced. Never treat
 	// nil as 0.
 	Cost *float64
@@ -80,6 +97,8 @@ type ResponseMeta struct {
 // through their own logging or tracing layer without retyping it.
 var HeaderNames = []string{
 	"x-nr-request-id",
+	"x-nr-latency-ms",
+	"x-nr-trace-id",
 	"x-nr-request-cost",
 	"x-nr-cost-status",
 	"x-nr-model",
@@ -117,7 +136,12 @@ func MetaFromLookup(get func(string) string) ResponseMeta {
 		return &v
 	}
 	meta := ResponseMeta{
-		RequestID:        get("x-nr-request-id"),
+		RequestID: get("x-nr-request-id"),
+		// num, not a raw read: the gateway sends whole milliseconds, so a
+		// fractional or garbage value is a mangled header rather than a
+		// latency a caller should chart.
+		LatencyMs:        num("x-nr-latency-ms"),
+		TraceID:          get("x-nr-trace-id"),
 		CostStatus:       get("x-nr-cost-status"),
 		Model:            get("x-nr-model"),
 		InputTokens:      num("x-nr-input-tokens"),
@@ -244,4 +268,3 @@ func WithTraceContext(headers map[string]string, traceID, sessionID string) (map
 	}
 	return out, nil
 }
-

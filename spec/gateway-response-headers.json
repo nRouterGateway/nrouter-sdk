@@ -1,8 +1,10 @@
 {
   "source": "nrouter-rust-gateway/src/http/nr_headers.rs::all_emitted_names",
-  "source_commit": "b5a20445f128fb5caac670191e17c8ea768f84cf",
+  "source_commit": "b006bae692c93e4aa6e91ccc3c911bf2060d7fe0",
   "headers": [
     "x-nr-request-id",
+    "x-nr-latency-ms",
+    "x-nr-trace-id",
     "x-nr-request-cost",
     "x-nr-cost-status",
     "x-nr-model",

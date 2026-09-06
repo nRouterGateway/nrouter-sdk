@@ -61,8 +61,8 @@ with each other. Neither replaces the other.
 ## Delegation, stated rather than silent
 
 - **`java`** — the vendor-compatible factory remains, while the additive Java
-  11 HTTP surface now owns and is checked for all fourteen metadata headers and
-  all nine gateway error codes.
+  11 HTTP surface now owns and is checked for every metadata header in
+  `spec/gateway-response-headers.json` and all nine gateway error codes.
 - **`android`** — delegates every wire concern to the shared `sdks/kotlin`
   artifact. It must *prove* the delegation by referencing
   `NRouter.DEFAULT_BASE_URL`, and it **fails if it hardcodes the base URL**,

@@ -10,6 +10,7 @@ import java.net.CookieHandler;
 import java.net.InetSocketAddress;
 import java.net.ProxySelector;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.WebSocket;
@@ -107,12 +108,56 @@ class NRouterHttpClientTest {
 
     @Test
     void publishesTheCompleteResponseHeaderContract() {
-        assertEquals(15, NRouterResponseMeta.HEADER_NAMES.size());
-        assertEquals(15, NRouterResponseMeta.HEADER_NAMES.stream().distinct().count());
-        assertTrue(NRouterResponseMeta.HEADER_NAMES.contains("x-nr-budget-warning"));
-        assertTrue(NRouterResponseMeta.HEADER_NAMES.contains("x-nr-guardrails"));
-        assertTrue(NRouterResponseMeta.HEADER_NAMES.contains("x-nr-request-id"));
-        assertTrue(NRouterResponseMeta.HEADER_NAMES.contains("x-nr-response-cache-age"));
+        // NAMED, never a magic count. The literal that used to sit here rotted
+        // the day the gateway shipped x-nr-latency-ms and x-nr-trace-id, and a
+        // number cannot say WHICH header went missing. Enumerating both
+        // directions catches an addition, a removal and a rename.
+        List<String> expected = List.of(
+                "x-nr-request-id",
+                "x-nr-latency-ms",
+                "x-nr-trace-id",
+                "x-nr-request-cost",
+                "x-nr-cost-status",
+                "x-nr-model",
+                "x-nr-input-tokens",
+                "x-nr-output-tokens",
+                "x-nr-total-tokens",
+                "x-nr-cache-read-tokens",
+                "x-nr-cache-write-tokens",
+                "x-nr-limit-source",
+                "x-nr-budget-warning",
+                "x-nr-guardrails",
+                "x-nr-auth-reason",
+                "x-nr-response-cache",
+                "x-nr-response-cache-age");
+        assertEquals(expected.size(), NRouterResponseMeta.HEADER_NAMES.size());
+        assertEquals(
+                (long) expected.size(),
+                NRouterResponseMeta.HEADER_NAMES.stream().distinct().count());
+        for (String name : expected) {
+            assertTrue(
+                    NRouterResponseMeta.HEADER_NAMES.contains(name),
+                    name + " is not read by this SDK");
+        }
+        assertTrue(expected.containsAll(NRouterResponseMeta.HEADER_NAMES));
+    }
+
+    @Test
+    void latencyAndTraceReachTheMetadata() {
+        // Both are advertised in HEADER_NAMES, so both owe a real parse site.
+        // latencyMs is a Long: the gateway sends WHOLE milliseconds, so a
+        // fractional value is a mangled header, not a latency to chart.
+        NRouterResponseMeta meta = NRouterResponseMeta.fromHeaders(HttpHeaders.of(
+                Map.of(
+                        "x-nr-latency-ms", List.of("318"),
+                        "x-nr-trace-id", List.of("4bf92f3577b34da6a3ce929d0e0e4736")),
+                (a, b) -> true));
+        assertEquals(Long.valueOf(318L), meta.latencyMs());
+        assertEquals("4bf92f3577b34da6a3ce929d0e0e4736", meta.traceId());
+
+        NRouterResponseMeta mangled = NRouterResponseMeta.fromHeaders(HttpHeaders.of(
+                Map.of("x-nr-latency-ms", List.of("4.5")), (a, b) -> true));
+        assertNull(mangled.latencyMs());
     }
 
     @Test

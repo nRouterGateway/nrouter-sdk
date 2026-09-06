@@ -10,6 +10,19 @@
 pub struct ResponseMeta {
     /// Present on every response; the join key for a spend row or a log line.
     pub request_id: Option<String>,
+    /// Milliseconds the gateway measured from edge arrival to response headers
+    /// ready.
+    ///
+    /// TIME TO HEADERS, not time to the last byte: on a streamed response the
+    /// headers are ready before the first token, so this is never a
+    /// total-generation figure.
+    pub latency_ms: Option<u64>,
+    /// The gateway's OpenTelemetry trace id, absent when no valid trace exists.
+    ///
+    /// A caller may SEND `x-nr-trace-id` (and `x-nr-session-id`) to correlate
+    /// its own spans; the gateway overwrites the response value with its own,
+    /// so join on this rather than assuming it echoes what was sent.
+    pub trace_id: Option<String>,
     /// Exact USD cost. `None` when unpriced — treating that as `0.0` would
     /// report a free request, which no enabled model is.
     pub cost: Option<f64>,
@@ -44,8 +57,10 @@ pub struct ResponseMeta {
 }
 
 /// Every header this SDK reads, exactly as the spec names them.
-pub const HEADER_NAMES: [&str; 15] = [
+pub const HEADER_NAMES: [&str; 17] = [
     "x-nr-request-id",
+    "x-nr-latency-ms",
+    "x-nr-trace-id",
     "x-nr-request-cost",
     "x-nr-cost-status",
     "x-nr-model",
@@ -74,6 +89,11 @@ impl ResponseMeta {
         let num = |name: &str| get(name).and_then(|v| v.parse::<u64>().ok());
         Self {
             request_id: get("x-nr-request-id"),
+            // `num`, not a raw read: the gateway sends whole milliseconds, so
+            // a fractional or garbage value is a mangled header rather than a
+            // latency a caller should chart.
+            latency_ms: num("x-nr-latency-ms"),
+            trace_id: get("x-nr-trace-id"),
             cost: get("x-nr-request-cost").and_then(|v| v.parse::<f64>().ok()),
             cost_status: get("x-nr-cost-status"),
             model: get("x-nr-model"),

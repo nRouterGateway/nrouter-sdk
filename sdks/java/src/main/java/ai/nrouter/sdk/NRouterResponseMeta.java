@@ -3,11 +3,13 @@ package ai.nrouter.sdk;
 import java.net.http.HttpHeaders;
 import java.util.List;
 
-/** The fifteen customer-visible x-nr-* response headers. */
+/** The customer-visible x-nr-* response headers; the set is fixed by spec/nrouter-sdk-spec.json. */
 public final class NRouterResponseMeta {
     /** Every customer-visible response header this SDK parses. */
     public static final List<String> HEADER_NAMES = List.of(
             "x-nr-request-id",
+            "x-nr-latency-ms",
+            "x-nr-trace-id",
             "x-nr-request-cost",
             "x-nr-cost-status",
             "x-nr-model",
@@ -24,6 +26,8 @@ public final class NRouterResponseMeta {
             "x-nr-response-cache-age");
 
     private final String requestId;
+    private final Long latencyMs;
+    private final String traceId;
     private final Double cost;
     private final String costStatus;
     private final String model;
@@ -41,6 +45,11 @@ public final class NRouterResponseMeta {
 
     private NRouterResponseMeta(HttpHeaders headers) {
         requestId = value(headers, "x-nr-request-id");
+        // integer(), not decimal(): the gateway sends whole milliseconds, so a
+        // fractional or garbage value is a mangled header rather than a
+        // latency a caller should chart.
+        latencyMs = integer(headers, "x-nr-latency-ms");
+        traceId = value(headers, "x-nr-trace-id");
         cost = decimal(headers, "x-nr-request-cost");
         costStatus = value(headers, "x-nr-cost-status");
         model = value(headers, "x-nr-model");
@@ -74,6 +83,21 @@ public final class NRouterResponseMeta {
     }
 
     public String requestId() { return requestId; }
+    /**
+     * Milliseconds the gateway measured from edge arrival to response headers
+     * ready. TIME TO HEADERS, not time to the last byte: on a streamed response
+     * the headers precede the first token, so this is never a total-generation
+     * figure.
+     */
+    public Long latencyMs() { return latencyMs; }
+    /**
+     * The gateway's OpenTelemetry trace id, {@code null} when no valid trace
+     * exists. A caller may SEND {@code x-nr-trace-id} (and
+     * {@code x-nr-session-id}) to correlate its own spans; the gateway
+     * overwrites the response value with its own, so join on this one rather
+     * than assuming it echoes what was sent.
+     */
+    public String traceId() { return traceId; }
     public Double cost() { return cost; }
     public String costStatus() { return costStatus; }
     public String model() { return model; }

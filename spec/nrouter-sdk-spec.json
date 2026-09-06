@@ -9,6 +9,16 @@
       "description": "Unique request ID",
       "always": true
     },
+    "x-nr-latency-ms": {
+      "type": "integer",
+      "description": "Milliseconds from edge arrival until the response headers are ready. For a streamed response this is time-to-headers, not time to the final event, so it is not a total-generation figure. Stamped at the edge on every response the gateway produces, success or failure.",
+      "always": true
+    },
+    "x-nr-trace-id": {
+      "type": "string",
+      "description": "The OpenTelemetry trace ID for this request, absent when no valid trace exists. A client may also SEND x-nr-trace-id (and x-nr-session-id) to correlate its own spans; the value returned here is the gateway's, which always overwrites whatever arrived.",
+      "always": false
+    },
     "x-nr-request-cost": {
       "type": "float",
       "description": "Exact cost in USD; absent when the model is unpriced",

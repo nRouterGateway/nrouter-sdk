@@ -92,6 +92,8 @@ if (meta.isPriced) println("cost $${meta.cost}") else println("cost unpriced")
 | Property | Header | Meaning |
 |---|---|---|
 | `requestId` | `x-nr-request-id` | Always present; the id for a support ticket |
+| `latencyMs` | `x-nr-latency-ms` | Time the gateway measured from edge arrival to response headers ready — time-to-HEADERS, never time to the last streamed byte |
+| `traceId` | `x-nr-trace-id` | The gateway's OpenTelemetry trace id; **null** when no valid trace exists |
 | `cost` | `x-nr-request-cost` | Exact USD; **null** when unpriced, never `0` |
 | `costStatus` | `x-nr-cost-status` | `exact` or `unpriced` |
 | `model` | `x-nr-model` | Model that served the request |

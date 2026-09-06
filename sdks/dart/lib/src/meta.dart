@@ -9,6 +9,8 @@ import 'errors.dart';
 class NRouterResponseMeta {
   const NRouterResponseMeta({
     this.requestId,
+    this.latencyMs,
+    this.traceId,
     this.cost,
     this.costStatus,
     this.model,
@@ -27,6 +29,21 @@ class NRouterResponseMeta {
 
   /// Present on every response; the join key for a spend row or a log line.
   final String? requestId;
+
+  /// Milliseconds the gateway measured from edge arrival to response headers
+  /// ready.
+  ///
+  /// TIME TO HEADERS, not time to the last byte: on a streamed response the
+  /// headers are ready before the first token, so this is never a
+  /// total-generation figure.
+  final int? latencyMs;
+
+  /// The gateway's OpenTelemetry trace id, `null` when no valid trace exists.
+  ///
+  /// A caller may SEND `x-nr-trace-id` (and `x-nr-session-id`) to correlate
+  /// its own spans; the gateway overwrites the response value with its own, so
+  /// join on this rather than assuming it echoes what was sent.
+  final String? traceId;
 
   /// Exact USD cost. `null` when unpriced — rendering that as `0` would report
   /// a free request, which no enabled model is.
@@ -71,6 +88,8 @@ class NRouterResponseMeta {
   /// Every header this SDK reads, exactly as the spec names them.
   static const List<String> headerNames = [
     'x-nr-request-id',
+    'x-nr-latency-ms',
+    'x-nr-trace-id',
     'x-nr-request-cost',
     'x-nr-cost-status',
     'x-nr-model',
@@ -98,6 +117,11 @@ class NRouterResponseMeta {
 
     return NRouterResponseMeta(
       requestId: get('x-nr-request-id'),
+      // asInt, not a raw read: the gateway sends whole milliseconds, so a
+      // fractional or garbage value is a mangled header rather than a latency
+      // a caller should chart.
+      latencyMs: asInt('x-nr-latency-ms'),
+      traceId: get('x-nr-trace-id'),
       cost: rawCost == null ? null : double.tryParse(rawCost),
       costStatus: get('x-nr-cost-status'),
       model: get('x-nr-model'),

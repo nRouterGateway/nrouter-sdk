@@ -45,6 +45,8 @@ export type HeaderSource = HeadersLike | HeaderRecord;
  */
 export const EMPTY_META: ResponseMeta = Object.freeze({
   requestId: null,
+  latencyMs: null,
+  traceId: null,
   cost: null,
   costStatus: null,
   model: null,
@@ -156,6 +158,11 @@ function money(raw: string | null | undefined): number | null {
 export function metaFromLookup(get: (name: string) => string | null | undefined): ResponseMeta {
   return {
     requestId: text(get('x-nr-request-id')),
+    // Time to HEADERS. `count` rather than `money` because the gateway sends
+    // whole milliseconds, and rejecting a fractional or signed value keeps a
+    // mangled header from becoming a latency number a caller charts.
+    latencyMs: count(get('x-nr-latency-ms')),
+    traceId: text(get('x-nr-trace-id')),
     cost: money(get('x-nr-request-cost')),
     costStatus: text(get('x-nr-cost-status')),
     model: text(get('x-nr-model')),
@@ -191,8 +198,8 @@ function isHeadersLike(source: HeaderSource): source is HeadersLike {
  * object would return `undefined` for correctly-spelled headers and report a
  * fully-metered response as having no metadata at all.
  *
- * Only the fifteen names in `HEADER_NAMES` are read, so the index is built
- * from the caller's keys once rather than scanned per lookup.
+ * Only the names in `HEADER_NAMES` are read, so the index is built from the
+ * caller's keys once rather than scanned per lookup.
  */
 export function metaFromHeaders(headers: HeaderSource): ResponseMeta {
   if (isHeadersLike(headers)) {

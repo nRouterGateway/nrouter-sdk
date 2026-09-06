@@ -24,11 +24,31 @@ nrouter_meta <- function(headers = list()) {
     value <- suppressWarnings(as.numeric(raw))
     if (is.na(value)) NULL else value
   }
+  # WHOLE, UNSIGNED DIGITS ONLY, and the regex is the point: `as.numeric` alone
+  # accepts "4.5" and `as.integer` silently TRUNCATES it to 4, so a mangled
+  # header becomes a plausible-looking measurement. Every other SDK is
+  # integer-strict here (Go ParseUint, Rust parse::<u64>, Dart int.tryParse,
+  # Kotlin toLongOrNull, Swift Int.init, Java Long.valueOf, JS /^[0-9]+$/), and
+  # this is what keeps R from being the one that disagrees.
+  get_int <- function(name) {
+    raw <- get_chr(name)
+    if (is.null(raw)) return(NULL)
+    if (!grepl("^[0-9]+$", raw)) return(NULL)
+    value <- suppressWarnings(as.numeric(raw))
+    if (is.na(value)) NULL else value
+  }
 
   structure(
     class = "nrouter_meta",
     list(
       request_id         = get_chr("x-nr-request-id"),
+      # Time to HEADERS, not to the last byte: on a streamed response the
+      # headers are ready before the first token.
+      latency_ms         = get_int("x-nr-latency-ms"),
+      # The gateway's own trace id. A caller may SEND x-nr-trace-id (and
+      # x-nr-session-id); the gateway overwrites the response value with its
+      # own, so join on this rather than on what was sent.
+      trace_id           = get_chr("x-nr-trace-id"),
       cost               = get_num("x-nr-request-cost"),
       cost_status        = get_chr("x-nr-cost-status"),
       model              = get_chr("x-nr-model"),
@@ -54,11 +74,14 @@ nrouter_meta <- function(headers = list()) {
 #' Every response header this SDK reads
 #'
 #' Exactly the names in \code{spec/nrouter-sdk-spec.json}.
-#' @return A character vector of 15 header names.
+#' @return A character vector of the header names, in the order the gateway
+#'   emits them.
 #' @export
 nrouter_header_names <- function() {
   c(
     "x-nr-request-id",
+    "x-nr-latency-ms",
+    "x-nr-trace-id",
     "x-nr-request-cost",
     "x-nr-cost-status",
     "x-nr-model",

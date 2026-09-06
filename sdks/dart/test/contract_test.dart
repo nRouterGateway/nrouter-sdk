@@ -27,6 +27,8 @@ void main() {
     test('every spec header is read', () {
       const expected = [
         'x-nr-request-id',
+        'x-nr-latency-ms',
+        'x-nr-trace-id',
         'x-nr-request-cost',
         'x-nr-cost-status',
         'x-nr-model',
@@ -42,10 +44,30 @@ void main() {
         'x-nr-budget-warning',
         'x-nr-guardrails',
       ];
-      expect(NRouterResponseMeta.headerNames.length, 15);
+      expect(NRouterResponseMeta.headerNames.length, expected.length);
       for (final name in expected) {
         expect(NRouterResponseMeta.headerNames, contains(name),
             reason: '$name is not read by this SDK');
+      }
+    });
+
+    test('latency and trace reach the metadata', () {
+      // Both are advertised in headerNames, so both owe a real parse site.
+      final meta = NRouterResponseMeta.fromHeaders({
+        'x-nr-latency-ms': '318',
+        'x-nr-trace-id': '4bf92f3577b34da6a3ce929d0e0e4736',
+      });
+      expect(meta.latencyMs, 318);
+      expect(meta.traceId, '4bf92f3577b34da6a3ce929d0e0e4736');
+
+      // Whole milliseconds only: a fractional or garbage value is a mangled
+      // header, not a latency a caller should chart.
+      for (final hostile in ['4.5', 'not-a-number', '']) {
+        expect(
+          NRouterResponseMeta.fromHeaders({'x-nr-latency-ms': hostile}).latencyMs,
+          isNull,
+          reason: "x-nr-latency-ms: '$hostile'",
+        );
       }
     });
   });

@@ -101,6 +101,8 @@ x-nr-total-tokens: 60
 | Header | What It Tells You |
 |--------|------------------|
 | `x-nr-request-id` | Unique ID for debugging / support tickets (always present) |
+| `x-nr-latency-ms` | Milliseconds from edge arrival until the response headers are ready; time-to-headers, never time to the final streamed event (always present) |
+| `x-nr-trace-id` | OpenTelemetry trace ID for this request; absent when no valid trace exists |
 | `x-nr-request-cost` | Exact cost in USD; absent when the model is unpriced |
 | `x-nr-cost-status` | `exact` or `unpriced` |
 | `x-nr-model` | Model that served the request |

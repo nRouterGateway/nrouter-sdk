@@ -12,6 +12,23 @@ public data class NRouterResponseMeta(
     /** Present on every response; the join key for a spend row or a log line. */
     val requestId: String? = null,
     /**
+     * Milliseconds the gateway measured from edge arrival to response headers
+     * ready.
+     *
+     * TIME TO HEADERS, not time to the last byte: on a streamed response the
+     * headers are ready before the first token, so this is never a
+     * total-generation figure.
+     */
+    val latencyMs: Long? = null,
+    /**
+     * The gateway's OpenTelemetry trace id, `null` when no valid trace exists.
+     *
+     * A caller may SEND `x-nr-trace-id` (and `x-nr-session-id`) to correlate
+     * its own spans; the gateway overwrites the response value with its own,
+     * so join on this rather than assuming it echoes what was sent.
+     */
+    val traceId: String? = null,
+    /**
      * Exact USD cost. `null` when unpriced — rendering that as `0` would report
      * a free request, which no enabled model is.
      */
@@ -78,6 +95,8 @@ public data class NRouterResponseMeta(
         @JvmField
         public val HEADER_NAMES: List<String> = listOf(
             "x-nr-request-id",
+            "x-nr-latency-ms",
+            "x-nr-trace-id",
             "x-nr-request-cost",
             "x-nr-cost-status",
             "x-nr-model",
@@ -105,6 +124,11 @@ public data class NRouterResponseMeta(
             fun num(name: String): Long? = lookup(name)?.toLongOrNull()
             return NRouterResponseMeta(
                 requestId = lookup("x-nr-request-id"),
+                // num(), not a raw read: the gateway sends whole milliseconds,
+                // so a fractional or garbage value is a mangled header rather
+                // than a latency a caller should chart.
+                latencyMs = num("x-nr-latency-ms"),
+                traceId = lookup("x-nr-trace-id"),
                 cost = lookup("x-nr-request-cost")?.toDoubleOrNull(),
                 costStatus = lookup("x-nr-cost-status"),
                 model = lookup("x-nr-model"),

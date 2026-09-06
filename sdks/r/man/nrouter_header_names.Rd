@@ -7,7 +7,8 @@
 nrouter_header_names()
 }
 \value{
-A character vector of 15 header names.
+A character vector of the header names, in the order the gateway
+emits them.
 }
 \description{
 Exactly the names in \code{spec/nrouter-sdk-spec.json}.

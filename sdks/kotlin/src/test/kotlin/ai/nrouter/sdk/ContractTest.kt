@@ -94,15 +94,37 @@ class ContractTest {
     @Test
     fun `every spec header is read`() {
         val expected = listOf(
-            "x-nr-request-id", "x-nr-request-cost", "x-nr-cost-status", "x-nr-model",
+            "x-nr-request-id", "x-nr-latency-ms", "x-nr-trace-id",
+            "x-nr-request-cost", "x-nr-cost-status", "x-nr-model",
             "x-nr-input-tokens", "x-nr-output-tokens", "x-nr-total-tokens",
             "x-nr-cache-read-tokens", "x-nr-cache-write-tokens", "x-nr-limit-source",
             "x-nr-auth-reason", "x-nr-response-cache", "x-nr-response-cache-age",
             "x-nr-budget-warning", "x-nr-guardrails",
         )
-        assertEquals(15, NRouterResponseMeta.HEADER_NAMES.size)
+        assertEquals(expected.size, NRouterResponseMeta.HEADER_NAMES.size)
         expected.forEach {
             assertTrue(it in NRouterResponseMeta.HEADER_NAMES, "$it is not read by this SDK")
+        }
+    }
+
+    @Test
+    fun `latency and trace reach the metadata`() {
+        // Both are advertised in HEADER_NAMES, so both owe a real parse site.
+        val headers = mapOf(
+            "x-nr-latency-ms" to "318",
+            "x-nr-trace-id" to "4bf92f3577b34da6a3ce929d0e0e4736",
+        )
+        val meta = NRouterResponseMeta.fromLookup { headers[it] }
+        assertEquals(318L, meta.latencyMs)
+        assertEquals("4bf92f3577b34da6a3ce929d0e0e4736", meta.traceId)
+
+        // Whole milliseconds only: a fractional or garbage value is a mangled
+        // header, not a latency a caller should chart.
+        listOf("4.5", "not-a-number", "").forEach { hostile ->
+            val mangled = NRouterResponseMeta.fromLookup { name ->
+                if (name == "x-nr-latency-ms") hostile else null
+            }
+            assertNull(mangled.latencyMs, "x-nr-latency-ms: '$hostile'")
         }
     }
 
