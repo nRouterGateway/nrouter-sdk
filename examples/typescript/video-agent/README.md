@@ -230,9 +230,12 @@ omission:
 
 - **It uses its own poll loop rather than `waitForVideo`.** The SDK ships
   `waitForVideo(id, { pollIntervalMs, timeoutMs })` — same terminal statuses,
-  fewer lines — and it is the right call for ordinary code. It exposes **no
-  per-poll hook**, so a caller sees one resolved value and never the intermediate
-  responses. This example's entire subject is that each of those calls is a real,
+  fewer lines, and it additionally refuses a `pollIntervalMs` below 250 ms or a
+  `timeoutMs` shorter than one interval (polling costs no credit, but every poll
+  spends one of your key's rate-limit slots, and a deadline shorter than the
+  interval times out without ever polling). It is the right call for ordinary
+  code. It exposes **no per-poll hook**, so a caller sees one resolved value and
+  never the intermediate responses. This example's entire subject is that each of those calls is a real,
   authenticated, rate-limited, request-id-carrying call that costs nothing, and
   you cannot demonstrate that about calls you never see. If you do not need
   per-poll accounting, use `waitForVideo` instead of copying `pollUntilTerminal`.
@@ -253,6 +256,19 @@ omission:
   published on the plane your key belongs to, and an unpublished model answers
   `404 model_not_found` at create rather than silently substituting one. Check
   `GET /v1/models` before assuming `sora-2` is servable for you.
-- **`seconds` and `size` are not validated here.** The provider decides what it
-  accepts; an unsupported combination is a create-time refusal, which is the
-  cheap place to find out.
+- **`seconds` and `size` are validated by the SDK, but only for shape and for
+  the one bound that costs money.** `video()` refuses before the request leaves
+  the process: `seconds` must be a positive finite number or numeric string and
+  at most `MAX_VIDEO_SECONDS` (1333), and `size` must be `WIDTHxHEIGHT` with
+  both dimensions above zero. The seconds ceiling is not a style rule — above it
+  the gateway's per-request credit hold saturates, so the pre-call
+  insufficient-credit refusal stops covering the whole request and the settle
+  lands as an overage against your balance. Refusing in-process is the only
+  place that costs nothing.
+
+  **Everything else is still the gateway's and the provider's to decide**, and
+  an SDK stricter than the gateway would be a false gate. Whether `sora-2` is
+  published on your plane, and whether *this* duration at *this* resolution is a
+  combination the provider renders, are create-time refusals — which is the
+  cheap place to find out, because the create is refused before a reservation is
+  taken.
