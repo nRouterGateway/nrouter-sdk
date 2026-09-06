@@ -90,7 +90,7 @@ function pngBytes(seed) {
  *                 header at all — the real shape for a model the gateway
  *                 cannot price. It is never a `0` on the wire.
  */
-function startMock({ mode = 'per_image', firstCostStatus = null, refuse = false, shortBy = 0 } = {}) {
+function startMock({ mode = 'per_image', firstCostStatus = null, refuse = false, shortBy = 0, notJson = false, destroySocket = false } = {}) {
   let requests = 0;
   let imageCalls = 0;
   let expectedPricedTotal = 0;
@@ -140,6 +140,50 @@ function startMock({ mode = 'per_image', firstCostStatus = null, refuse = false,
             error: { type: 'insufficient_credits', message: 'organization has insufficient credits' },
           }),
         );
+        return;
+      }
+
+      if (destroySocket) {
+        // The request REACHED this server — it was fully read — and then the
+        // connection died with no response at all. The SDK raises a transport
+        // error carrying no status and no request id: identical emptiness to a
+        // local refusal, opposite meaning. A real gateway could have served
+        // and charged this before the socket dropped.
+        req.socket.destroy();
+        return;
+      }
+
+      if (notJson === 'no-request-id') {
+        // Served, billed, unparseable — AND the gateway sent no request id.
+        // `requestId === null` is therefore true of a REAL CHARGE, which is
+        // why the local/remote split may not lean on it. Only the HTTP status
+        // still says this was served.
+        expectedPricedTotal += costForCall(imageCalls);
+        res.writeHead(200, {
+          'content-type': 'text/plain',
+          'x-nr-cost-status': 'exact',
+          'x-nr-request-cost': costForCall(imageCalls).toFixed(6),
+        });
+        res.end('billed, unparseable, and anonymous');
+        return;
+      }
+
+      if (notJson) {
+        // A 200 the caller WAS BILLED FOR, whose body is not JSON. The SDK
+        // raises a `configuration` error here — the same KIND the pre-send
+        // validator raises — but this one carries an HTTP status and a meta,
+        // because the request was served. It is the counter-example that stops
+        // "kind === 'configuration'" from being used as "never sent".
+        expectedPricedTotal += costForCall(imageCalls);
+        res.writeHead(200, {
+          'content-type': 'text/plain',
+          'x-nr-request-id': requestId,
+          'x-nr-model': 'mock-per_image-model',
+          'x-nr-request-cost': costForCall(imageCalls).toFixed(6),
+          'x-nr-cost-status': 'exact',
+          'x-nr-latency-ms': String(gatewayMsForCall(imageCalls)),
+        });
+        res.end('this is not json, and you were charged for it');
         return;
       }
 
@@ -319,7 +363,7 @@ async function main() {
   try {
     // ---------------------------------------------------------------- run 1
     // A per-IMAGE model: two prompts, two images each, every call priced.
-    console.log('\n[1/8] Per-image billing, fully priced (2 prompts x n=2)...');
+    console.log('\n[1/12] Per-image billing, fully priced (2 prompts x n=2)...');
     const perImage = startMock({ mode: 'per_image' });
     const perImagePort = await listen(perImage.server);
     const workA = path.join(workRoot, 'per-image');
@@ -446,7 +490,7 @@ async function main() {
     // ---------------------------------------------------------------- run 2
     // A gpt-image-class model: priced per image TOKEN, and the usage block is
     // the only client-visible evidence of what was measured.
-    console.log('\n[2/8] Per-image-token billing with a usage block (1 prompt)...');
+    console.log('\n[2/12] Per-image-token billing with a usage block (1 prompt)...');
     const tokenPriced = startMock({ mode: 'image_token' });
     const tokenPort = await listen(tokenPriced.server);
     const workB = path.join(workRoot, 'image-token');
@@ -498,7 +542,7 @@ async function main() {
     // One call comes back unpriced. The session still succeeds — unpriced is a
     // served request, not an error — but the total is INCOMPLETE and must say
     // so rather than silently under-reporting by one call.
-    console.log('\n[3/8] An unpriced image call (2 prompts)...');
+    console.log('\n[3/12] An unpriced image call (2 prompts)...');
     const mixed = startMock({ mode: 'per_image', firstCostStatus: 'unpriced' });
     const mixedPort = await listen(mixed.server);
     const workC = path.join(workRoot, 'unpriced');
@@ -571,7 +615,7 @@ async function main() {
     // code that checked `cost !== null` instead of the status would sum a
     // future third status silently, and run 3 could not tell the difference
     // because an `unpriced` call carries no amount to sum.
-    console.log('\n[4/8] An unrecognised cost status carrying an amount (2 prompts)...');
+    console.log('\n[4/12] An unrecognised cost status carrying an amount (2 prompts)...');
     const odd = startMock({ mode: 'per_image', firstCostStatus: 'estimated' });
     const oddPort = await listen(odd.server);
     const workF = path.join(workRoot, 'estimated');
@@ -624,7 +668,7 @@ async function main() {
     // easy to lose: the process must exit NON-ZERO so a scripted caller
     // notices, AND it must still report the money it had already spent before
     // the refusal.
-    console.log('\n[5/8] A refused call mid-session (2 prompts)...');
+    console.log('\n[5/12] A refused call mid-session (2 prompts)...');
     const refused = startMock({ mode: 'per_image', refuse: true });
     const refusedPort = await listen(refused.server);
     const workD = path.join(workRoot, 'refused');
@@ -661,6 +705,18 @@ async function main() {
       'a failed call must log why',
     );
     assert.ok(failedRecord.requestId, 'a refusal still carries a request id to join on');
+    // THE OTHER SIDE of the local/remote split. This call DID reach the
+    // gateway, so `billed` must be the absence of a claim, never the FACT
+    // `false`: the provider may have run before the refusal. A record that
+    // says `billed: false` here tells the operator there is nothing to
+    // reconcile when there may well be.
+    assert.equal(failedRecord.sentToGateway, true, 'a 402 came back WITH a request id');
+    assert.equal(
+      failedRecord.billed,
+      true,
+      'anything that reached the gateway counts as billed until reconciled — only a proven local refusal is `false`',
+    );
+    assert.equal(failedRecord.errorKind, 'credit');
 
     // Failure is its OWN bucket: a refused call was not "served without a
     // price", and telling the operator it was sends them to the wrong page.
@@ -668,8 +724,8 @@ async function main() {
     assert.equal(summaryNumber(d.child.stdout, 'unpricedCalls'), 0);
     assert.ok(d.child.stdout.includes('TOTAL INCOMPLETE'));
     assert.ok(
-      /FAILED and may still have been billed/.test(d.child.stdout),
-      'the summary must distinguish a failed call from an unpriced one',
+      /\b1 call\(s\) FAILED and may still have been billed/.test(d.child.stdout),
+      'the summary must distinguish a failed call from an unpriced one, and count it',
     );
 
     const refusedReported = summaryNumber(d.child.stdout, 'pricedTotalUsd');
@@ -686,7 +742,7 @@ async function main() {
     // A `url` response. The example records the link and downloads NOTHING:
     // fetching an arbitrary gateway-supplied URL from an example is an egress
     // the reader did not ask for, and the link expires anyway.
-    console.log('\n[6/8] A url-shaped response is recorded, never downloaded (1 prompt)...');
+    console.log('\n[6/12] A url-shaped response is recorded, never downloaded (1 prompt)...');
     const urls = startMock({ mode: 'url' });
     const urlPort = await listen(urls.server);
     const workE = path.join(workRoot, 'urls');
@@ -735,7 +791,7 @@ async function main() {
     // arrived — a client that recorded its own `n` instead would report a
     // quantity the spend row disagrees with, and since no header carries the
     // quantity, nothing else would ever contradict it.
-    console.log('\n[7/8] A short delivery: n=3 asked, 2 returned (1 prompt)...');
+    console.log('\n[7/12] A short delivery: n=3 asked, 2 returned (1 prompt)...');
     const short = startMock({ mode: 'per_image', shortBy: 1 });
     const shortPort = await listen(short.server);
     const workG = path.join(workRoot, 'short');
@@ -790,7 +846,7 @@ async function main() {
     //
     // So: the money record must survive intact, and the process must still
     // exit non-zero, because the customer paid for images they do not have.
-    console.log('\n[8/8] Billed, delivered, but the disk write fails (1 prompt)...');
+    console.log('\n[8/12] Billed, delivered, but the disk write fails (1 prompt)...');
     const unwritable = startMock({ mode: 'per_image' });
     const unwritablePort = await listen(unwritable.server);
     const workH = path.join(workRoot, 'unwritable');
@@ -850,6 +906,256 @@ async function main() {
 
     console.log(
       `      exit=1 pricedTotalUsd=${summaryNumber(h.child.stdout, 'pricedTotalUsd').toFixed(8)} saveErrors=1 (money intact)`,
+    );
+
+    // ---------------------------------------------------------------- run 9
+    // THE SDK REFUSES BEFORE SENDING. `n=99` is outside 1..10, and since
+    // `b212c01` `image()` throws `nRouterConfigurationError` from
+    // `validateImageParams` — no socket, no request id, no reservation, no
+    // spend row.
+    //
+    // It arrives as an `nRouterError`, so the obvious shape files it with the
+    // gateway refusals and tells the operator the call "FAILED and may still
+    // have been billed". That sentence sends someone to reconcile a charge
+    // that cannot exist, and on a wire holding $0.35 per image it is exactly
+    // the wrong direction to be wrong in. A local refusal is its OWN class:
+    // nothing was sent, so nothing was billed, and the accounting is COMPLETE
+    // even though the run failed.
+    console.log('\n[9/12] The SDK refuses locally before sending (n=99)...');
+    const neverSent = startMock({ mode: 'per_image' });
+    const neverSentPort = await listen(neverSent.server);
+    const workI = path.join(workRoot, 'never-sent');
+    fs.mkdirSync(workI);
+    const i = await runExample({
+      port: neverSentPort,
+      model: 'mock-dall-e-3',
+      prompts: 2,
+      n: 99,
+      size: '1024x1024',
+      quality: 'standard',
+      workDir: workI,
+    });
+    neverSent.server.close();
+
+    assert.equal(i.child.status, 1, 'a refused run must exit non-zero');
+    // THE proof, and the only one that cannot be faked by a well-worded log:
+    // the gateway was never spoken to at all.
+    assert.equal(
+      neverSent.counts().requests,
+      0,
+      'the SDK must refuse BEFORE the socket — the mock saw a request',
+    );
+
+    assert.equal(i.records.length, 1, 'the local refusal is recorded once, and the loop stops');
+    const local = i.records[0];
+    assert.equal(local.ok, false);
+    assert.equal(local.priced, false);
+    assert.equal(local.sentToGateway, false, 'nothing left this process');
+    assert.equal(
+      local.billed,
+      false,
+      'the ONLY state that licenses "nothing was billed" — no socket was opened',
+    );
+    assert.equal(local.requestId, null, 'there is no request id to join on, because there is no request');
+    assert.equal(local.cost, null);
+    assert.equal(local.costStatus, null);
+    assert.equal(local.errorKind, 'configuration', 'the SDK refusal kind must be recorded');
+    assert.ok(
+      /n` must be an integer from 1 through 10/.test(local.error),
+      `the refusal reason must be recorded verbatim: ${JSON.stringify(local.error)}`,
+    );
+
+    // A gateway refusal says "may still have been billed" because it may have.
+    // A local one MUST NOT: there is no charge to go looking for.
+    const localOut = i.child.stdout + i.child.stderr;
+    assert.ok(
+      !/may still have been billed/.test(localOut),
+      'a request that never left the process must not be reported as possibly billed',
+    );
+    assert.ok(
+      /never reached the gateway|nothing was billed/i.test(localOut),
+      `the summary must say the request never left: \n${localOut}`,
+    );
+    assert.equal(summaryNumber(i.child.stdout, 'locallyRefused'), 1);
+    assert.equal(summaryNumber(i.child.stdout, 'failedCalls'), 0, 'no call reached the gateway to fail');
+    assert.equal(summaryNumber(i.child.stdout, 'pricedTotalUsd'), 0);
+    // The MONEY accounting is complete — nothing was spent that is unaccounted
+    // for. The run failed; the ledger did not.
+    assert.ok(
+      !/TOTAL INCOMPLETE/.test(i.child.stdout),
+      'a local refusal spends nothing, so the total is not incomplete',
+    );
+
+    console.log(
+      `      exit=1 gatewayRequests=${neverSent.counts().requests} ` +
+        `sentToGateway=${local.sentToGateway} billed=${local.billed} (no charge to reconcile)`,
+    );
+
+    // --------------------------------------------------------------- run 10
+    // THE COUNTER-EXAMPLE TO RUN 9, and the reason its discriminator is three
+    // conditions rather than one.
+    //
+    // The gateway serves a 200 with a non-JSON body. `image()` raises a
+    // `configuration` error — the SAME KIND `validateImageParams` raises — but
+    // this request was SENT, SERVED and BILLED, and the error carries an HTTP
+    // status and a request id to prove it. Classify on the kind alone and this
+    // charge is filed as "never reached the gateway, nothing was billed", and
+    // the operator is told not to go looking for a bill that exists.
+    console.log('\n[10/12] A billed 2xx with a non-JSON body is NOT a local refusal (1 prompt)...');
+    const wrongType = startMock({ mode: 'per_image', notJson: true });
+    const wrongTypePort = await listen(wrongType.server);
+    const workJ = path.join(workRoot, 'not-json');
+    fs.mkdirSync(workJ);
+    const j = await runExample({
+      port: wrongTypePort,
+      model: 'mock-dall-e-3',
+      prompts: 1,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+      workDir: workJ,
+    });
+    wrongType.server.close();
+
+    assert.equal(j.child.status, 1, 'an unparseable response is a failed run');
+    assert.equal(wrongType.counts().requests, 1, 'this one really was sent');
+    assert.equal(j.records.length, 1);
+    const servedThenUnparseable = j.records[0];
+    assert.equal(servedThenUnparseable.errorKind, 'configuration', 'the SDK raises the same KIND as a local refusal');
+    assert.equal(
+      servedThenUnparseable.sentToGateway,
+      true,
+      'a `configuration` error carrying a status and a request id was SENT — the kind alone must not decide',
+    );
+    assert.equal(servedThenUnparseable.billed, true, 'it was served, so it counts as billed');
+    assert.ok(servedThenUnparseable.requestId, 'there IS a request id, and it is how the charge is found');
+    assert.equal(summaryNumber(j.child.stdout, 'locallyRefused'), 0, 'this was not a local refusal');
+    assert.equal(summaryNumber(j.child.stdout, 'failedCalls'), 1);
+    assert.ok(
+      /\b1 call\(s\) FAILED and may still have been billed/.test(j.child.stdout),
+      'a served-then-unparseable call MUST be counted as possibly billed',
+    );
+    assert.ok(
+      !/NEVER REACHED THE GATEWAY/.test(j.child.stdout),
+      'a served call must never be reported as never sent',
+    );
+
+    console.log(
+      `      exit=1 sentToGateway=${servedThenUnparseable.sentToGateway} ` +
+        `billed=${servedThenUnparseable.billed} requestId=${servedThenUnparseable.requestId} ` +
+        '(a real charge to reconcile)',
+    );
+
+    // --------------------------------------------------------------- run 11
+    // The same served-and-billed failure as run 10, but the gateway sent NO
+    // request id. This is why `refusedBeforeSending` does not test for one: a
+    // missing request id is true of a real charge too, so a discriminator that
+    // used it would file this bill as "never sent, nothing billed" — the worst
+    // possible reading, because the operator is told to stop looking for a
+    // charge they cannot even search for by id.
+    console.log('\n[11/12] Served and billed with NO request id is still not a local refusal...');
+    const anonymous = startMock({ mode: 'per_image', notJson: 'no-request-id' });
+    const anonymousPort = await listen(anonymous.server);
+    const workK = path.join(workRoot, 'anonymous');
+    fs.mkdirSync(workK);
+    const k = await runExample({
+      port: anonymousPort,
+      model: 'mock-dall-e-3',
+      prompts: 1,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+      workDir: workK,
+    });
+    anonymous.server.close();
+
+    assert.equal(k.child.status, 1);
+    assert.equal(anonymous.counts().requests, 1, 'this one was sent');
+    assert.equal(k.records.length, 1);
+    const anon = k.records[0];
+    assert.equal(anon.requestId, null, 'the mock deliberately sent no request id');
+    assert.equal(anon.errorKind, 'configuration');
+    assert.equal(
+      anon.sentToGateway,
+      null,
+      'no request id is UNKNOWN, never `false` — `false` is reserved for a proven local refusal',
+    );
+    assert.equal(
+      anon.billed,
+      true,
+      'unknown resolves to BILLED: a served response may have been charged, id or no id',
+    );
+    assert.equal(summaryNumber(k.child.stdout, 'locallyRefused'), 0);
+    assert.equal(summaryNumber(k.child.stdout, 'failedCalls'), 1);
+    // The COUNT, not just the sentence. "0 call(s) FAILED and may still have
+    // been billed" matches a bare /may still have been billed/ while telling
+    // the operator the opposite of the truth.
+    assert.ok(
+      /\b1 call\(s\) FAILED and may still have been billed/.test(k.child.stdout),
+      `an unknown outcome must be COUNTED as possibly billed:\n${k.child.stdout}`,
+    );
+
+    console.log(
+      `      exit=1 requestId=${anon.requestId} sentToGateway=${anon.sentToGateway} ` +
+        `billed=${anon.billed} (unknown, and unknown means billed)`,
+    );
+
+    // --------------------------------------------------------------- run 12
+    // THE `null` BRANCH. The connection dies after the request was fully sent.
+    // The resulting transport error carries no status and no request id —
+    // EXACTLY the emptiness a local refusal produces — and the two must not be
+    // confused, because a dropped socket may sit on top of a request the
+    // gateway received, served and charged for.
+    //
+    // So: `sentToGateway: null`, and `billed: true`. Unknown resolves toward
+    // the charge existing, never away from it.
+    console.log('\n[12/12] The socket dies mid-request: unknown, and therefore BILLED...');
+    const dropped = startMock({ mode: 'per_image', destroySocket: true });
+    const droppedPort = await listen(dropped.server);
+    const workL = path.join(workRoot, 'dropped');
+    fs.mkdirSync(workL);
+    const l = await runExample({
+      port: droppedPort,
+      model: 'mock-dall-e-3',
+      prompts: 1,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+      workDir: workL,
+    });
+    dropped.server.close();
+
+    assert.equal(l.child.status, 1);
+    assert.equal(dropped.counts().requests, 1, 'the request DID reach the server before the socket died');
+    assert.equal(l.records.length, 1);
+    const lost = l.records[0];
+    assert.equal(lost.requestId, null, 'a dead socket returns no request id');
+    assert.equal(lost.costStatus, null);
+    assert.notEqual(lost.errorKind, 'configuration', 'a dead socket is a transport failure, not a config one');
+    assert.equal(
+      lost.sentToGateway,
+      null,
+      'sent, no usable answer — neither the proven `false` nor the confirmed `true`',
+    );
+    assert.equal(
+      lost.billed,
+      true,
+      'UNKNOWN RESOLVES TO BILLED: the gateway may have served and charged this before the socket died',
+    );
+    assert.equal(summaryNumber(l.child.stdout, 'locallyRefused'), 0, 'a dead socket is not a local refusal');
+    assert.equal(summaryNumber(l.child.stdout, 'failedCalls'), 1);
+    assert.ok(
+      /\b1 call\(s\) FAILED and may still have been billed/.test(l.child.stdout),
+      `an unknown outcome must be COUNTED as possibly billed, not merely mentioned:\n${l.child.stdout}`,
+    );
+    assert.ok(
+      !/NEVER REACHED THE GATEWAY/.test(l.child.stdout),
+      'a dead socket must never be reported as never sent',
+    );
+
+    console.log(
+      `      exit=1 requestId=${lost.requestId} sentToGateway=${lost.sentToGateway} ` +
+        `billed=${lost.billed} (unknown resolves toward the charge)`,
     );
 
     console.log('\n======================================================================');

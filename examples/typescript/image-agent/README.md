@@ -51,6 +51,7 @@ SESSION SUMMARY
 | **Spend join** | `meta.requestId` on every record — the key that finds this exact call on the dashboard |
 | **Logging** | one JSONL record per call, written on the failure path as well as the success path |
 | **Refusals** | typed errors: `kind`, `status`, `requestId`, `authReason`, `limitSource` |
+| **Was it billed?** | `sentToGateway` (`true` / `false` / `null`) and `billed` on every record — see below |
 
 ## Billing: per IMAGE, or per IMAGE TOKEN
 
@@ -101,6 +102,42 @@ else                unpricedCalls += 1;   // never `total += meta.cost ?? 0`
 Folding it in as zero is how a spend dashboard quietly under-reports. This
 example sums only the priced subset and labels the result `TOTAL INCOMPLETE`
 whenever anything was left out, so a partial sum can never be read as the total.
+
+### Where the parameters are checked, and what that means for the bill
+
+The SDK bounds `n` (1–10), `size`, `quality` and `response_format` **before it
+opens a socket** — `image()` throws `nRouterConfigurationError` from
+`validateImageParams`. The gateway still decides everything else: whether the
+model is published to your organization, whether the credit hold clears, and
+what the images actually cost.
+
+That split is worth spelling out, because the two refusals need opposite
+responses and they arrive as the same type:
+
+| | reached the gateway | request id | charge possible |
+|---|---|---|---|
+| SDK refused before send | no | none | **no — nothing was billed** |
+| gateway refused (402, 404, 429) | yes | yes | yes, reconcile it |
+| served but unusable, or the socket died | yes | maybe not | **yes, treat as billed** |
+
+So this example records `sentToGateway` on every call — `true` when a request
+id came back, `false` **only** for a proven pre-send refusal, `null` when the
+request left the process and came back with nothing usable — and derives
+`billed = sentToGateway !== false`. Unknown resolves *toward* the charge
+existing: a dropped socket may sit on top of a request the gateway received,
+served and charged for, and a client that assumed otherwise would tell you to
+stop looking for a real bill.
+
+⚠️ `false` cannot be keyed on the error kind alone. `requireJson()` raises the
+same `configuration` kind for a 2xx whose body is not JSON — a response that was
+**served and billed**. What separates them is the HTTP status: a status exists
+only if a response came back. Nor can it be keyed on a missing request id, since
+a served response can arrive without one. Runs 9–12 of the suite pin all four
+corners.
+
+This example therefore does **not** re-check `n` itself. The range lives in the
+SDK and in the gateway; a third copy here is the one that would go stale, and
+it would shadow the SDK's message with a worse one.
 
 ### The reservation is per image, not per call
 
@@ -173,7 +210,7 @@ node ../image_agent_suite.js
 ```
 
 A local mock gateway speaks `/v1/images/generations` and stamps the same `x-nr-*`
-headers. Eight runs, no key, no network, under a second:
+headers. Twelve runs, no key, no network, a few seconds:
 
 1. **Per-image billing, everything priced.** Two prompts at `n=2`. Every call
    reaches the log with a request id, `pricedTotalUsd` equals the mock's own
@@ -218,6 +255,22 @@ headers. Eight runs, no key, no network, under a second:
    its spend row. The money stays exact, `saveErrors` reports the loss
    separately from the pricing verdict, and the process still exits non-zero
    because the customer paid for images they do not have.
+9. **The SDK refuses before sending** (`n=99`). The mock asserts it received
+   **zero requests** — the only proof that cannot be faked by a well-worded log.
+   The record is `sentToGateway: false`, `billed: false`, `requestId: null`, and
+   the summary must **not** say "may still have been billed": there is no charge
+   to reconcile, and sending someone to look for one on a wire holding $0.35 per
+   image is the wrong direction to be wrong in.
+10. **A billed 2xx with a non-JSON body.** The same `configuration` error kind as
+    run 9, but it carries a status and a request id because it was served and
+    charged. It must be counted as billed — keying the local/remote split on the
+    kind alone files a real charge as unbillable.
+11. **Served and billed with no request id.** Proves the split cannot lean on a
+    missing `requestId` either: `sentToGateway: null`, still `billed: true`.
+12. **The socket dies mid-request.** The mock confirms it received the request,
+    then destroys the connection. No status, no request id — identical emptiness
+    to run 9, opposite meaning. `sentToGateway: null`, `billed: true`, and the
+    summary counts it among the calls that may still have been billed.
 
 ## What this example does not do
 

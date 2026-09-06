@@ -73,11 +73,14 @@ const BASE_URL = env.NROUTER_BASE_URL || 'https://api.nrouter.ai/v1';
 const IMAGE_MODEL = env.NROUTER_IMAGE_MODEL || 'gpt-image-1-mini';
 const IMAGE_SIZE = env.NROUTER_IMAGE_SIZE || '1024x1024';
 const IMAGE_QUALITY = env.NROUTER_IMAGE_QUALITY || 'low';
-// The gateway caps `n` at 10 per request (`src/http/images.rs`: MAX_IMAGES).
-// Asking for more is a 400, not a silent truncation, so it is checked here
-// rather than discovered by a refused call.
-const IMAGE_N = boundedInt(env.NROUTER_IMAGE_N, 1, 'NROUTER_IMAGE_N', 10);
-const PROMPT_COUNT = boundedInt(env.NROUTER_IMAGE_PROMPTS, 2, 'NROUTER_IMAGE_PROMPTS', 100);
+// PARSED here, BOUNDED by the SDK. `image()` refuses an `n` outside 1..10
+// before it opens a socket (`validateImageParams`), and the gateway enforces
+// the same ceiling (`src/http/images.rs`: MAX_IMAGES). Repeating the number
+// here would be a third copy of one rule, and the copy in the example is the
+// one that would silently go stale — so this only turns the string into a
+// positive integer and lets the SDK own the range.
+const IMAGE_N = positiveInt(env.NROUTER_IMAGE_N, 1, 'NROUTER_IMAGE_N');
+const PROMPT_COUNT = positiveInt(env.NROUTER_IMAGE_PROMPTS, 2, 'NROUTER_IMAGE_PROMPTS');
 
 // Both default INSIDE this example's own directory, which carries a .gitignore
 // for them. Resolving against the script rather than the shell's cwd keeps a
@@ -108,11 +111,19 @@ const PROMPTS = [
   'A minimal line drawing of a paper aeroplane over a topographic map, single accent colour.',
 ];
 
-function boundedInt(raw, fallback, name, max) {
+/**
+ * Turn an environment string into a positive integer, or refuse.
+ *
+ * Deliberately NO upper bound: the ranges belong to the SDK and the gateway,
+ * which refuse an out-of-range `n` themselves and say why. A ceiling repeated
+ * here would be a second rule to keep in step, and it would shadow the SDK's
+ * far better message with this one's.
+ */
+function positiveInt(raw, fallback, name) {
   if (raw === undefined || raw === '') return fallback;
   const value = Number.parseInt(raw, 10);
-  if (!Number.isInteger(value) || value < 1 || value > max) {
-    console.error(`${name} must be an integer from 1 through ${max}; got ${JSON.stringify(raw)}.`);
+  if (!Number.isInteger(value) || value < 1) {
+    console.error(`${name} must be a positive integer; got ${JSON.stringify(raw)}.`);
     process.exit(1);
   }
   return value;
@@ -154,6 +165,43 @@ function tokens(meta) {
   const inTok = meta.inputTokens === null ? '—' : meta.inputTokens;
   const outTok = meta.outputTokens === null ? '—' : meta.outputTokens;
   return `${inTok}/${outTok}`;
+}
+
+/**
+ * Did this failure ever reach the gateway?
+ *
+ * THREE states, because there are three answers and only one of them is safe
+ * to act on:
+ *
+ *   true    a request id came back, so the request was received and answered.
+ *           A charge may exist and the id is how to find it.
+ *   false   the SDK refused BEFORE opening a socket — `validateImageParams`
+ *           rejecting `n`, `size`, `quality` or `response_format` since the
+ *           SDK started bounding them. No request, no reservation, no spend
+ *           row. NOTHING WAS BILLED, and that is known rather than hoped.
+ *   null    it left this process and came back with nothing usable: a
+ *           transport failure, a timeout, or a served response carrying no
+ *           request id. There is no id to search by, but a charge may exist
+ *           all the same — so it is treated as BILLED.
+ *
+ * `false` is the only state that licenses "nothing was billed", so it is the
+ * only one that needs a narrow test. `configuration` alone will NOT do it:
+ * `requireJson()` raises the SAME kind for a 2xx whose content type is wrong,
+ * and that response was served and billed. What separates them is the HTTP
+ * STATUS — a status exists only if a response came back. Key `false` on the
+ * kind alone and a real charge is filed as unbillable, which tells the
+ * operator to stop looking for a bill that exists.
+ */
+function refusedBeforeSending(error) {
+  if (!(error instanceof nRouterError)) return false;
+  return error.kind === 'configuration' && typeof error.status !== 'number';
+}
+
+/** `true` | `false` | `null`, per the three states above. */
+function sentToGatewayFor(error, meta) {
+  if ((meta?.requestId ?? null) !== null) return true;
+  if (refusedBeforeSending(error)) return false;
+  return null;
 }
 
 async function record(entry) {
@@ -288,6 +336,9 @@ async function metered(promptIndex, label, call, enrich) {
       latencyMs,
       ok: true,
       priced,
+      sentToGateway: true,
+      billed: true,
+      errorKind: null,
     });
 
     console.log(
@@ -311,6 +362,7 @@ async function metered(promptIndex, label, call, enrich) {
     return result;
   } catch (error) {
     const meta = error instanceof nRouterError ? error.meta : undefined;
+    const sentToGateway = sentToGatewayFor(error, meta);
     await record({
       ts: new Date().toISOString(),
       step: 'image',
@@ -342,6 +394,15 @@ async function metered(promptIndex, label, call, enrich) {
       // A refused call is not a priced one, and it is not an unpriced SERVED
       // one either — the summary counts it separately.
       priced: false,
+      sentToGateway,
+      // Conservative BY CONSTRUCTION: everything that is not a proven local
+      // refusal counts as billed. `null` — sent, no usable answer — is
+      // deliberately on the billed side: a request that reached the gateway
+      // and then timed out may well have been served and charged, and
+      // resolving that uncertainty in the customer's favour on the CLIENT
+      // side is how a real charge stops being reconciled.
+      billed: sentToGateway !== false,
+      errorKind: error instanceof nRouterError ? error.kind : null,
       error: error instanceof nRouterError ? `${error.kind}: ${error.message}` : String(error?.message ?? error),
     });
     throw error;
@@ -352,7 +413,15 @@ function printSummary() {
   // Three buckets, not two. A call that FAILED is not a call that was "served
   // without a price": lumping them together tells the operator the gateway
   // priced nothing when in fact it refused, which sends them to the wrong page.
-  const failed = calls.filter((entry) => !entry.ok);
+  // FOUR buckets. A call the SDK refused before sending is not a failed
+  // gateway call: no request id, no reservation, no possible charge. Counting
+  // it with the others produces "may still have been billed" about a request
+  // that never existed.
+  const locallyRefused = calls.filter((entry) => !entry.ok && entry.sentToGateway === false);
+  const failed = calls.filter((entry) => !entry.ok && entry.sentToGateway !== false);
+  // Same predicate as the record's own `billed`, read back rather than
+  // recomputed differently.
+  const possiblyBilled = failed.filter((entry) => entry.billed);
   const priced = calls.filter((entry) => entry.ok && entry.priced);
   const unpriced = calls.filter((entry) => entry.ok && !entry.priced);
   const pricedTotalUsd = priced.reduce((sum, entry) => sum + entry.cost, 0);
@@ -370,7 +439,22 @@ function printSummary() {
   console.log(`  pricedCalls      ${priced.length}`);
   console.log(`  unpricedCalls    ${unpriced.length}`);
   console.log(`  failedCalls      ${failed.length}`);
+  console.log(`  locallyRefused   ${locallyRefused.length}`);
   console.log(`  pricedTotalUsd   ${pricedTotalUsd.toFixed(8)}`);
+
+  if (locallyRefused.length > 0) {
+    // Said BEFORE the money verdict, because it changes what that verdict
+    // means: these calls never reached the gateway, so the total below is not
+    // missing them — there was nothing to miss.
+    console.log(
+      `  ${locallyRefused.length} call(s) NEVER REACHED THE GATEWAY — the SDK refused them ` +
+        'before opening a socket, so NOTHING WAS BILLED for them and there is no request id ' +
+        'to reconcile. Fix the parameters and re-run.',
+    );
+    for (const entry of locallyRefused) {
+      console.log(`      prompt ${entry.prompt}: ${entry.error}`);
+    }
+  }
 
   if (unpriced.length > 0 || failed.length > 0) {
     const reasons = [];
@@ -382,7 +466,7 @@ function printSummary() {
       // failure, but a call refused after the provider ran was still billed
       // upstream. The log rows say which calls, and the request ids say where
       // to check.
-      reasons.push(`${failed.length} call(s) FAILED and may still have been billed`);
+      reasons.push(`${possiblyBilled.length} call(s) FAILED and may still have been billed`);
     }
     console.log(
       `  TOTAL INCOMPLETE — ${reasons.join('; ')}. ` +
