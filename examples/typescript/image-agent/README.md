@@ -173,7 +173,7 @@ node ../image_agent_suite.js
 ```
 
 A local mock gateway speaks `/v1/images/generations` and stamps the same `x-nr-*`
-headers. Seven runs, no key, no network, under a second:
+headers. Eight runs, no key, no network, under a second:
 
 1. **Per-image billing, everything priced.** Two prompts at `n=2`. Every call
    reaches the log with a request id, `pricedTotalUsd` equals the mock's own
@@ -209,6 +209,15 @@ headers. Seven runs, no key, no network, under a second:
    what *arrived*, because that is what the price followed — a client that
    recorded its own `n` would report a quantity the spend row disagrees with,
    and since no header carries the quantity, nothing would ever contradict it.
+8. **Billed and delivered, but the disk write fails.** The output directory is
+   read-only. The call succeeded and was charged, so the record must keep its
+   cost, cost status, model and **request id** — the obvious shape loses all
+   four, because a filesystem error is not an `nRouterError` and a `catch` that
+   rebuilds the record from the error logs `null` for every one of them,
+   dropping a real charge out of `pricedTotalUsd` and severing the only link to
+   its spend row. The money stays exact, `saveErrors` reports the loss
+   separately from the pricing verdict, and the process still exits non-zero
+   because the customer paid for images they do not have.
 
 ## What this example does not do
 
@@ -234,3 +243,9 @@ Stated plainly, because an example that quietly omits things teaches the omissio
 - **No moderation posture.** `meta.guardrails` is null on this route (above), and
   a provider-side content refusal arrives as a typed error, not as a guardrail
   claim.
+- **One guard is not exercised.** `metered` wraps its post-response `enrich`
+  callback so that nothing after a successful billed call can be mistaken for a
+  failed one. The suite cannot reach that arm — the only `enrich` body here is
+  `saveImages`, which catches every throwing operation it performs — so
+  planting a `throw` in it leaves all eight runs green. It is defence in depth
+  for the next callback, said out loud rather than left to look tested.

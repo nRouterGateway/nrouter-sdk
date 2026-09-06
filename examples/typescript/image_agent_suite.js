@@ -224,9 +224,16 @@ function listen(server) {
  * child on its first request and the suite reports a hang as a failure of the
  * example.
  */
-async function runExample({ port, model, prompts, n, size, quality, workDir, responseFormat }) {
+async function runExample({ port, model, prompts, n, size, quality, workDir, responseFormat, outDirMode }) {
   const logPath = path.join(workDir, 'image-agent.log.jsonl');
   const outDir = path.join(workDir, 'out');
+  // Pre-create the output directory READ-ONLY when asked, to exercise the
+  // "billed but not saved" path. `mkdir(..., { recursive: true })` succeeds on
+  // an existing directory, so the example gets as far as the write.
+  if (outDirMode !== undefined) {
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.chmodSync(outDir, outDirMode);
+  }
 
   // Start from the ambient environment MINUS every NROUTER_* variable. A
   // developer's real key or base URL leaking in here would point this suite at
@@ -312,7 +319,7 @@ async function main() {
   try {
     // ---------------------------------------------------------------- run 1
     // A per-IMAGE model: two prompts, two images each, every call priced.
-    console.log('\n[1/7] Per-image billing, fully priced (2 prompts x n=2)...');
+    console.log('\n[1/8] Per-image billing, fully priced (2 prompts x n=2)...');
     const perImage = startMock({ mode: 'per_image' });
     const perImagePort = await listen(perImage.server);
     const workA = path.join(workRoot, 'per-image');
@@ -439,7 +446,7 @@ async function main() {
     // ---------------------------------------------------------------- run 2
     // A gpt-image-class model: priced per image TOKEN, and the usage block is
     // the only client-visible evidence of what was measured.
-    console.log('\n[2/7] Per-image-token billing with a usage block (1 prompt)...');
+    console.log('\n[2/8] Per-image-token billing with a usage block (1 prompt)...');
     const tokenPriced = startMock({ mode: 'image_token' });
     const tokenPort = await listen(tokenPriced.server);
     const workB = path.join(workRoot, 'image-token');
@@ -491,7 +498,7 @@ async function main() {
     // One call comes back unpriced. The session still succeeds — unpriced is a
     // served request, not an error — but the total is INCOMPLETE and must say
     // so rather than silently under-reporting by one call.
-    console.log('\n[3/7] An unpriced image call (2 prompts)...');
+    console.log('\n[3/8] An unpriced image call (2 prompts)...');
     const mixed = startMock({ mode: 'per_image', firstCostStatus: 'unpriced' });
     const mixedPort = await listen(mixed.server);
     const workC = path.join(workRoot, 'unpriced');
@@ -564,7 +571,7 @@ async function main() {
     // code that checked `cost !== null` instead of the status would sum a
     // future third status silently, and run 3 could not tell the difference
     // because an `unpriced` call carries no amount to sum.
-    console.log('\n[4/7] An unrecognised cost status carrying an amount (2 prompts)...');
+    console.log('\n[4/8] An unrecognised cost status carrying an amount (2 prompts)...');
     const odd = startMock({ mode: 'per_image', firstCostStatus: 'estimated' });
     const oddPort = await listen(odd.server);
     const workF = path.join(workRoot, 'estimated');
@@ -617,7 +624,7 @@ async function main() {
     // easy to lose: the process must exit NON-ZERO so a scripted caller
     // notices, AND it must still report the money it had already spent before
     // the refusal.
-    console.log('\n[5/7] A refused call mid-session (2 prompts)...');
+    console.log('\n[5/8] A refused call mid-session (2 prompts)...');
     const refused = startMock({ mode: 'per_image', refuse: true });
     const refusedPort = await listen(refused.server);
     const workD = path.join(workRoot, 'refused');
@@ -679,7 +686,7 @@ async function main() {
     // A `url` response. The example records the link and downloads NOTHING:
     // fetching an arbitrary gateway-supplied URL from an example is an egress
     // the reader did not ask for, and the link expires anyway.
-    console.log('\n[6/7] A url-shaped response is recorded, never downloaded (1 prompt)...');
+    console.log('\n[6/8] A url-shaped response is recorded, never downloaded (1 prompt)...');
     const urls = startMock({ mode: 'url' });
     const urlPort = await listen(urls.server);
     const workE = path.join(workRoot, 'urls');
@@ -728,7 +735,7 @@ async function main() {
     // arrived — a client that recorded its own `n` instead would report a
     // quantity the spend row disagrees with, and since no header carries the
     // quantity, nothing else would ever contradict it.
-    console.log('\n[7/7] A short delivery: n=3 asked, 2 returned (1 prompt)...');
+    console.log('\n[7/8] A short delivery: n=3 asked, 2 returned (1 prompt)...');
     const short = startMock({ mode: 'per_image', shortBy: 1 });
     const shortPort = await listen(short.server);
     const workG = path.join(workRoot, 'short');
@@ -769,6 +776,81 @@ async function main() {
     );
 
     console.log(`      calls=1 requestedN=3 delivered=${shortRecord.count} files=${shortRecord.files.length}`);
+
+    // ---------------------------------------------------------------- run 8
+    // THE CALL SUCCEEDED AND WAS BILLED; THE DISK WRITE FAILED.
+    //
+    // This is the money property that is easiest to lose, because the obvious
+    // shape loses it: if a post-response failure falls into the same `catch`
+    // that handles a refused CALL, the record is rebuilt from the ERROR — and
+    // a filesystem error is not an `nRouterError`, so cost, requestId, model
+    // and costStatus all come back `null`. A call that was charged for
+    // vanishes from `pricedTotalUsd` and, worse, loses the request id that is
+    // the only way to find it on the spend row.
+    //
+    // So: the money record must survive intact, and the process must still
+    // exit non-zero, because the customer paid for images they do not have.
+    console.log('\n[8/8] Billed, delivered, but the disk write fails (1 prompt)...');
+    const unwritable = startMock({ mode: 'per_image' });
+    const unwritablePort = await listen(unwritable.server);
+    const workH = path.join(workRoot, 'unwritable');
+    fs.mkdirSync(workH);
+    const h = await runExample({
+      port: unwritablePort,
+      model: 'mock-dall-e-3',
+      prompts: 1,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+      workDir: workH,
+      outDirMode: 0o555,
+    });
+    unwritable.server.close();
+    // Restore write permission so the temp tree can be removed.
+    fs.chmodSync(path.join(workH, 'out'), 0o755);
+
+    assert.equal(h.child.status, 1, 'undelivered images must exit non-zero');
+    assert.equal(h.records.length, 1, 'the billed call must still be recorded');
+    const saveFailed = h.records[0];
+    // Every money and identity field, from `result.meta` — NOT from the error.
+    assert.equal(saveFailed.ok, true, 'the CALL succeeded; only the write failed');
+    assert.equal(saveFailed.priced, true, 'a billed call stays in the priced bucket');
+    assert.equal(saveFailed.cost, costForCall(1), 'the cost must survive a write failure');
+    assert.equal(saveFailed.costStatus, 'exact');
+    assert.equal(
+      saveFailed.requestId,
+      'req-image-1',
+      'the spend-row join key must survive a write failure',
+    );
+    assert.ok(typeof saveFailed.model === 'string' && saveFailed.model.length > 0);
+    assert.equal(saveFailed.gatewayMs, gatewayMsForCall(1));
+    // The image WAS delivered in the body — `count` describes the response,
+    // never the filesystem.
+    assert.equal(saveFailed.count, 1, 'the image was delivered; only the write failed');
+    assert.equal(saveFailed.files.length, 0, 'nothing reached disk');
+    assert.equal(saveFailed.saveErrors.length, 1, 'the write failure must be recorded');
+    assert.ok(
+      /EACCES|permission denied/i.test(saveFailed.saveErrors[0].error),
+      `the write failure must say why: ${JSON.stringify(saveFailed.saveErrors[0])}`,
+    );
+
+    // The money is REPORTED, not lost.
+    assert.equal(
+      summaryNumber(h.child.stdout, 'pricedTotalUsd').toFixed(8),
+      unwritable.expectedPricedTotal().toFixed(8),
+      'a write failure must not erase the price from the session total',
+    );
+    assert.equal(summaryNumber(h.child.stdout, 'pricedCalls'), 1);
+    assert.equal(summaryNumber(h.child.stdout, 'failedCalls'), 0, 'the CALL did not fail');
+    assert.equal(summaryNumber(h.child.stdout, 'saveErrors'), 1);
+    assert.ok(
+      /not saved|could not write/i.test(h.child.stdout + h.child.stderr),
+      'the operator must be told the images they paid for are not on disk',
+    );
+
+    console.log(
+      `      exit=1 pricedTotalUsd=${summaryNumber(h.child.stdout, 'pricedTotalUsd').toFixed(8)} saveErrors=1 (money intact)`,
+    );
 
     console.log('\n======================================================================');
     console.log('Result: PASS (image-agent cost, usage, count and logging verified)');

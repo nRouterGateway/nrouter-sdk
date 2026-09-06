@@ -212,7 +212,38 @@ async function metered(promptIndex, label, call, enrich) {
     // the day `isPriced` changes, and they drift in the direction that either
     // sums an unpriced call or hides a priced one.
     const priced = isPriced(meta);
-    const extra = await enrich(result);
+
+    // `enrich` runs on a call that ALREADY SUCCEEDED and was ALREADY BILLED,
+    // so nothing it does may reach the `catch` below. That block rebuilds the
+    // record from the ERROR, and a non-`nRouterError` carries no `meta`: cost,
+    // costStatus, model and requestId would each log `null`, silently removing
+    // a real charge from `pricedTotalUsd` and severing the spend-row join.
+    // `saveImages` already turns a write failure into data; this is the second
+    // arm, for anything else that could throw after the response arrived.
+    //
+    // ⚠ NOT EXERCISED BY `image_agent_suite.js`, and said out loud rather than
+    // left to look tested. The only `enrich` body in this file is
+    // `saveImages`, which catches every throwing operation it performs, so
+    // nothing the suite can do from the wire reaches this arm — planting a
+    // `throw` here leaves all eight runs green. It is defence in depth for the
+    // NEXT enrich body, which must ship with a test that reaches it.
+    let extra;
+    try {
+      extra = await enrich(result);
+    } catch (cause) {
+      extra = {
+        count: 0,
+        files: [],
+        urls: [],
+        saveErrors: [],
+        imageTokens: null,
+        enrichError: String(cause?.message ?? cause),
+      };
+      console.warn(
+        `      ⚠ could not process the response: ${cause?.message ?? cause}\n` +
+          '        The call WAS billed; the accounting below is still exact.',
+      );
+    }
 
     await record({
       ts: new Date().toISOString(),
@@ -291,11 +322,13 @@ async function metered(promptIndex, label, call, enrich) {
       size: IMAGE_SIZE,
       quality: IMAGE_QUALITY,
       responseFormat: RESPONSE_FORMAT ?? null,
-      // Nothing was delivered, and `0` here is a measurement of the delivery,
-      // not a guess about the price.
+      // Reachable ONLY from a failed `call()` — every post-response failure is
+      // absorbed above — so nothing was delivered, and `0` here is a
+      // measurement of the delivery rather than a guess about the price.
       count: 0,
       files: [],
       urls: [],
+      saveErrors: [],
       imageTokens: null,
       guardrails: meta?.guardrails ?? null,
       costStatus: meta?.costStatus ?? null,
@@ -326,12 +359,14 @@ function printSummary() {
   const imagesReturned = calls.reduce((sum, entry) => sum + entry.count, 0);
   const filesWritten = calls.reduce((sum, entry) => sum + entry.files.length, 0);
   const urlsSkipped = calls.reduce((sum, entry) => sum + entry.urls.length, 0);
+  const saveErrors = calls.reduce((sum, entry) => sum + entry.saveErrors.length, 0);
 
   console.log('\nSESSION SUMMARY');
   console.log(`  calls            ${calls.length}`);
   console.log(`  imagesReturned   ${imagesReturned}`);
   console.log(`  filesWritten     ${filesWritten}`);
   console.log(`  urlsNotDownloaded ${urlsSkipped}`);
+  console.log(`  saveErrors       ${saveErrors}`);
   console.log(`  pricedCalls      ${priced.length}`);
   console.log(`  unpricedCalls    ${unpriced.length}`);
   console.log(`  failedCalls      ${failed.length}`);
@@ -355,6 +390,18 @@ function printSummary() {
     );
   } else {
     console.log('  TOTAL COMPLETE — every call in this session was priced exactly.');
+  }
+
+  if (saveErrors > 0) {
+    // Deliberately SEPARATE from the money verdict above. Every call may have
+    // priced exactly — the accounting can be COMPLETE — while the images the
+    // customer paid for are not on this disk. Folding the two together would
+    // report a billing problem that does not exist, or hide a delivery one
+    // that does.
+    console.log(
+      `  ⚠ ${saveErrors} image(s) were BILLED AND DELIVERED but could NOT BE SAVED. ` +
+        'The prices above are correct; the files are missing locally.',
+    );
   }
 
   console.log(`\n  log: ${LOG_PATH}`);
@@ -400,6 +447,7 @@ async function saveImages(promptIndex, body) {
   const data = Array.isArray(body?.data) ? body.data : [];
   const files = [];
   const urls = [];
+  const saveErrors = [];
 
   for (let index = 0; index < data.length; index += 1) {
     const item = data[index];
@@ -407,9 +455,32 @@ async function saveImages(promptIndex, body) {
     if (b64) {
       const bytes = Buffer.from(b64, 'base64');
       const file = path.join(OUT_DIR, `image-${promptIndex}-${index + 1}.${extensionForBytes(bytes)}`);
-      await writeFile(file, bytes);
-      files.push({ path: file, bytes: bytes.length });
-      console.log(`      wrote ${file} (${bytes.length} bytes)`);
+      try {
+        await writeFile(file, bytes);
+        files.push({ path: file, bytes: bytes.length });
+        console.log(`      wrote ${file} (${bytes.length} bytes)`);
+      } catch (cause) {
+        // A FAILED WRITE IS DATA, NOT AN EXCEPTION. Throwing here would send a
+        // call that SUCCEEDED and was BILLED into the caller's failure path,
+        // where the record is rebuilt from the error — and a filesystem error
+        // carries no `meta`, so the cost, the model and the request id would
+        // all log `null`. The charge would vanish from the session total and
+        // take the spend-row join key with it. A full disk must not be able to
+        // erase a bill.
+        //
+        // It also must not lose the OTHER images in the same response: one bad
+        // write is one entry here, and the loop continues.
+        saveErrors.push({
+          path: file,
+          bytes: bytes.length,
+          error: String(cause?.message ?? cause),
+        });
+        console.warn(
+          `      ⚠ could not write ${file} (${bytes.length} bytes): ${cause?.message ?? cause}\n` +
+            '        The image WAS generated and the call WAS billed — this is a local ' +
+            'failure to save it, not a failure to charge for it.',
+        );
+      }
       continue;
     }
     const url = item && typeof item.url === 'string' ? item.url : null;
@@ -424,7 +495,7 @@ async function saveImages(promptIndex, body) {
   // `data.length`, not `IMAGE_N`: what was DELIVERED, which is what the spend
   // row was priced on. A provider that returns fewer than asked for is a real
   // state, and reporting the request instead of the response would hide it.
-  return { count: data.length, files, urls };
+  return { count: data.length, files, urls, saveErrors };
 }
 
 async function main() {
@@ -465,6 +536,16 @@ async function main() {
         ...(await saveImages(promptIndex, result.body)),
         imageTokens: imageTokensFrom(result.body),
       }),
+    );
+  }
+
+  // The money is settled and reported either way, but a run that could not
+  // save what it paid for did not do its job — a scripted caller must see a
+  // non-zero exit rather than a green run and an empty directory.
+  const unsaved = calls.reduce((sum, entry) => sum + entry.saveErrors.length, 0);
+  if (unsaved > 0) {
+    throw new Error(
+      `${unsaved} image(s) were billed and delivered but could not be written to ${OUT_DIR}`,
     );
   }
 }
