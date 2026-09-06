@@ -218,7 +218,7 @@ test('nr.media.waitForVideo polls until completion', async () => {
     },
   });
 
-  const res = await client.nr.media.waitForVideo('vid_poll', { pollIntervalMs: 10, timeoutMs: 1000 });
+  const res = await client.nr.media.waitForVideo('vid_poll', { pollIntervalMs: 250, timeoutMs: 5000 });
   assert.equal(res.body.status, 'completed');
   assert.equal(calls, 2);
 });
@@ -232,7 +232,7 @@ test('nr.media.waitForVideo throws on failed status', async () => {
   });
 
   await assert.rejects(
-    () => client.nr.media.waitForVideo('vid_fail', { pollIntervalMs: 10, timeoutMs: 1000 }),
+    () => client.nr.media.waitForVideo('vid_fail', { pollIntervalMs: 250, timeoutMs: 5000 }),
     /ended with status: failed/
   );
 });

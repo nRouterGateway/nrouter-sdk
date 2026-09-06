@@ -88,6 +88,17 @@ const {
   MULTIMODAL_ENDPOINTS,
   VALID_AUDIO_FORMATS,
   validateAudioFormat,
+  MAX_IMAGE_COUNT,
+  VALID_IMAGE_SIZES,
+  VALID_IMAGE_QUALITIES,
+  VALID_IMAGE_RESPONSE_FORMATS,
+  MAX_VIDEO_SECONDS,
+  MIN_VIDEO_POLL_INTERVAL_MS,
+  DEFAULT_VIDEO_POLL_INTERVAL_MS,
+  DEFAULT_VIDEO_TIMEOUT_MS,
+  validateImageParams,
+  validateVideoParams,
+  validateWaitForVideoOptions,
 } = cjs;
 
 export {
@@ -178,6 +189,17 @@ export {
   MULTIMODAL_ENDPOINTS,
   VALID_AUDIO_FORMATS,
   validateAudioFormat,
+  MAX_IMAGE_COUNT,
+  VALID_IMAGE_SIZES,
+  VALID_IMAGE_QUALITIES,
+  VALID_IMAGE_RESPONSE_FORMATS,
+  MAX_VIDEO_SECONDS,
+  MIN_VIDEO_POLL_INTERVAL_MS,
+  DEFAULT_VIDEO_POLL_INTERVAL_MS,
+  DEFAULT_VIDEO_TIMEOUT_MS,
+  validateImageParams,
+  validateVideoParams,
+  validateWaitForVideoOptions,
 };
 
 export default nRouter;

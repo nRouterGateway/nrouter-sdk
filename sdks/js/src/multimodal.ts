@@ -336,6 +336,277 @@ export interface EmbeddingsParams {
 }
 
 // ---------------------------------------------------------------------------
+// Pre-send bounds for the two BILLED media calls
+// ---------------------------------------------------------------------------
+//
+// `image()` and `video()` are the endpoints where a bad argument is expensive.
+// Everything below refuses BEFORE `this.send`, so the caller pays no round
+// trip, consumes no rate-limit slot, and — for `video()` — takes no credit
+// hold. Every bound is the gateway's own, cited at the constant that carries
+// it, because an SDK that is STRICTER than the gateway is a false gate: it
+// refuses a request the gateway accepts and bills. The gateway makes that
+// argument against itself in `src/http/images.rs`, where rejecting the
+// documented `size: "auto"` made the gateway "the only refusal in the path".
+//
+// The escape hatch is `extra`, exactly as it is for the headerless `pcm`
+// speech format above: `jsonBody` spreads `extra` FIRST and `defined()` drops
+// an absent top-level field, so `extra: { size: '2048x2048' }` reaches the
+// wire untouched and the gateway and the provider decide. Use it deliberately.
+
+/**
+ * The inclusive ceiling on `n`, and the gateway's own.
+ *
+ * `src/http/images.rs`: `const MAX_IMAGES: u64 = 10;`, enforced by
+ * `image_count()` on the caller's request before preflight or provider egress.
+ * Each image is a separate charge — `ReservationClass::Image` holds
+ * `max($0.35, $0.35 x n)` — so `n` is the multiplier on the bill, not a
+ * formatting preference.
+ */
+export const MAX_IMAGE_COUNT = 10;
+
+/**
+ * The image dimensions published on the OpenAI images wire the gateway relays.
+ *
+ * `256x256`/`512x512`/`1024x1024` are dall-e-2, `1024x1792`/`1792x1024` are
+ * dall-e-3, `1024x1536`/`1536x1024`/`auto` are the gpt-image family. `auto` is
+ * a documented value the gateway admits explicitly (`src/http/images.rs`,
+ * `checked_image_shape`) and prices at the same default shape an omitted
+ * `size` gets (`src/http/multimodal.rs`, `image_shape` -> `(1024, 1024)`).
+ *
+ * Size is two thirds of the image price key, so a shape nobody prices is a
+ * request the gateway refuses pre-egress rather than one it bills. A model
+ * outside that family may take a size not listed here — pass it through
+ * `extra`.
+ */
+export const VALID_IMAGE_SIZES = [
+  'auto',
+  '256x256',
+  '512x512',
+  '1024x1024',
+  '1024x1536',
+  '1536x1024',
+  '1024x1792',
+  '1792x1024',
+] as const;
+export type ImageSize = (typeof VALID_IMAGE_SIZES)[number];
+
+/**
+ * The quality tokens the gateway prices.
+ *
+ * `standard`/`hd` are dall-e-3, `low`/`medium`/`high`/`auto` are the
+ * gpt-image family. The gateway lowercases this value and makes it the first
+ * component of the price key (`src/http/multimodal.rs`, `image_shape`), and
+ * the ordering comment there records a real 2x difference in dollars between
+ * `hd` and the bare key. `auto` means "unspecified" and resolves to the
+ * model's default. Anything else, if a provider ever takes one, goes through
+ * `extra`.
+ */
+export const VALID_IMAGE_QUALITIES = [
+  'auto',
+  'standard',
+  'hd',
+  'low',
+  'medium',
+  'high',
+] as const;
+export type ImageQuality = (typeof VALID_IMAGE_QUALITIES)[number];
+
+/** The two `response_format` values the images wire defines. */
+export const VALID_IMAGE_RESPONSE_FORMATS = ['url', 'b64_json'] as const;
+export type ImageResponseFormat = (typeof VALID_IMAGE_RESPONSE_FORMATS)[number];
+
+/**
+ * The largest `seconds` a video request may ask for, and the ONE bound here
+ * that is a money bound rather than a fast-fail.
+ *
+ * Derived, not chosen: the gateway holds `$0.75` per requested second
+ * (`ReservationClass::Video::per_unit_usd`) against a per-request ceiling of
+ * `MAX_RESERVATION_USD = $1_000.0`, both in `src/proxy/credits.rs`. Above
+ * `1000 / 0.75 = 1333.33` seconds `reservation_envelope` CLAMPS rather than
+ * refusing, and says so in its own log line: "the hold is capped, so the
+ * pre-call 402 cannot fire for the uncovered remainder and the settle may
+ * overage." A request past this point is therefore under-held on purpose —
+ * the balance check that protects the customer stops covering the part of the
+ * request that exceeds the cap. Floored to a whole second.
+ */
+export const MAX_VIDEO_SECONDS = 1333;
+
+/**
+ * The floor on `waitForVideo`'s poll interval.
+ *
+ * Polling is FREE — `get_video` deliberately bypasses `multimodal::serve`, so
+ * a poll takes no reservation (`src/http/videos.rs`, "Collection is not a
+ * billable call"). It is not free of a rate-limit slot: every poll is a
+ * metered request against the key's RPM, and the gateway documents the steady
+ * state of this route as "a client polling every couple of seconds". 250 ms is
+ * eight times faster than that and still leaves the limiter room; a 1 ms loop
+ * spends the customer's own RPM budget and 429s their real traffic.
+ */
+export const MIN_VIDEO_POLL_INTERVAL_MS = 250;
+
+/** `waitForVideo`'s poll interval when the caller names none. */
+export const DEFAULT_VIDEO_POLL_INTERVAL_MS = 500;
+
+/** `waitForVideo`'s overall deadline when the caller names none. */
+export const DEFAULT_VIDEO_TIMEOUT_MS = 60_000;
+
+/** WIDTHxHEIGHT, the only shape the video wire takes. */
+const VIDEO_SIZE_PATTERN = /^(\d+)x(\d+)$/;
+
+/** Render a rejected value for an error message without ever quoting a key. */
+function describeValue(value: unknown): string {
+  if (typeof value === 'string') return `'${value}'`;
+  if (typeof value === 'number' || typeof value === 'boolean' || value === null) {
+    return String(value);
+  }
+  return typeof value;
+}
+
+/**
+ * Assert a caller's string is one of `allowed`, comparing the way the gateway
+ * does: trimmed and lowercased.
+ *
+ * `label` is the WHOLE field description the message quotes — "image size",
+ * not "size". The wire name is the caller's to supply so this stays reusable:
+ * an earlier draft baked "image" into the template, which would have blamed
+ * the image wire for the first video field anyone validated with it.
+ */
+function assertOneOf(
+  value: unknown,
+  allowed: ReadonlyArray<string>,
+  label: string
+): void {
+  const clean = typeof value === 'string' ? value.trim().toLowerCase() : null;
+  if (clean === null || !allowed.includes(clean)) {
+    throw configurationError(
+      `Invalid ${label} ${describeValue(value)}; must be one of: ${allowed.join(', ')}. ` +
+        `Pass an unlisted value through \`extra\` if the provider takes one.`
+    );
+  }
+}
+
+/**
+ * Coerce the `seconds` field the way the gateway's `as_seconds` does — a
+ * number or a numeric STRING, because `seconds` is a string on the OpenAI
+ * video wire — and return `NaN` for anything else.
+ */
+function coerceSeconds(value: number | string): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim() !== '') return Number(value);
+  return Number.NaN;
+}
+
+/**
+ * Everything `image()` can refuse without spending anything.
+ *
+ * Exported so a caller validating a form before submit gets the same answer
+ * the SDK will give, rather than reimplementing these bounds and drifting.
+ */
+export function validateImageParams(params: ImageParams): void {
+  requireNonEmpty(params.model, 'model');
+  requireNonEmpty(params.prompt, 'prompt');
+
+  if (params.n !== undefined) {
+    const n = params.n;
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > MAX_IMAGE_COUNT) {
+      throw configurationError(
+        `image() \`n\` must be an integer from 1 through ${MAX_IMAGE_COUNT}; ` +
+          `received ${describeValue(n)}. Each image is billed separately.`
+      );
+    }
+  }
+  if (params.response_format !== undefined) {
+    assertOneOf(params.response_format, VALID_IMAGE_RESPONSE_FORMATS, 'image response_format');
+  }
+  if (params.size !== undefined) {
+    assertOneOf(params.size, VALID_IMAGE_SIZES, 'image size');
+  }
+  if (params.quality !== undefined) {
+    assertOneOf(params.quality, VALID_IMAGE_QUALITIES, 'image quality');
+  }
+}
+
+/**
+ * Everything `video()` can refuse before it takes a credit hold.
+ *
+ * `size` matters more here than on the image wire: a video create BILLS on
+ * acceptance, so a malformed size that the provider rejects downstream is a
+ * charge for nothing. On the image wire the same mistake is an unbilled 400.
+ */
+export function validateVideoParams(params: VideoParams): void {
+  requireNonEmpty(params.model, 'model');
+  requireNonEmpty(params.prompt, 'prompt');
+
+  if (params.seconds !== undefined) {
+    const seconds = coerceSeconds(params.seconds);
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      throw configurationError(
+        `video() \`seconds\` must be a positive finite number or numeric string; ` +
+          `received ${describeValue(params.seconds)}`
+      );
+    }
+    if (seconds > MAX_VIDEO_SECONDS) {
+      throw configurationError(
+        `video() \`seconds\` must be at most ${MAX_VIDEO_SECONDS}; received ${seconds}. ` +
+          `Above that the gateway's per-request credit hold saturates its ceiling, so the ` +
+          `pre-call insufficient-credit refusal no longer covers the whole request and the ` +
+          `settle lands as an overage against your balance.`
+      );
+    }
+  }
+
+  if (params.size !== undefined) {
+    const size = typeof params.size === 'string' ? params.size.trim().toLowerCase() : '';
+    const match = VIDEO_SIZE_PATTERN.exec(size);
+    const positive =
+      match !== null && Number(match[1]) > 0 && Number(match[2]) > 0;
+    if (!positive) {
+      throw configurationError(
+        `video() \`size\` must be WIDTHxHEIGHT with both dimensions above zero ` +
+          `(for example '1280x720'); received ${describeValue(params.size)}`
+      );
+    }
+  }
+}
+
+/**
+ * Resolve and bound `waitForVideo`'s timing, returning the values to poll on.
+ *
+ * Returns rather than merely asserting so the caller cannot re-read the raw
+ * options and poll on a value this function never saw.
+ */
+export function validateWaitForVideoOptions(
+  options?: WaitForVideoOptions
+): { pollIntervalMs: number; timeoutMs: number } {
+  const pollIntervalMs = options?.pollIntervalMs ?? DEFAULT_VIDEO_POLL_INTERVAL_MS;
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_VIDEO_TIMEOUT_MS;
+
+  if (
+    typeof pollIntervalMs !== 'number' ||
+    !Number.isFinite(pollIntervalMs) ||
+    pollIntervalMs < MIN_VIDEO_POLL_INTERVAL_MS
+  ) {
+    throw configurationError(
+      `waitForVideo() \`pollIntervalMs\` must be a finite number of at least ` +
+        `${MIN_VIDEO_POLL_INTERVAL_MS}; received ${describeValue(options?.pollIntervalMs)}. ` +
+        `Polling is free of credit but every poll spends one of your key's rate-limit slots.`
+    );
+  }
+  if (
+    typeof timeoutMs !== 'number' ||
+    !Number.isFinite(timeoutMs) ||
+    timeoutMs < pollIntervalMs
+  ) {
+    throw configurationError(
+      `waitForVideo() \`timeoutMs\` must be a finite number no smaller than ` +
+        `\`pollIntervalMs\` (${pollIntervalMs}); received ${describeValue(options?.timeoutMs)}. ` +
+        `A shorter deadline returns a timeout without ever polling.`
+    );
+  }
+  return { pollIntervalMs, timeoutMs };
+}
+
+// ---------------------------------------------------------------------------
 // The helper surface
 // ---------------------------------------------------------------------------
 
@@ -418,10 +689,15 @@ export class Multimodal {
     return this.audioUpload('/audio/translations', params, undefined, options);
   }
 
-  /** POST /v1/images/generations. */
+  /**
+   * POST /v1/images/generations.
+   *
+   * `n`, `size`, `quality` and `response_format` are bounded before the
+   * request leaves the process — see `validateImageParams`, which carries the
+   * gateway citation for each bound and the `extra` escape hatch.
+   */
   async image(params: ImageParams, options?: CallOptions): Promise<NRouterResponse<JsonObject>> {
-    requireNonEmpty(params.model, 'model');
-    requireNonEmpty(params.prompt, 'prompt');
+    validateImageParams(params);
 
     const body = jsonBody({
       ...(params.extra ?? {}),
@@ -450,8 +726,7 @@ export class Multimodal {
    * credits per attempt while a poll loop does not.
    */
   async video(params: VideoParams, options?: CallOptions): Promise<NRouterResponse<JsonObject>> {
-    requireNonEmpty(params.model, 'model');
-    requireNonEmpty(params.prompt, 'prompt');
+    validateVideoParams(params);
 
     const body = jsonBody({
       ...(params.extra ?? {}),
@@ -499,8 +774,8 @@ export class Multimodal {
     if (!trimmed) {
       throw configurationError('video id must not be empty');
     }
-    const pollInterval = options?.pollIntervalMs ?? 500;
-    const timeout = options?.timeoutMs ?? 60_000;
+    const { pollIntervalMs: pollInterval, timeoutMs: timeout } =
+      validateWaitForVideoOptions(options);
     const start = Date.now();
 
     while (Date.now() - start < timeout) {
