@@ -108,6 +108,7 @@ function startMock({
   jobOutcome = 'completed',
   refuseCreate = false,
   failContent = false,
+  destroyCreate = false,
 } = {}) {
   let requests = 0;
   let createCalls = 0;
@@ -136,6 +137,13 @@ function startMock({
 
       if (url === '/v1/videos' && req.method === 'POST') {
         createCalls += 1;
+        if (destroyCreate) {
+          // The request ARRIVED and then the connection died. This is the
+          // UNKNOWN case: the gateway may have reserved credit before the
+          // socket dropped, and no request id ever came back to find out.
+          req.socket.destroy();
+          return;
+        }
         if (refuseCreate) {
           // 402 with the gateway's own envelope shape: `error.type`, no
           // top-level `code`. Nothing was served, so nothing is added to the
@@ -267,7 +275,7 @@ function listen(server) {
  * child on its first request and the suite reports a hang as a failure of the
  * example.
  */
-async function runExample({ port, workDir }) {
+async function runExample({ port, workDir, envOverrides = {} }) {
   const logPath = path.join(workDir, 'video-agent.log.jsonl');
   const outDir = path.join(workDir, 'out');
 
@@ -290,6 +298,7 @@ async function runExample({ port, workDir }) {
     NROUTER_VIDEO_LOG: logPath,
     NROUTER_VIDEO_OUT: outDir,
   });
+  Object.assign(env, envOverrides);
 
   const child = await new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [EXAMPLE], { env, cwd: workDir });
@@ -356,7 +365,7 @@ async function main() {
     // ---------------------------------------------------------------- run 1
     // The whole journey: one billed create, three free polls, one free
     // download. The create cost is the ONLY thing in the total.
-    console.log('\n[1/7] Create bills, collection is free (completed job)...');
+    console.log('\n[1/9] Create bills, collection is free (completed job)...');
     const happy = startMock();
     const happyPort = await listen(happy.server);
     const workA = path.join(workRoot, 'happy');
@@ -515,7 +524,7 @@ async function main() {
     // collected — unpriced is a served request, not an error — but the ONE
     // billed call in the session has no price, so the total is INCOMPLETE and
     // must say so rather than reporting $0.00 as if that were the bill.
-    console.log('\n[2/7] An unpriced create...');
+    console.log('\n[2/9] An unpriced create...');
     const unpriced = startMock({ createStatus: 'unpriced' });
     const unpricedPort = await listen(unpriced.server);
     const workB = path.join(workRoot, 'unpriced');
@@ -561,7 +570,7 @@ async function main() {
     // attempt the download. A `failed` job has no content to fetch, so a
     // download attempt is a guaranteed 404 the example would then report as a
     // second, unrelated failure — burying the real one.
-    console.log('\n[3/7] A job that fails after create...');
+    console.log('\n[3/9] A job that fails after create...');
     const failedJob = startMock({ jobOutcome: 'failed' });
     const failedPort = await listen(failedJob.server);
     const workC = path.join(workRoot, 'failed');
@@ -607,7 +616,7 @@ async function main() {
     // ---------------------------------------------------------------- run 4
     // A 402 at create. Nothing was started, so there is nothing to poll and
     // nothing to download — and, unlike run 3, nothing was billed either.
-    console.log('\n[4/7] A refused create (402)...');
+    console.log('\n[4/9] A refused create (402)...');
     const refused = startMock({ refuseCreate: true });
     const refusedPort = await listen(refused.server);
     const workD = path.join(workRoot, 'refused');
@@ -654,7 +663,7 @@ async function main() {
     // one of them stays green if the other is dropped from the terminal set —
     // and dropping it turns a finished render into a poll loop that runs to
     // its ten-minute timeout on a job that was ready in one.
-    console.log('\n[5/7] The `succeeded` terminal status...');
+    console.log('\n[5/9] The `succeeded` terminal status...');
     const succeeded = startMock({ jobOutcome: 'succeeded' });
     const succeededPort = await listen(succeeded.server);
     const workE = path.join(workRoot, 'succeeded');
@@ -675,7 +684,7 @@ async function main() {
     // `cancelled`, the other terminal FAILURE status, for the mirror-image
     // reason: dropped from the set it becomes a poll loop against a job that
     // will never progress.
-    console.log('\n[6/7] The `cancelled` terminal status...');
+    console.log('\n[6/9] The `cancelled` terminal status...');
     const cancelled = startMock({ jobOutcome: 'cancelled' });
     const cancelledPort = await listen(cancelled.server);
     const workF = path.join(workRoot, 'cancelled');
@@ -694,7 +703,7 @@ async function main() {
     // FREE call is not money that may have been spent. Saying it was sends an
     // operator looking for a charge that cannot exist — the route bills
     // nothing whatever it answers.
-    console.log('\n[7/7] A failed collection call is still free...');
+    console.log('\n[7/9] A failed collection call is still free...');
     const badContent = startMock({ failContent: true });
     const badContentPort = await listen(badContent.server);
     const workG = path.join(workRoot, 'content-fails');
@@ -734,6 +743,142 @@ async function main() {
     );
 
     console.log(`      exit=1 failedCalls=1 (free) pricedTotalUsd=${CREATE_COST.toFixed(8)}`);
+
+    // ---------------------------------------------------------------- run 8
+    // A refusal the SDK makes BEFORE the request leaves the process.
+    // `validateVideoParams` caps `seconds` at MAX_VIDEO_SECONDS (1333), so
+    // 5000 never reaches the network.
+    //
+    // This is a FOURTH failure class and it needs its own sentence. A refused
+    // call that reached the gateway "may still have been billed" — a create
+    // that got as far as the provider is charged for. One that never left the
+    // process cannot have been: nothing was reserved, nothing was settled, and
+    // there is no request id to take to support. Telling an operator to go and
+    // check a charge that cannot exist, for an id that does not exist, is a
+    // wild goose chase manufactured by an accounting shortcut.
+    //
+    // The strongest assertion here is on the MOCK: `createCalls === 0`. A
+    // record can claim anything; the server proves nothing was sent.
+    console.log('\n[8/9] A refusal before the request is sent...');
+    const neverSent = startMock();
+    const neverSentPort = await listen(neverSent.server);
+    const workH = path.join(workRoot, 'never-sent');
+    fs.mkdirSync(workH);
+    const h = await runExample({
+      port: neverSentPort,
+      workDir: workH,
+      // Above MAX_VIDEO_SECONDS, so the SDK refuses in-process.
+      envOverrides: { NROUTER_VIDEO_SECONDS: '5000' },
+    });
+    neverSent.server.close();
+
+    assert.equal(h.child.status, 1, 'a local refusal must still exit non-zero');
+    assert.equal(
+      neverSent.counts().requests,
+      0,
+      'the request never left the process — the mock must have seen NOTHING',
+    );
+
+    assert.equal(h.records.length, 1, 'the refusal is still logged');
+    const local = h.records[0];
+    assert.equal(local.step, 'video.create');
+    assert.equal(local.ok, false);
+    assert.equal(
+      local.sentToGateway,
+      false,
+      'a pre-send refusal must record that it never reached the gateway',
+    );
+    assert.equal(
+      local.billed,
+      false,
+      'a call that was never sent cannot have been billed — no reservation exists',
+    );
+    assert.equal(local.priced, false);
+    assert.equal(local.cost, null);
+    assert.equal(local.requestId, null, 'there is no request id, because there was no request');
+    assert.ok(
+      /seconds/.test(local.error) && /1333/.test(local.error),
+      `the record must say what was refused and what the bound is: ${local.error}`,
+    );
+
+    // The summary sentences.
+    assert.equal(summaryNumber(h.child.stdout, 'failedCalls'), 1);
+    assert.equal(summaryNumber(h.child.stdout, 'billedCalls'), 0, 'nothing was billed');
+    assert.equal(summaryNumber(h.child.stdout, 'unpricedCalls'), 0);
+    assert.equal(summaryNumber(h.child.stdout, 'freeCalls'), 0);
+    assert.equal(summaryNumber(h.child.stdout, 'pricedTotalUsd'), 0);
+    assert.ok(h.child.stdout.includes('TOTAL INCOMPLETE'));
+    // THE assertion this run exists for.
+    assert.ok(
+      !/may still have been billed/.test(h.child.stdout),
+      `a call that was never sent must NOT be described as possibly billed:\n${h.child.stdout}`,
+    );
+    assert.ok(
+      /never reached the gateway|nothing was sent and nothing was billed/.test(h.child.stdout),
+      `the summary must say the call was never sent:\n${h.child.stdout}`,
+    );
+
+    console.log(`      exit=1 gatewayRequests=0 billedCalls=0 (refused in-process)`);
+
+    // ---------------------------------------------------------------- run 9
+    // The UNKNOWN arm, and it is the mirror image of run 8. Here the request
+    // DID leave the process — the mock counted it — and then the connection
+    // died before any response. No request id came back.
+    //
+    // "No request id" is therefore NOT a synonym for "never sent", and this
+    // run is what stops anyone simplifying the classifier into
+    // `requestId ? true : false`. The SDK's own words for a transport error
+    // are "the request left this process and got no usable answer", so the
+    // gateway may have reserved credit and settled it. Reporting that as
+    // "nothing was sent and nothing was billed" would be a confident claim
+    // about money we do not have — the same defect as reporting an unpriced
+    // call as $0, pointed the other way.
+    console.log('\n[9/9] A connection that dies mid-request is UNKNOWN, not never-sent...');
+    const dropped = startMock({ destroyCreate: true });
+    const droppedPort = await listen(dropped.server);
+    const workI = path.join(workRoot, 'dropped');
+    fs.mkdirSync(workI);
+    const i = await runExample({ port: droppedPort, workDir: workI });
+    dropped.server.close();
+
+    assert.equal(i.child.status, 1, 'a transport failure must exit non-zero');
+    assert.equal(
+      dropped.counts().createCalls,
+      1,
+      'the request DID reach the mock — this is the difference from run 8',
+    );
+
+    assert.equal(i.records.length, 1);
+    const unknown = i.records[0];
+    assert.equal(unknown.ok, false);
+    assert.equal(unknown.requestId, null, 'no response, so no request id — same as run 8');
+    // ...and yet NOT `false`. This is the whole assertion.
+    assert.equal(
+      unknown.sentToGateway,
+      null,
+      'a dropped connection is UNKNOWN; treating a missing request id as proof of ' +
+        'never-sent would claim no charge exists when one may',
+    );
+    assert.equal(
+      unknown.billed,
+      true,
+      'unknown stays billed — the cautious side of a charge we cannot rule out',
+    );
+
+    assert.equal(summaryNumber(i.child.stdout, 'billedCalls'), 0, 'billedCalls counts SERVED calls');
+    assert.equal(summaryNumber(i.child.stdout, 'failedCalls'), 1);
+    assert.ok(i.child.stdout.includes('TOTAL INCOMPLETE'));
+    // The opposite sentence from run 8, on a record with the same missing id.
+    assert.ok(
+      /may still have been billed/.test(i.child.stdout),
+      `an unknown-outcome call must warn that it may have been billed:\n${i.child.stdout}`,
+    );
+    assert.ok(
+      !/never reached the gateway|nothing was sent and nothing was billed/.test(i.child.stdout),
+      `a request that DID reach the gateway must not be reported as never sent:\n${i.child.stdout}`,
+    );
+
+    console.log(`      exit=1 gatewayRequests=1 sentToGateway=null (unknown, stays billed)`);
 
     console.log('\n======================================================================');
     console.log('Result: PASS (video-agent cost, usage and logging verified)');

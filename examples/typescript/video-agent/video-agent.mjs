@@ -163,6 +163,44 @@ function extensionFor(contentType) {
 
 const calls = [];
 
+/**
+ * Did this call reach the gateway?
+ *
+ * THREE answers, because there are three situations and collapsing any two of
+ * them tells an operator something untrue about their money.
+ *
+ *   true   a request id came back, so it demonstrably reached the gateway.
+ *          A create that got this far MAY have been billed even if it then
+ *          failed — the provider can have run before the refusal.
+ *
+ *   false  the SDK refused it BEFORE sending. `nRouterConfigurationError` is
+ *          exactly that class: `validateVideoParams` rejects a `seconds` above
+ *          MAX_VIDEO_SECONDS or a malformed `size` without opening a socket.
+ *          Nothing was reserved, nothing was settled, and there is no request
+ *          id to take to support.
+ *
+ *   null   it left this process and no usable answer came back — a transport
+ *          failure or a timeout. UNKNOWN, and deliberately not `false`.
+ *          The SDK's own words for `transportError` are "the request left this
+ *          process and got no usable answer", so the gateway may well have
+ *          received it, reserved credit and settled. Reporting that as "never
+ *          sent, nothing billed" would be the same overconfidence as reporting
+ *          an unpriced call as $0 — a confident claim about money we do not
+ *          have.
+ *
+ * Absence of a request id is therefore NOT the test. A timeout has no id
+ * either, and it is the one case where a charge is most likely to exist and
+ * hardest to find.
+ */
+function sentToGateway(error) {
+  if (error instanceof nRouterError) {
+    if (error.meta?.requestId) return true;
+    if (error.kind === 'configuration') return false;
+    return null;
+  }
+  return null;
+}
+
 function money(value) {
   return value === null || value === undefined ? '—' : `$${value.toFixed(6)}`;
 }
@@ -225,6 +263,8 @@ async function meteredCreate(label, call) {
       gatewayMs: meta.latencyMs ?? null,
       latencyMs,
       ok: true,
+      // A response came back, so it reached the gateway by definition.
+      sentToGateway: true,
       // The three-bucket distinction, decided by the ROUTE. This one bills.
       billed: true,
       free: false,
@@ -250,6 +290,7 @@ async function meteredCreate(label, call) {
     return result;
   } catch (error) {
     const meta = error instanceof nRouterError ? error.meta : undefined;
+    const sent = sentToGateway(error);
     await record({
       ts: new Date().toISOString(),
       step: 'video.create',
@@ -265,7 +306,14 @@ async function meteredCreate(label, call) {
       gatewayMs: meta?.latencyMs ?? null,
       latencyMs: Date.now() - started,
       ok: false,
-      billed: true,
+      sentToGateway: sent,
+      // `billed` is a claim about whether money COULD be involved, and a
+      // request that never left the process cannot be. Hardcoding `true` here
+      // — which this file did — makes the summary tell an operator to go and
+      // check a charge that cannot exist, for a request id that does not
+      // exist. `null` (unknown) stays billed: we cannot rule it out, and the
+      // cautious side of an unknown charge is to say so.
+      billed: sent !== false,
       free: false,
       // A refused call is not a priced one, and it is not an unpriced SERVED
       // one either — the summary counts it separately.
@@ -323,6 +371,7 @@ async function meteredFree(step, label, call, describe) {
       gatewayMs: meta.latencyMs ?? null,
       latencyMs,
       ok: true,
+      sentToGateway: true,
       billed: false,
       free: true,
       priced: false,
@@ -349,6 +398,7 @@ async function meteredFree(step, label, call, describe) {
       gatewayMs: meta?.latencyMs ?? null,
       latencyMs: Date.now() - started,
       ok: false,
+      sentToGateway: sentToGateway(error),
       // A collection call that FAILED is still free — the route bills nothing
       // whatever it answers. It is counted as failed, never as unpriced.
       billed: false,
@@ -402,11 +452,27 @@ function printSummary() {
     // nothing, because the route bills nothing whatever it answers. Telling an
     // operator a failed poll "may still have been billed" sends them looking
     // for a charge that cannot exist.
-    const failedBilled = failed.filter((entry) => entry.billed);
-    const failedFree = failed.filter((entry) => !entry.billed);
+    // FOUR failure sentences, because there are four situations and one
+    // sentence covering them all is wrong about three.
+    const neverSent = failed.filter((entry) => entry.sentToGateway === false);
+    const sentFailed = failed.filter((entry) => entry.sentToGateway !== false);
+    const failedBilled = sentFailed.filter((entry) => entry.billed);
+    const failedFree = sentFailed.filter((entry) => !entry.billed);
     const reasons = [];
     if (unpriced.length > 0) {
       reasons.push(`${unpriced.length} billed call(s) were SERVED without a price`);
+    }
+    if (neverSent.length > 0) {
+      // The whole point of the class. Do NOT say "may still have been billed":
+      // this request never reached the gateway, so no reservation, no
+      // settlement and no spend row exist — and there is no request id to take
+      // to support, because there was no request. Sending someone to look is a
+      // wild goose chase invented by an accounting shortcut.
+      reasons.push(
+        `${neverSent.length} call(s) were refused BEFORE being sent and never reached the ` +
+          'gateway — nothing was sent and nothing was billed, and there is no request id ' +
+          'to chase. Fix the configuration named in the error and re-run',
+      );
     }
     if (failedBilled.length > 0) {
       reasons.push(`${failedBilled.length} billed call(s) FAILED and may still have been billed`);

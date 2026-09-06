@@ -99,6 +99,25 @@ Writing `'unpriced'` there would be claiming it tried and failed. The summary
 keeps the two apart, and a session whose only billed call was priced exactly
 reports `TOTAL COMPLETE` even though four of its five calls carry no price.
 
+### `sentToGateway` — three answers, because there are three situations
+
+A failure needs to say whether money can be involved at all, and the test for
+that is **not** "is there a request id". Every record carries `sentToGateway`:
+
+| value | when | what the summary says |
+|---|---|---|
+| `true` | a request id came back | a failed create **may still have been billed** — the provider can have run before the refusal |
+| `false` | the SDK refused it *before* sending — `nRouterConfigurationError`, e.g. `seconds` above the bound | **nothing was sent and nothing was billed**, and there is no id to chase |
+| `null` | it left this process and no usable answer came back — a transport failure or timeout | **unknown**, so it stays counted as billed |
+
+The `null` row is the one that matters. A timeout has no request id either, and
+it is the case where a charge is *most* likely to exist and hardest to find —
+the SDK's own words for a transport error are "the request left this process and
+got no usable answer". Collapsing `null` into `false` would announce that no
+charge exists precisely when one probably does: the same overconfidence as
+reporting an unpriced call as $0, pointed the other way. So absence of an id is
+never the test; the *kind* of refusal is.
+
 ## What it proves
 
 | Property | Where to look |
@@ -183,7 +202,7 @@ node ../video_agent_suite.js
 
 A local mock gateway speaks the three video routes and stamps the same `x-nr-*`
 headers — including, on the collection routes, deliberately stamping *no* cost
-headers. Seven runs, no key, no network, about two seconds:
+headers. Nine runs, no key, no network, about two seconds:
 
 1. **Create bills, collection is free.** Five records: one billed create with an
    exact cost, three free polls and a free download. The free calls log
@@ -215,13 +234,25 @@ headers. Seven runs, no key, no network, about two seconds:
    in full, and the summary says *nothing was billed for them* rather than *may
    still have been billed* — a failed free call is not money that may have been
    spent, and saying it was sends someone looking for a charge that cannot exist.
+8. **A refusal before the request is sent** (`seconds` above the SDK's bound).
+   The mock is asserted to have seen **nothing at all** — a record can claim
+   anything, the server is what proves it. `sentToGateway: false`,
+   `billed: false`, and the summary explicitly does *not* say the call may have
+   been billed.
+9. **A connection that dies mid-request.** The mirror image of run 8, and the
+   run that stops the classifier being simplified. The mock *did* count this
+   request, and no id came back — so a missing request id is not proof of
+   never-sent. It records `sentToGateway: null` (unknown), stays `billed: true`,
+   and the summary *does* warn it may have been billed.
 
-Nine planted mutations were checked to go red against these runs: marking free
+Fourteen planted mutations were checked to go red across these runs: marking free
 calls billed, logging a free cost as `0`, inventing `costStatus: 'unpriced'` on a
 free call, downloading after a failed job, dropping the create from the billed
 bucket, exiting `0` on a failed job, dropping `succeeded` from the terminal set,
-dropping `cancelled` from it, and describing a failed free call as possibly
-billed.
+dropping `cancelled` from it, describing a failed free call as possibly billed,
+reverting a never-sent call to `billed: true`, hardcoding `sentToGateway: true`,
+deleting the never-sent summary sentence, collapsing the tri-state so a missing
+request id means never-sent, and treating an unknown outcome as not billed.
 
 ## What this example does not do
 
