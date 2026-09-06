@@ -478,6 +478,29 @@ provider key. This table is derived from `spec/nrouter-sdk-spec.json` › `suppo
 | `/v1/models` | `models.list()` | Tenant-filtered model list |
 | `/v1/models/{model_id}` | `models.retrieve()` | Retrieve one model |
 
+### Runnable end-to-end example
+
+[`examples/demo-e2e-sdk-example/`](examples/demo-e2e-sdk-example/) is a complete,
+runnable npm consumer of the JS SDK: one real request that prints what it cost
+and, if it is refused, why. It is the shortest demonstration of the two fields a
+production integration has to branch on — `meta.costStatus`, because an unpriced
+request reports no cost at all rather than a silent zero, and `err.authReason`,
+because "your key is wrong" and "your key is fine but the account is on hold"
+need different responses and neither is fixed by retrying. `npm start` sends a
+real, billed request. It depends on `file:../../sdks/js` rather than a published
+range, so build `sdks/js` first; the example's own README carries the one-line
+change to make once the matching version publishes.
+
+### Voice: three of those endpoints, composed
+
+There is no voice endpoint and no realtime session. A voice turn is a cascade —
+`/v1/audio/transcriptions` → a chat wire → `/v1/audio/speech` — so it produces
+three request ids and three spend rows, any of which can come back unpriced.
+[`examples/typescript/voice-agent/`](examples/typescript/voice-agent/) is a
+runnable one that prints the per-call cost and refuses to report a session total
+as complete when a leg was not priced. The JS semantics are in
+[`sdks/js/docs/audio.md`](sdks/js/docs/audio.md).
+
 ### Routing strategies are selected by the model value
 
 Routing strategy is a gateway concern, so there is no separate per-language

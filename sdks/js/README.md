@@ -146,6 +146,43 @@ Other helpers:
   `.video()`, `.videoStatus()`, `.videoContent()` and `.embeddings()` cover the
   non-chat endpoints with the same metadata and error handling.
 
+## Audio and voice
+
+`speech()` returns audio BYTES with the metadata attached, and `transcribe()` /
+`translate()` return a result discriminated on the media type you asked for, so
+an `srt` request comes back as a cue track rather than flattened into `{ text }`:
+
+```typescript
+const spoken = await client.nr.media.speech({
+  model: "tts-1",
+  input: "The build is green.",
+  voice: "alloy",
+  response_format: "mp3",
+});
+await fs.writeFile("out.mp3", spoken.bytes);
+
+const heard = await client.nr.media.transcribe({
+  file: spoken.bytes,
+  fileName: "out.mp3",              // the extension is required
+  model: "gpt-4o-mini-transcribe",
+  response_format: "verbose_json",  // see below — this is a billing decision
+});
+```
+
+`response_format` is not only a formatting choice. A `whisper-1` transcription is
+priced from the response's `duration`, and `duration` arrives **only** with
+`verbose_json` — ask for anything else on a per-second model and the call is
+served but settles unpriced, with no cost figure to report. Token-priced models
+(`gpt-4o-mini-transcribe`, `gpt-4o-transcribe`) are unaffected. Speech is priced
+per character of `input`.
+
+There is no streaming TTS and no realtime session: a voice turn is a cascade of
+three separately billed calls, `transcribe()` → `nr.chat()` → `speech()`. The
+runnable version is [`examples/typescript/voice-agent/`](../../examples/typescript/voice-agent/),
+and the full semantics — the upload rules, what is and is not guardrail-scanned,
+and why a missing cost must never be summed as zero — are in
+[docs/audio.md](./docs/audio.md).
+
 ## Model Discovery
 
 Use the nRouter helper for model listing:
