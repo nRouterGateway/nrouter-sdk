@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
@@ -81,8 +82,6 @@ def system_variable_conflicts(variables: Mapping[str, str] | None) -> list[str]:
     return [name for name in SYSTEM_VARIABLE_NAMES if name in variables]
 
 
-import re
-
 _VARIABLE_PATTERN = re.compile(r"\{\{\s*([a-zA-Z0-9_-]+)\s*\}\}")
 
 
@@ -109,11 +108,11 @@ def render_prompt(
     def _repl(match: re.Match[str]) -> str:
         key = match.group(1)
         if system_variables and key in system_variables:
-            val = system_variables[key]
-            return "" if val is None else str(val)
+            sys_val = system_variables[key]
+            return "" if sys_val is None else str(sys_val)
         if variables and key in variables:
-            val = variables[key]
-            return "" if val is None else str(val)
+            user_val = variables[key]
+            return "" if user_val is None else str(user_val)
         if strict:
             missing_keys.append(key)
         return match.group(0)

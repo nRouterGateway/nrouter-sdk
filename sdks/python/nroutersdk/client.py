@@ -10,19 +10,25 @@ import ipaddress
 from typing import TYPE_CHECKING, Any, Mapping, cast
 from urllib.parse import quote, urlparse
 
-try:
-    import openai._base_client as _oai_base
-    _httpx = getattr(_oai_base, "httpx", None)
-except Exception:
-    _httpx = None
-
-if _httpx is None:
+if TYPE_CHECKING:
     try:
-        import httpx2 as _httpx
+        import httpx2 as httpx
     except ImportError:
-        import httpx as _httpx  # type: ignore[no-redef]
+        import httpx as httpx  # type: ignore[no-redef]
+else:
+    try:
+        import openai._base_client as _oai_base
+        _httpx = getattr(_oai_base, "httpx2", getattr(_oai_base, "httpx", None))
+    except Exception:
+        _httpx = None
 
-httpx = _httpx
+    if _httpx is None:
+        try:
+            import httpx2 as _httpx
+        except ImportError:
+            import httpx as _httpx  # type: ignore[no-redef]
+
+    httpx = _httpx
 from openai import APIStatusError
 from openai import AsyncOpenAI as _AsyncOpenAI
 from openai import OpenAI as _OpenAI

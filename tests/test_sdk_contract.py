@@ -734,31 +734,210 @@ class ExampleBodyFieldContractTests(unittest.TestCase):
         r"""["']?(nrouter_[a-z0-9_]+)["']?\s*(?::|=>)"""
     )
 
+    # The spend-row envelope the dashboard returns:
+    # GET /api/nrouter-proxy/spend/by-key -> {"log": {... "metadata": {...}}, "total": n}
+    # Both openers are anchored on a key introducing an object so that
+    # `console.log(`, `logPath:` and `metadata_keys` cannot open a span.
+    SPEND_ROW_ENVELOPE_OPENS = re.compile(
+        r"""(?<![A-Za-z0-9_])["']?log["']?\s*(?::|=>)\s*\{"""
+    )
+    METADATA_OBJECT_OPENS = re.compile(
+        r"""(?<![A-Za-z0-9_])["']?metadata["']?\s*(?::|=>)\s*\{"""
+    )
+
+    @staticmethod
+    def _object_spans(text: str, opener: "re.Pattern") -> list:
+        """Half-open (start, end) offsets of every brace-balanced object literal
+        introduced by `opener`. Nesting is walked, so an inner `metadata` object
+        keeps the outer `log` span around it."""
+        spans = []
+        for match in opener.finditer(text):
+            depth = 0
+            index = match.end() - 1  # the `{` itself
+            while index < len(text):
+                char = text[index]
+                if char == "{":
+                    depth += 1
+                elif char == "}":
+                    depth -= 1
+                    if depth == 0:
+                        spans.append((match.end(), index))
+                        break
+                index += 1
+        return spans
+
+    @classmethod
+    def _classify(cls, text: str) -> dict:
+        """field -> position, for every nRouter field in a value position.
+
+        A field is in `spend-row-metadata` position only when it sits inside a
+        `metadata` object that is itself inside a spend-row `log` envelope.
+        Everything else — including a bare request-level `metadata` object,
+        which the OpenAI-compatible request bodies really do accept — is a
+        `request-body` position and stays bound to `extra_body_fields`.
+        """
+        envelopes = cls._object_spans(text, cls.SPEND_ROW_ENVELOPE_OPENS)
+        spend_row_metadata = [
+            (lo, hi)
+            for lo, hi in cls._object_spans(text, cls.METADATA_OBJECT_OPENS)
+            if any(elo <= lo and hi <= ehi for elo, ehi in envelopes)
+        ]
+        positions = {}
+        for match in cls.FIELD_IN_VALUE_POSITION.finditer(text):
+            at = match.start(1)
+            inside = any(lo <= at < hi for lo, hi in spend_row_metadata)
+            # EVERY occurrence is recorded, never just the last one: the same
+            # field can legitimately appear as a response key and illegitimately
+            # as a request field in one file, and collapsing the two hides the
+            # second behind the first.
+            positions.setdefault(match.group(1), set()).add(
+                "spend-row-metadata" if inside else "request-body"
+            )
+        return positions
+
+    @classmethod
+    def _offenders(cls, text: str, request_allowed: set, metadata_allowed: set) -> dict:
+        """field -> sorted positions that refused it. An allowlist per position,
+        so a spend-row key is NOT a licence to send that key in a request body,
+        and the `metadata` context is NOT an escape hatch for an unlisted key."""
+        offenders = {}
+        for field, found in cls._classify(text).items():
+            refused = sorted(
+                position
+                for position in found
+                if field
+                not in (
+                    metadata_allowed
+                    if position == "spend-row-metadata"
+                    else request_allowed
+                )
+            )
+            if refused:
+                offenders[field] = refused
+        return offenders
+
+    @staticmethod
+    def _spec() -> dict:
+        return json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+
     def _spec_fields(self) -> set:
-        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
-        fields = set(spec["extra_body_fields"])
+        fields = set(self._spec()["extra_body_fields"])
         self.assertTrue(fields, "the spec declares no extra_body_fields")
         return fields
 
+    def _spec_metadata_fields(self) -> set:
+        """The customer-visible spend-row `metadata` keys, derived in
+        nrouter-app's `src/lib/logs/sanitize-log-metadata.ts` allowlist and
+        published in the spec. `$`-prefixed entries are annotations."""
+        section = self._spec()["spend_row_metadata_fields"]
+        fields = {key for key in section if not key.startswith("$")}
+        self.assertTrue(fields, "the spec declares no spend_row_metadata_fields")
+        return fields
+
     def test_no_example_sends_a_field_the_gateway_does_not_read(self) -> None:
-        allowed = self._spec_fields()
+        request_allowed = self._spec_fields()
+        metadata_allowed = self._spec_metadata_fields()
         offenders = {}
         for path in sorted((SDK_ROOT / "examples").rglob("*")):
             if not path.is_file():
                 continue
-            found = set(
-                self.FIELD_IN_VALUE_POSITION.findall(
-                    path.read_text(encoding="utf-8", errors="ignore")
-                )
+            found = self._offenders(
+                path.read_text(encoding="utf-8", errors="ignore"),
+                request_allowed,
+                metadata_allowed,
             )
-            for field in sorted(found - allowed):
-                offenders.setdefault(field, []).append(str(path.relative_to(SDK_ROOT)))
+            for field, positions in sorted(found.items()):
+                offenders.setdefault(
+                    f"{field} ({', '.join(positions)})", []
+                ).append(str(path.relative_to(SDK_ROOT)))
         self.assertEqual(
             offenders,
             {},
-            "examples send nRouter body fields absent from "
-            "spec/nrouter-sdk-spec.json extra_body_fields; the gateway does "
-            "not read them and forwards them to the provider verbatim",
+            "examples carry nRouter fields absent from the spec allowlist for "
+            "the position they appear in: a request-body field must be in "
+            "extra_body_fields (the gateway does not read anything else and "
+            "forwards it to the provider verbatim), and a spend-row "
+            "`log.metadata` key must be in spend_row_metadata_fields",
+        )
+
+    def test_the_chat_agent_spend_row_mock_is_accepted(self) -> None:
+        """Positive control. The suite mocks the dashboard's own response —
+        `{"log": {..., "metadata": {"nrouter_units": ..., "nrouter_cost": ...}}}`
+        — which is a RESPONSE surface, not a request body, and must not be read
+        as an example teaching customers to send those fields."""
+        suite = SDK_ROOT / "examples" / "typescript" / "chat_agent_suite.js"
+        self.assertTrue(suite.is_file(), f"{suite} is missing")
+        self.assertEqual(
+            self._offenders(
+                suite.read_text(encoding="utf-8"),
+                self._spec_fields(),
+                self._spec_metadata_fields(),
+            ),
+            {},
+        )
+
+    def test_metadata_context_is_an_allowlist_not_an_escape_hatch(self) -> None:
+        """Negative control. `metadata` is a POSITION, not a pass — an unlisted
+        nRouter key inside a real spend-row envelope is still refused, so a
+        future gateway-internal key cannot be taught to customers by wrapping it
+        in the shape this test learned to accept."""
+        fixture = """
+        res.end(JSON.stringify({
+          log: {
+            request_id: 'req_1',
+            metadata: { nrouter_cost: 0.01, nrouter_secret_thing: 'internal' },
+          },
+          total: 1,
+        }));
+        """
+        self.assertEqual(
+            self._offenders(
+                fixture, self._spec_fields(), self._spec_metadata_fields()
+            ),
+            {"nrouter_secret_thing": ["spend-row-metadata"]},
+        )
+
+    def test_a_spend_row_key_is_still_refused_as_a_request_field(self) -> None:
+        """The two allowlists do not leak into each other. `nrouter_units` is a
+        real RESPONSE key, and sending it is still the exact defect this class
+        exists to prevent. `nrouter_cache` beside it is the positive control."""
+        fixture = """
+        const body = { model: 'gpt-4o-mini', nrouter_cache: true, nrouter_units: 'tokens' };
+        """
+        self.assertEqual(
+            self._offenders(
+                fixture, self._spec_fields(), self._spec_metadata_fields()
+            ),
+            {"nrouter_units": ["request-body"]},
+        )
+
+    def test_a_request_level_metadata_object_is_not_a_spend_row(self) -> None:
+        """The OpenAI-compatible request bodies really do accept a `metadata`
+        object, so `metadata` ALONE cannot mean "response". Only a `metadata`
+        nested in the dashboard's `log` envelope is a spend row; without it the
+        field is a request field and stays bound to `extra_body_fields`."""
+        fixture = """
+        const body = { model: 'gpt-4o-mini', metadata: { nrouter_units: 'tokens' } };
+        """
+        self.assertEqual(
+            self._offenders(
+                fixture, self._spec_fields(), self._spec_metadata_fields()
+            ),
+            {"nrouter_units": ["request-body"]},
+        )
+
+    def test_the_guardrail_override_is_refused_in_every_position(self) -> None:
+        """The field that motivated this class is on NEITHER allowlist, so the
+        new response-metadata position must not have quietly readmitted it."""
+        fixture = """
+        const body = { nrouter_guardrail_ids: ['a'] };
+        const row = { log: { metadata: { nrouter_guardrail_ids: ['a'] } } };
+        """
+        self.assertEqual(
+            self._offenders(
+                fixture, self._spec_fields(), self._spec_metadata_fields()
+            ),
+            {"nrouter_guardrail_ids": ["request-body", "spend-row-metadata"]},
         )
 
     def test_the_retired_guardrail_override_is_gone_everywhere(self) -> None:
