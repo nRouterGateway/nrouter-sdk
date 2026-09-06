@@ -501,6 +501,18 @@ runnable one that prints the per-call cost and refuses to report a session total
 as complete when a leg was not priced. The JS semantics are in
 [`sdks/js/docs/audio.md`](sdks/js/docs/audio.md).
 
+### Three more runnable agents, one per money shape
+
+Each is one file, prices and logs every call it makes, and ships a mock-gateway
+suite that runs with no key and no network — so the accounting is checkable
+without spending anything.
+
+| Example | Wires | The money question it answers |
+|---|---|---|
+| [`examples/typescript/chat-agent/`](examples/typescript/chat-agent/) | the four text wires, buffered and streamed | why a streamed call reports `unpriced` permanently, and why a cache hit is still billed — semantics in [`sdks/js/docs/cost.md`](sdks/js/docs/cost.md) |
+| [`examples/typescript/image-agent/`](examples/typescript/image-agent/) | `/v1/images/generations` | which of two billing units the model measured, and why no header carries the quantity that produced the price — semantics in [`sdks/js/docs/images.md`](sdks/js/docs/images.md) |
+| [`examples/typescript/video-agent/`](examples/typescript/video-agent/) | the three video routes | why the create is the only call that bills, and why a *free* call is not an *unpriced* one — semantics in [`sdks/js/docs/video.md`](sdks/js/docs/video.md) |
+
 ### Routing strategies are selected by the model value
 
 Routing strategy is a gateway concern, so there is no separate per-language

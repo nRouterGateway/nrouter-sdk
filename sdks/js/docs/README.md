@@ -12,6 +12,8 @@ signatures cannot: which of two plausible readings is the real one.
 | [cost.md](./cost.md) | Why an absent cost is not a free request, and which calls are genuinely free |
 | [errors.md](./errors.md) | Why classifying on the error `code` alone silently loses conditions |
 | [audio.md](./audio.md) | Which audio calls can be priced at all, and why a voice turn is three separately billed calls rather than one |
+| [images.md](./images.md) | Which of the two billing units a model measured, and why no header carries the quantity that produced the price |
+| [video.md](./video.md) | Why the create is the only call that bills, and why a free call is not an unpriced one |
 | [memory.md](./memory.md) | Where conversation state lives, and what the gateway does not remember |
 | [test-coverage-and-issues.md](./test-coverage-and-issues.md) | What the permanent JS tests cover and which follow-up issues are tracked |
 | [live-sdk-agent-report.md](./live-sdk-agent-report.md) | What the local demo agent, UI and feature-spend probes verified against the live gateway |

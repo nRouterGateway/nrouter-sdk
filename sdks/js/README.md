@@ -183,6 +183,62 @@ and the full semantics — the upload rules, what is and is not guardrail-scanne
 and why a missing cost must never be summed as zero — are in
 [docs/audio.md](./docs/audio.md).
 
+## Images
+
+`image()` always returns JSON — `url` gives you links and `b64_json` gives you
+base64 inside the body, and there is no image-bytes route to return instead:
+
+```typescript
+const res = await client.nr.media.image({
+  model: "gpt-image-1-mini",
+  prompt: "A flat vector lighthouse at dusk, three colours, no text.",
+  n: 1,                     // 1 through 10 — each image is a separate charge
+  size: "1024x1024",
+  quality: "low",
+});
+```
+
+`n`, `size`, `quality` and `response_format` are checked before the request leaves
+the process, against the gateway's own bounds, so a typo costs no round trip;
+`validateImageParams()` is exported so a form can use the same check. Pass an
+unlisted value through `extra` if a model takes one.
+
+Which quantity you are billed on depends on the model — `gpt-image-*` prices from
+the `usage` block in the body, everything else prices per image from `n` × size ×
+quality — and **no response header carries the count, size or quality**. Reconcile
+against the spend row by request id rather than recomputing. The runnable version
+is [`examples/typescript/image-agent/`](../../examples/typescript/image-agent/)
+and the semantics are in [docs/images.md](./docs/images.md).
+
+## Video
+
+Video is asynchronous: the create returns a job, and you collect the result over
+two more calls. **Only the create bills.**
+
+```typescript
+const created = await client.nr.media.video({
+  model: "sora-2",
+  prompt: "A lighthouse beam sweeping over water at dusk.",
+  seconds: 4,
+  size: "1280x720",
+});
+
+const jobId = String(created.body.id);
+await client.nr.media.waitForVideo(jobId, { pollIntervalMs: 5000, timeoutMs: 600_000 });
+const file = await client.nr.media.videoContent(jobId);
+await fs.writeFile("out.mp4", file.bytes);
+```
+
+Polling and downloading are free of credit but not free of quota — every poll
+spends a rate-limit slot, which is why `pollIntervalMs` has a floor. A free call
+reports `costStatus: null`, which is **not** the same as the `unpriced` a billed
+call reports when it could not be priced; conflating them turns a long render into
+a pricing bug that does not exist. A retry of the create is a second *render*, not
+merely a second bill. The runnable version is
+[`examples/typescript/video-agent/`](../../examples/typescript/video-agent/) and
+the semantics — the sealed job handle, why an accepted-then-failed job stays
+billed, and the download bound — are in [docs/video.md](./docs/video.md).
+
 ## Model Discovery
 
 Use the nRouter helper for model listing:
