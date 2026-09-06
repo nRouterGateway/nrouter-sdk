@@ -3,6 +3,7 @@
 
 const assert = require('node:assert/strict');
 const { nRouter, nRouterConfigurationError, isRetryable } = require('../dist/index.js');
+const { classify, summarize, summaryLines } = require('./lib/accounting.js');
 
 const DEFAULT_MODEL = process.env.NROUTER_DEMO_MODEL || 'claude-haiku-4-5-20251001';
 const TARGET_USD = Number(process.env.NROUTER_TARGET_USD || '0.05');
@@ -36,23 +37,32 @@ function textOf(client, result) {
     .trim();
 }
 
-function costOf(result) {
-  return typeof result.meta.cost === 'number' && Number.isFinite(result.meta.cost)
-    ? result.meta.cost
-    : 0;
-}
-
-async function runOne(name, fn) {
+/**
+ * Run one billed call and CLASSIFY what it cost, rather than coercing it.
+ *
+ * This used to be `meta.cost` with a `: 0` fallback, and the caller then did
+ * `spent += check.cost || 0`. Two separate places turning "the gateway could
+ * not price this" into "this was free" — and the streamed mode hits it on every
+ * single request, because a stream's headers are written before a token exists
+ * and report `unpriced` permanently (`sdks/js/docs/cost.md`). The printed total
+ * was therefore structurally too low and said so nowhere.
+ *
+ * `options.streamed` and `options.free` are the caller's claim about the wire it
+ * used; `classify` checks each against what actually arrived and warns on a
+ * contradiction.
+ */
+async function runOne(name, fn, options = {}) {
   const started = Date.now();
   try {
     const result = await fn();
-    const cost = result && result.meta ? costOf(result) : 0;
-    return { name, ok: true, ms: Date.now() - started, cost, result };
+    return { name, ms: Date.now() - started, ...classify(result && result.meta, options), result };
   } catch (error) {
     return {
       name,
-      ok: false,
       ms: Date.now() - started,
+      // A failed call still has a request id and may still have been billed, so
+      // its metadata is carried rather than dropped.
+      ...classify(error && error.meta, { ...options, ok: false }),
       retryable: isRetryable(error),
       error: error && error.message ? error.message : String(error),
     };
@@ -68,6 +78,10 @@ async function main() {
   });
 
   const checks = [];
+  // Two lists on purpose. `checks` is every assertion this probe makes,
+  // including the local refusals that never touch the network; `records` is only
+  // the calls that could have cost money, which is what may be accounted for.
+  const records = [];
   let spent = 0;
   let requests = 0;
 
@@ -87,16 +101,25 @@ async function main() {
   );
   checks.push({ name: 'foreign API key local refusal', ok: true });
 
-  const tokenCheck = await runOne('countTokens', () =>
-    client.nr.countTokens({
-      model: DEFAULT_MODEL,
-      messages: [{ role: 'user', content: 'Count this short sentence.' }],
-    }),
+  const tokenCheck = await runOne(
+    'countTokens',
+    () =>
+      client.nr.countTokens({
+        model: DEFAULT_MODEL,
+        messages: [{ role: 'user', content: 'Count this short sentence.' }],
+      }),
+    // `POST /v1/messages/count_tokens` is one of the routes documented as free:
+    // its missing cost header means zero, not unknown. Leaving it in the
+    // `unpriced` bucket would report a permanent hole in every run's total and
+    // send the reader looking for a pricing bug that is not there.
+    { free: true },
   );
+  records.push(tokenCheck);
   checks.push({
     name: tokenCheck.name,
     ok: tokenCheck.ok,
     ms: tokenCheck.ms,
+    bucket: tokenCheck.bucket,
     cost: tokenCheck.cost,
     error: tokenCheck.error,
   });
@@ -110,6 +133,11 @@ async function main() {
   ];
   const disabledModes = new Set();
 
+  // The loop advances on the PRICED total, which is the only figure that means
+  // anything. A run whose calls all come back unpriced — every streamed one
+  // does — therefore stops at MAX_REQUESTS rather than at TARGET_USD, and the
+  // summary says why. Advancing on a coerced zero would have spun to the request
+  // cap while reporting a spend of $0.00000000.
   while (spent < TARGET_USD && requests < MAX_REQUESTS) {
     const prompt = prompts[requests % prompts.length];
     const availableModes = [0, 1, 2, 3].filter((mode) => !disabledModes.has(mode));
@@ -146,29 +174,42 @@ async function main() {
         }),
       );
     } else {
-      check = await runOne('nr.stream', async () => {
-        const stream = await client.nr.stream({
-          model: DEFAULT_MODEL,
-          prompt,
-          maxTokens: MAX_TOKENS,
-          cache: false,
-        });
-        const text = await stream.text();
-        assert.ok(text.trim().length > 0, 'stream should return text');
-        return { meta: stream.meta };
-      });
+      check = await runOne(
+        'nr.stream',
+        async () => {
+          const stream = await client.nr.stream({
+            model: DEFAULT_MODEL,
+            prompt,
+            maxTokens: MAX_TOKENS,
+            cache: false,
+          });
+          const text = await stream.text();
+          assert.ok(text.trim().length > 0, 'stream should return text');
+          return { meta: stream.meta };
+        },
+        // Unpriced BY CONSTRUCTION, not by failure: the headers were written
+        // before the first token. The settled figure is on the spend row, joined
+        // on requestId.
+        { streamed: true },
+      );
     }
 
     requests += 1;
-    spent += check.cost || 0;
+    // `check.cost` is a number only in the `priced` bucket; it is null
+    // everywhere else. Never `|| 0` — that is the coercion this file existed to
+    // demonstrate and now exists to refuse.
+    spent += check.bucket === 'priced' ? check.cost : 0;
+    records.push(check);
     checks.push({
       name: `${check.name} #${requests}`,
       ok: check.ok,
       ms: check.ms,
+      bucket: check.bucket,
       cost: check.cost,
       retryable: check.retryable,
       error: check.error,
     });
+    if (check.warning) console.warn(`  ! ${check.name}: ${check.warning}`);
 
     if (!check.ok && !check.retryable) {
       disabledModes.add(mode);
@@ -179,8 +220,11 @@ async function main() {
         request: requests,
         check: check.name,
         ok: check.ok,
+        // `null`, not 0, when this call carried no exact price. The bucket says
+        // which of the four reasons it was.
         cost: check.cost,
-        totalCost: Number(spent.toFixed(8)),
+        bucket: check.bucket,
+        pricedTotalCost: Number(spent.toFixed(8)),
         targetCost: TARGET_USD,
         error: check.error,
       }),
@@ -189,17 +233,25 @@ async function main() {
   }
 
   const failed = checks.filter((check) => !check.ok);
+  const spend = summarize(records);
   const summary = {
     model: DEFAULT_MODEL,
     targetUsd: TARGET_USD,
     requests,
-    estimatedObservedCostUsd: Number(spent.toFixed(8)),
+    // Renamed from `estimatedObservedCostUsd`, which was neither an estimate
+    // nor the run's cost: it was the priced subset with every unpriced call
+    // silently added as zero. The name now says what the number is, and
+    // `spend.complete` says whether it is the whole story.
+    pricedTotalUsd: Number(spend.pricedTotalUsd.toFixed(8)),
+    spend,
     passedChecks: checks.length - failed.length,
     failedChecks: failed.length,
     failures: failed,
   };
 
   console.log(JSON.stringify(summary, null, 2));
+  console.log('');
+  for (const line of summaryLines(spend)) console.log(line);
   if (failed.length > 0) process.exit(1);
 }
 

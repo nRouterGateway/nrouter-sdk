@@ -69,9 +69,44 @@ It currently tests:
 - `client.nr.responses()`
 - `client.nr.stream()`
 
-The spend number comes from `x-nr-request-cost` response metadata. If a response
-is unpriced, it counts as zero in this script because there is no exact cost to
-sum.
+### What the spend number is, and what it is not
+
+The spend number comes from `x-nr-request-cost` response metadata, and it is the
+**priced subset of the run, not the run's cost**. `x-nr-request-cost` is omitted
+when the gateway could not price a request and is never sent as `0`, so a call
+with no cost header is *unknown*, not free — see
+[`../docs/cost.md`](../docs/cost.md).
+
+Both probes therefore sort every call into one of five buckets and sum only the
+first:
+
+| bucket | meaning | summed |
+|---|---|---|
+| `priced` | `costStatus: exact` with an amount | ✅ |
+| `streamed` | unpriced by construction — a stream's headers are written before the first token, so it reports `unpriced` permanently | ❌ settles server-side |
+| `free` | a route documented as costing nothing (`countTokens`, video polling, model listing) | ❌ it cost nothing |
+| `unpriced` | SERVED and billed, but the gateway could not price it | ❌ this is the hole |
+| `failed` | refused; may still have been billed upstream if the provider had run | ❌ |
+
+A run with any `unpriced` or `failed` call prints **`TOTAL INCOMPLETE`** under
+the figure. That is not a probe bug — it means the printed total is smaller than
+what the run actually cost, and the settled amounts live on the spend rows.
+Every line carries the `requestId`, which is `x-nr-request-id`, which is the
+spend row's request id; look them up on the dashboard Logs page.
+
+`aggressive-agent-test.js` advances toward `NROUTER_TARGET_USD` on the **priced**
+total, so a run dominated by streamed calls stops at `NROUTER_MAX_REQUESTS`
+rather than at the target. That is the honest behaviour: advancing on a coerced
+zero would spin to the request cap while reporting a spend of `$0.00000000`.
+
+The bucketing lives in [`lib/accounting.js`](./lib/accounting.js) — shared by
+both probes so the two cannot disagree — and is unit-tested offline:
+
+```bash
+cd sdks/js
+npm run build      # the probes and the test import the SDK's own isPriced()
+node --test demo/lib/
+```
 
 ## Local browser UI
 
@@ -102,7 +137,10 @@ The UI can:
 ## Feature spend test
 
 `feature-spend-test.js` is for testing feature billing beyond normal LLM text
-calls.
+calls. It uses the same [`lib/accounting.js`](./lib/accounting.js) bucketing as
+the aggressive test above, so an embedding, image, speech, transcription or
+video call the gateway could not price is counted and named rather than added to
+the total as `0`.
 
 ```powershell
 cd D:\nrouter-sdk\sdks\js

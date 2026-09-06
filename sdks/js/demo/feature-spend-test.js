@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { nRouter, isRetryable } = require('../dist/index.js');
+const { classify, summarize, summaryLines } = require('./lib/accounting.js');
 
 const DEFAULTS = {
   embeddingModel: process.env.NROUTER_EMBEDDING_MODEL || 'text-embedding-3-small',
@@ -28,27 +29,33 @@ function loadRootEnv() {
   }
 }
 
-function observedCost(result) {
-  if (!result || !result.meta) return 0;
-  return typeof result.meta.cost === 'number' && Number.isFinite(result.meta.cost) ? result.meta.cost : 0;
-}
-
-async function run(name, fn) {
+/**
+ * Run one probe and CLASSIFY what it cost, rather than coercing it to a number.
+ *
+ * This used to be `meta.cost` with a `: 0` fallback, summed straight into a
+ * total. `x-nr-request-cost` is OMITTED when the gateway could not price a
+ * request and is never sent as `0` (`sdks/js/docs/cost.md`), so that fallback
+ * printed an unpriceable — but genuinely billed — call as free, and the total
+ * beneath it claimed to be the run's cost. `classify` puts it in the `unpriced`
+ * bucket instead, where it is counted and named but never summed.
+ */
+async function run(name, fn, options = {}) {
   const started = Date.now();
   try {
     const value = await fn();
     return {
       name,
-      ok: true,
       ms: Date.now() - started,
-      cost: observedCost(value),
-      details: summarize(value),
+      ...classify(value && value.meta, options),
+      details: describe(value),
     };
   } catch (error) {
     return {
       name,
-      ok: false,
       ms: Date.now() - started,
+      // A failed call still has a request id and may still have been billed, so
+      // its metadata is carried rather than dropped.
+      ...classify(error && error.meta, { ...options, ok: false }),
       retryable: isRetryable(error),
       errorName: error && error.name ? error.name : 'Error',
       message: error && error.message ? error.message : String(error),
@@ -56,7 +63,7 @@ async function run(name, fn) {
   }
 }
 
-function summarize(value) {
+function describe(value) {
   if (!value) return {};
   if (value.bytes instanceof Uint8Array) {
     return { bytes: value.bytes.length, contentType: value.contentType, requestId: value.meta.requestId };
@@ -195,8 +202,16 @@ async function main() {
     results.push({ name: 'video', ok: false, skipped: true, message: 'set NROUTER_VIDEO_MODEL to run video generation' });
   }
 
-  const totalObservedCost = results.reduce((sum, result) => sum + (result.cost || 0), 0);
-  console.log(JSON.stringify({ models: DEFAULTS, totalObservedCost: Number(totalObservedCost.toFixed(8)), results }, null, 2));
+  // Only the calls that were actually attempted are accounted for. A skipped
+  // probe has no bucket and must not become a zero-cost row: "not run" and
+  // "cost nothing" are different facts.
+  const summary = summarize(results.filter((result) => result.bucket !== undefined));
+  console.log(JSON.stringify({ models: DEFAULTS, summary, results }, null, 2));
+  console.log('');
+  for (const line of summaryLines(summary)) console.log(line);
+  for (const result of results) {
+    if (result.warning) console.warn(`  ! ${result.name}: ${result.warning}`);
+  }
 }
 
 main().catch((error) => {
