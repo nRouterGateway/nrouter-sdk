@@ -4,9 +4,24 @@ set -euo pipefail
 # nRouter Multi-Language SDK End-to-End Demo Certification Test
 # Verifies all active SDKs against demo key configuration
 #
-# Step 0 is a CHEAP STATIC preflight and runs no SDK and no network. Run it
-# alone with `--static-only`. Step 3 runs against a local mock gateway; the
-# other numbered steps make real, billed provider calls.
+# THREE MODES, and the difference between them is what a run COSTS:
+#
+#   --static-only  Step 0 alone. A cheap static preflight over the example
+#                  folders: no SDK, no network, no toolchain.
+#
+#   --mock-only    Step 0 plus steps 3-6, the four mock-gateway suites
+#                  (voice, chat, image, video). Each one starts its own
+#                  in-process gateway, so the whole mode needs NO API key, NO
+#                  network and NO credits, and it touches neither the Swift,
+#                  Kotlin nor Java toolchain. This is the gate CI can run on
+#                  every commit; it finishes in a few seconds.
+#
+#   (no argument)  Every step. Steps 1 and 2 make real, BILLED provider calls
+#                  against a live key, and steps 7-9 need the Swift, Kotlin
+#                  and Java toolchains installed.
+#
+# Any other argument is refused rather than ignored: a typo like `--mockonly`
+# must not fall through into the billed suites.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
@@ -33,7 +48,7 @@ cd "$ROOT_DIR"
 # this gate lands first and is already armed when each one arrives.
 static_preflight() {
   echo ""
-  echo ">>> [0/6] Static: example SDK major, env documentation and .env ignore rules..."
+  echo ">>> [0/${TOTAL_STEPS}] Static: example SDK major, env documentation and .env ignore rules..."
   node <<'NODE'
 const fs = require('node:fs');
 const path = require('node:path');
@@ -207,54 +222,133 @@ if (failures.length > 0) {
 NODE
 }
 
+# ---------------------------------------------------------------------------
+# Step accounting.
+#
+# Every numbered step runs through `run_step`, so its banner number is DERIVED
+# rather than hand-typed -- three lanes renumbering the same hardcoded `[n/N]`
+# strings by hand is how a step ends up announcing itself as something it is
+# not. The tally is the half that bites: `assert_steps_run` fails the run when
+# fewer steps executed than the mode promised, so a suite that is deleted,
+# commented out or never reached ends the run RED instead of passing quietly
+# under a banner nobody read.
+# ---------------------------------------------------------------------------
+TOTAL_STEPS=9        # numbered steps 1..9, plus the unnumbered step 0 preflight
+MOCK_ONLY_STEPS=4    # steps 3-6: the mock-gateway suites
+FULL_STEPS="$TOTAL_STEPS"  # every numbered step -- DERIVED, so adding a step
+                           # cannot update the banner denominator and leave the
+                           # tally behind (or the reverse)
+STEPS_RUN=0
+
+run_step() {
+  local number="$1" label="$2"
+  shift 2
+  echo ""
+  echo ">>> [${number}/${TOTAL_STEPS}] ${label}"
+  "$@"
+  STEPS_RUN=$((STEPS_RUN + 1))
+}
+
+assert_steps_run() {
+  local expected="$1" mode="$2"
+  if [ "$STEPS_RUN" -ne "$expected" ]; then
+    echo "FAIL: ${mode} executed ${STEPS_RUN} numbered steps, expected ${expected}." >&2
+    echo "      A suite was deleted, commented out, or never reached." >&2
+    exit 1
+  fi
+}
+
+MODE=full
+case "${1:-}" in
+  "")            MODE=full ;;
+  --static-only) MODE=static ;;
+  --mock-only)   MODE=mock ;;
+  *)
+    echo "usage: $0 [--static-only|--mock-only]" >&2
+    exit 2
+    ;;
+esac
+if [ "$#" -gt 1 ]; then
+  echo "usage: $0 [--static-only|--mock-only]" >&2
+  exit 2
+fi
+
 echo "======================================================================"
 echo "nRouter SDK Multi-Language Demo & End-to-End Test Suite"
 echo "======================================================================"
 
 static_preflight
 
-if [ "${1:-}" = "--static-only" ]; then
+if [ "$MODE" = static ]; then
   echo ""
-  echo "STATIC PREFLIGHT PASSED (--static-only: skipping the 6 E2E suites)"
+  echo "STATIC PREFLIGHT PASSED (--static-only: skipping the ${TOTAL_STEPS} E2E suites)"
   exit 0
 fi
 
-# 1. Run Python Demo E2E
-echo ""
-echo ">>> [1/6] Executing Python SDK Demo E2E..."
-"$PYTHON_BIN" examples/python/demo_e2e_suite.py
+# Steps 1-2 are the BILLED suites: a real key, a real provider, real credits.
+if [ "$MODE" != mock ]; then
+  run_step 1 "Executing Python SDK Demo E2E..." "$PYTHON_BIN" examples/python/demo_e2e_suite.py
+  run_step 2 "Executing TypeScript/JavaScript SDK Demo E2E..." node examples/typescript/demo_e2e_suite.js
+fi
 
-# 2. Run TypeScript/Node Demo E2E
-echo ""
-echo ">>> [2/6] Executing TypeScript/JavaScript SDK Demo E2E..."
-node examples/typescript/demo_e2e_suite.js
+# ---------------------------------------------------------------------------
+# Steps 3-6: the mock-gateway block. Every one of these builds on the same
+# `sdks/js/dist/` build as step 2, starts its own in-process gateway, and needs
+# no key, no network and no credits. They stay CONTIGUOUS so `--mock-only` is a
+# single contiguous range rather than a list of exceptions.
+# ---------------------------------------------------------------------------
 
-# 3. Run the voice-agent example against a mock gateway.
-#    Same dist/ build as step 2. Three billed wires (transcribe, chat, speak),
-#    asserted for request ids, exact-cost summation and the unpriced case that
-#    must NOT be summed as zero. No key, no network, about a second.
-echo ""
-echo ">>> [3/6] Executing voice-agent cost & usage certification..."
-node examples/typescript/voice_agent_suite.js
+# 3. voice-agent: three billed wires (transcribe, chat, speak), asserted for
+#    request ids, exact-cost summation and the unpriced case that must NOT be
+#    summed as zero. About a second.
+run_step 3 "Executing voice-agent cost & usage certification..." node examples/typescript/voice_agent_suite.js
 
-# 4. Run Swift SDK E2E Contract Suite
-echo ""
-echo ">>> [4/6] Executing Swift SDK Contract & Wire Suite..."
-swift test --filter ContractTests
+# 4. chat-agent: all four TEXT wires (messages, chat completions, responses,
+#    plus a streamed call), a byte-identical repeat that probes the response
+#    cache, and a free count_tokens -- asserted for request ids, per-wire
+#    routing, exact-cost summation, and the three absences that are NOT the
+#    same absence: streamed (unpriced by design, settled server-side), free
+#    (absent means zero) and unpriced (served but unpriceable, which must make
+#    the total INCOMPLETE). About two seconds.
+run_step 4 "Executing chat-agent cost, streaming & cache certification..." node examples/typescript/chat_agent_suite.js
 
-# 5. Run Kotlin SDK E2E Contract Suite
-echo ""
-echo ">>> [5/6] Executing Kotlin SDK Contract & Wire Suite..."
+# 5. image-agent: /v1/images/generations only. Seven runs -- per-image billing,
+#    per-image-TOKEN billing (the gpt-image-* usage block), an unpriced call, an
+#    unrecognised cost status carrying an amount, a 402 refusal, a url-shaped
+#    response and a short delivery. It covers the property unique to images:
+#    the count, size and quality that produced the price are carried by NO
+#    response header, so the client has to record them itself.
+run_step 5 "Executing image-agent cost & usage certification..." node examples/typescript/image_agent_suite.js
+
+# 6. video-agent: the create-bills / collection-is-free money split. One billed
+#    POST /v1/videos and four FREE collection calls carrying no cost header,
+#    proving the example counts them as `free` rather than as `unpriced` or as
+#    $0.00.
+run_step 6 "Executing video-agent cost & usage certification..." node examples/typescript/video_agent_suite.js
+
+if [ "$MODE" = mock ]; then
+  assert_steps_run "$MOCK_ONLY_STEPS" "--mock-only"
+  echo ""
+  echo "======================================================================"
+  echo "MOCK-GATEWAY SUITES PASSED (--mock-only: ${STEPS_RUN} suites, no key, no network)"
+  echo "======================================================================"
+  exit 0
+fi
+
+# Steps 7-9 need the Swift, Kotlin and Java toolchains.
+run_step 7 "Executing Swift SDK Contract & Wire Suite..." swift test --filter ContractTests
+
 export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17}"
 export PATH="$JAVA_HOME/bin:$PATH"
-(cd sdks/kotlin && ./gradlew test --tests "ai.nrouter.sdk.ContractTest")
+kotlin_contract_suite() { (cd sdks/kotlin && ./gradlew test --tests "ai.nrouter.sdk.ContractTest"); }
+run_step 8 "Executing Kotlin SDK Contract & Wire Suite..." kotlin_contract_suite
 
-# 6. Run Java SDK E2E Suite
-echo ""
-echo ">>> [6/6] Executing Java SDK Contract & Wire Suite..."
-(cd sdks/java && mvn test -q)
+java_contract_suite() { (cd sdks/java && mvn test -q); }
+run_step 9 "Executing Java SDK Contract & Wire Suite..." java_contract_suite
+
+assert_steps_run "$FULL_STEPS" "the full suite"
 
 echo ""
 echo "======================================================================"
-echo "ALL SDK DEMO & END-TO-END VERIFICATIONS PASSED"
+echo "ALL SDK DEMO & END-TO-END VERIFICATIONS PASSED (${STEPS_RUN}/${TOTAL_STEPS} steps)"
 echo "======================================================================"
