@@ -5,7 +5,8 @@ set -euo pipefail
 # Verifies all active SDKs against demo key configuration
 #
 # Step 0 is a CHEAP STATIC preflight and runs no SDK and no network. Run it
-# alone with `--static-only`; steps 1-5 make real, billed provider calls.
+# alone with `--static-only`. Step 3 runs against a local mock gateway; the
+# other numbered steps make real, billed provider calls.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
@@ -19,7 +20,7 @@ cd "$ROOT_DIR"
 # npm publish that lets the spec go back to a plain `^N.x` range.
 static_preflight() {
   echo ""
-  echo ">>> [0/5] Static: demo-e2e-sdk-example SDK major matches sdks/js..."
+  echo ">>> [0/6] Static: demo-e2e-sdk-example SDK major matches sdks/js..."
   node <<'NODE'
 const fs = require('node:fs');
 const path = require('node:path');
@@ -114,35 +115,43 @@ static_preflight
 
 if [ "${1:-}" = "--static-only" ]; then
   echo ""
-  echo "STATIC PREFLIGHT PASSED (--static-only: skipping the 5 billed E2E suites)"
+  echo "STATIC PREFLIGHT PASSED (--static-only: skipping the 6 E2E suites)"
   exit 0
 fi
 
 # 1. Run Python Demo E2E
 echo ""
-echo ">>> [1/5] Executing Python SDK Demo E2E..."
+echo ">>> [1/6] Executing Python SDK Demo E2E..."
 "$PYTHON_BIN" examples/python/demo_e2e_suite.py
 
 # 2. Run TypeScript/Node Demo E2E
 echo ""
-echo ">>> [2/5] Executing TypeScript/JavaScript SDK Demo E2E..."
+echo ">>> [2/6] Executing TypeScript/JavaScript SDK Demo E2E..."
 node examples/typescript/demo_e2e_suite.js
 
-# 3. Run Swift SDK E2E Contract Suite
+# 3. Run the voice-agent example against a mock gateway.
+#    Same dist/ build as step 2. Three billed wires (transcribe, chat, speak),
+#    asserted for request ids, exact-cost summation and the unpriced case that
+#    must NOT be summed as zero. No key, no network, about a second.
 echo ""
-echo ">>> [3/5] Executing Swift SDK Contract & Wire Suite..."
+echo ">>> [3/6] Executing voice-agent cost & usage certification..."
+node examples/typescript/voice_agent_suite.js
+
+# 4. Run Swift SDK E2E Contract Suite
+echo ""
+echo ">>> [4/6] Executing Swift SDK Contract & Wire Suite..."
 swift test --filter ContractTests
 
-# 4. Run Kotlin SDK E2E Contract Suite
+# 5. Run Kotlin SDK E2E Contract Suite
 echo ""
-echo ">>> [4/5] Executing Kotlin SDK Contract & Wire Suite..."
+echo ">>> [5/6] Executing Kotlin SDK Contract & Wire Suite..."
 export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17}"
 export PATH="$JAVA_HOME/bin:$PATH"
 (cd sdks/kotlin && ./gradlew test --tests "ai.nrouter.sdk.ContractTest")
 
-# 5. Run Java SDK E2E Suite
+# 6. Run Java SDK E2E Suite
 echo ""
-echo ">>> [5/5] Executing Java SDK Contract & Wire Suite..."
+echo ">>> [6/6] Executing Java SDK Contract & Wire Suite..."
 (cd sdks/java && mvn test -q)
 
 echo ""
