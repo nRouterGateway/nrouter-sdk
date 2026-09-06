@@ -33,6 +33,13 @@ npm start
 | `NROUTER_PROMPT` | no | a question about unpriced costs | The prompt to send. |
 | `NROUTER_MAX_TOKENS` | no | `200` | Output ceiling — this is what you pay for. |
 
+<!-- nrouter-doc-wire: messages -->
+The default model is a Claude id, and the gateway serves Anthropic on `/v1/messages`
+**only** — a Claude id sent to chat-completions answers `404
+model_unavailable_on_route`. `index.mjs` calls `client.nr.chat()`, which selects the
+Messages wire for Claude ids itself, so this works as written; if you swap
+`NROUTER_MODEL` for a non-Claude id it will pick that model's wire instead.
+
 ## What it demonstrates
 
 **Cost is two fields, not one.** `meta.cost` is the priced cost of *this* request
