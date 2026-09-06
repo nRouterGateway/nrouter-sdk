@@ -37,6 +37,12 @@ const SDK_DIST = path.resolve(__dirname, '..', '..', 'sdks', 'js', 'dist', 'inde
 // right total.
 const COST = { stt: 0.00004, chat: 0.00312, tts: 0.00003 };
 
+// `x-nr-latency-ms` — what the GATEWAY measured, as opposed to what the client
+// timed around its own call. Three distinct values for the same reason the
+// three costs differ: a single shared number would let a record that copied
+// the wrong call's latency still assert green.
+const GATEWAY_MS = { stt: 128, chat: 640, tts: 305 };
+
 const DEMO_KEY = 'sk-nrouter-voiceagentsuite000000000000000000000000';
 
 /**
@@ -54,7 +60,7 @@ const DEMO_KEY = 'sk-nrouter-voiceagentsuite000000000000000000000000';
  *                 the amount out of the total rather than trusting a number
  *                 whose meaning it cannot vouch for.
  */
-function startMock({ firstSpeechStatus = null, refuseChat = false } = {}) {
+function startMock({ firstSpeechStatus = null, refuseChat = false, omitSpeechLatency = false } = {}) {
   let requests = 0;
   let speechCalls = 0;
   let sttCalls = 0;
@@ -87,6 +93,12 @@ function startMock({ firstSpeechStatus = null, refuseChat = false } = {}) {
           'x-nr-model': 'mock-tts-1',
           'x-nr-cost-status': status,
         };
+        // OMITTED, not zero. An absent `x-nr-latency-ms` means the gateway did
+        // not report a duration; a `0` would claim it measured one and found
+        // the call instant.
+        if (!omitSpeechLatency) {
+          headers['x-nr-latency-ms'] = String(GATEWAY_MS.tts);
+        }
         // ABSENT, not zero, when unpriced. `estimated` DOES carry an amount —
         // and the example must still refuse to sum it, which is the only way
         // to tell "excluded because there was no number" apart from "excluded
@@ -113,6 +125,7 @@ function startMock({ firstSpeechStatus = null, refuseChat = false } = {}) {
           'x-nr-model': 'mock-transcribe-1',
           'x-nr-request-cost': COST.stt.toFixed(6),
           'x-nr-cost-status': 'exact',
+          'x-nr-latency-ms': String(GATEWAY_MS.stt),
           'x-nr-input-tokens': '9',
           'x-nr-output-tokens': '7',
           'x-nr-total-tokens': '16',
@@ -141,6 +154,7 @@ function startMock({ firstSpeechStatus = null, refuseChat = false } = {}) {
           'x-nr-model': 'mock-claude-1',
           'x-nr-request-cost': COST.chat.toFixed(6),
           'x-nr-cost-status': 'exact',
+          'x-nr-latency-ms': String(GATEWAY_MS.chat),
           'x-nr-input-tokens': '55',
           'x-nr-output-tokens': '25',
           'x-nr-total-tokens': '80',
@@ -183,6 +197,7 @@ function startMock({ firstSpeechStatus = null, refuseChat = false } = {}) {
           'x-nr-model': 'mock-chat-1',
           'x-nr-request-cost': COST.chat.toFixed(6),
           'x-nr-cost-status': 'exact',
+          'x-nr-latency-ms': String(GATEWAY_MS.chat),
           'x-nr-input-tokens': '55',
           'x-nr-output-tokens': '25',
           'x-nr-total-tokens': '80',
@@ -346,6 +361,19 @@ async function main() {
       // The single pricing predicate, carried on the record so the summary
       // cannot re-derive it differently.
       assert.equal(record.priced, true, `record not marked priced: ${JSON.stringify(record)}`);
+      // TWO clocks, and they are not interchangeable. `gatewayMs` is what the
+      // gateway measured for its own work; `latencyMs` is what this client
+      // timed around the whole call, so it includes the network. A record that
+      // carried only one of them cannot tell a slow model from a slow link.
+      assert.ok(
+        Number.isInteger(record.gatewayMs),
+        `record has no integer gatewayMs: ${JSON.stringify(record)}`,
+      );
+      assert.equal(
+        record.gatewayMs,
+        GATEWAY_MS[record.step],
+        `gatewayMs came from the wrong call: ${JSON.stringify(record)}`,
+      );
     }
 
     const expectedTotal = priced.expectedPricedTotal();
@@ -367,6 +395,11 @@ async function main() {
     assert.ok(/\[chat\]/.test(a.child.stdout), 'no per-call [chat] line printed');
     assert.ok(/\[stt\]/.test(a.child.stdout), 'no per-call [stt] line printed');
     assert.ok(/\[tts\]/.test(a.child.stdout), 'no per-call [tts] line printed');
+    assert.ok(
+      new RegExp(`gw=${GATEWAY_MS.chat}ms`).test(a.child.stdout),
+      `the per-call line does not print the gateway latency:\n${a.child.stdout}`,
+    );
+    assert.ok(/client=\d+ms/.test(a.child.stdout), 'the per-call line does not print the client latency');
 
     // The audio it claims to have produced must exist on disk.
     assert.ok(fs.existsSync(path.join(a.outDir, 'turn-1.mp3')), 'turn-1.mp3 was not written');
@@ -386,7 +419,7 @@ async function main() {
     // is a served request, not an error — but the total is INCOMPLETE and must
     // say so rather than silently under-reporting by one call.
     console.log('\n[2/4] One unpriced TTS call (1 turn)...');
-    const mixed = startMock({ firstSpeechStatus: 'unpriced' });
+    const mixed = startMock({ firstSpeechStatus: 'unpriced', omitSpeechLatency: true });
     const mixedPort = await listen(mixed.server);
     const workB = path.join(workRoot, 'unpriced');
     fs.mkdirSync(workB);
@@ -411,6 +444,19 @@ async function main() {
       unpricedRecords[0].requestId && unpricedRecords[0].requestId.length > 0,
       'an unpriced call still has a request id and still reaches a spend row',
     );
+
+    // An ABSENT `x-nr-latency-ms` logs null, never 0 — the same rule the cost
+    // header lives under, for the same reason: a zero is a measurement.
+    for (const rec of b.records) {
+      if (rec.step === 'tts') {
+        assert.equal(rec.gatewayMs, null, `absent gateway latency must log null: ${JSON.stringify(rec)}`);
+      } else {
+        assert.equal(rec.gatewayMs, GATEWAY_MS[rec.step], `wrong gatewayMs: ${JSON.stringify(rec)}`);
+      }
+      // The client clock always exists; it is measured here, not reported.
+      assert.ok(Number.isInteger(rec.latencyMs));
+    }
+    assert.ok(/gw=—ms/.test(b.child.stdout), 'an unreported gateway latency must render as — , not 0');
 
     assert.equal(summaryNumber(b.child.stdout, 'unpricedCalls'), 1);
     assert.ok(

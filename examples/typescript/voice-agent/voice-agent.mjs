@@ -11,6 +11,12 @@
  *   /v1/chat/completions       billed per token, in and out
  *   /v1/audio/speech           billed per CHARACTER of input
  *
+ * Each one is timed twice, because a voice loop lives or dies on latency and
+ * the two numbers answer different questions: `gw=` is `x-nr-latency-ms`,
+ * measured from edge arrival until the response headers were ready, and
+ * `client=` is what this process observed around the whole call. The gap
+ * between them is the network to and from the edge.
+ *
  * Nothing here computes a price. The gateway settles every call and reports the
  * result in the `x-nr-*` response headers, which the SDK parses into
  * `result.meta`. This example's whole job is to READ that honestly: print one
@@ -186,6 +192,24 @@ async function metered(step, turn, label, call) {
       inputTokens: meta.inputTokens,
       outputTokens: meta.outputTokens,
       totalTokens: meta.totalTokens,
+      // TWO clocks, and the pair is the point. `gatewayMs` is `x-nr-latency-ms`:
+      // milliseconds from EDGE ARRIVAL until the response headers were ready,
+      // which on these buffered calls includes the provider round trip.
+      // `latencyMs` is what this process timed around the whole call, so it
+      // adds the network to and from the edge and whatever this machine was
+      // doing. Either alone is unactionable: a slow model and a slow link look
+      // identical. Absent is `null`, never 0 — a zero would claim a
+      // measurement was taken and came back instant.
+      //
+      // ⚠ It is TIME TO HEADERS, so on a streamed response it is not a
+      // total-generation figure. Nothing here streams, which is the only
+      // reason the two are comparable at all.
+      // `?? null` on BOTH paths, not just the error one. `ResponseMeta` types
+      // this `number | null`, so today it cannot be undefined — but an
+      // undefined here is DROPPED by JSON.stringify, and a record missing the
+      // key reads as "this log predates gateway latency" rather than "the
+      // gateway did not report it". Same normalization as line ~245.
+      gatewayMs: meta.latencyMs ?? null,
       latencyMs,
       ok: true,
       priced,
@@ -193,7 +217,11 @@ async function metered(step, turn, label, call) {
 
     console.log(
       `[${step}] turn=${turn} ${meta.requestId ?? '(no request id)'} ${meta.model ?? '(model not reported)'} ` +
-        `${meta.costStatus ?? '(no cost status)'} ${money(meta.cost)} tokens=${tokens(meta)} ${latencyMs}ms  ${label}`,
+        `${meta.costStatus ?? '(no cost status)'} ${money(meta.cost)} tokens=${tokens(meta)} ` +
+        // `??` rather than `=== null`: a strict check prints `gw=undefinedms`
+        // on the value it was meant to guard against. A genuine 0 still
+        // renders as `0ms`, which is a measurement and must not become `—`.
+        `gw=${meta.latencyMs ?? '—'}ms client=${latencyMs}ms  ${label}`,
     );
 
     if (!priced) {
@@ -219,6 +247,7 @@ async function metered(step, turn, label, call) {
       inputTokens: meta?.inputTokens ?? null,
       outputTokens: meta?.outputTokens ?? null,
       totalTokens: meta?.totalTokens ?? null,
+      gatewayMs: meta?.latencyMs ?? null,
       latencyMs: Date.now() - started,
       ok: false,
       // A refused call is not a priced one, and it is not an unpriced SERVED

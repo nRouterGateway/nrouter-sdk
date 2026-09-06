@@ -13,12 +13,12 @@ be invoiced for.
 ```
 node voice-agent.mjs
 
-[tts] turn=0 req_01J...  tts-1                exact $0.000232 tokens=—/—   412ms  bootstrap: synthesise the caller's opening line
-[stt] turn=1 req_01J...  gpt-4o-mini-transcribe exact $0.000090 tokens=24/11 380ms  caller audio → text
+[tts] turn=0 req_01J...  tts-1                exact $0.000232 tokens=—/—   gw=305ms client=412ms  bootstrap: synthesise the caller's opening line
+[stt] turn=1 req_01J...  gpt-4o-mini-transcribe exact $0.000090 tokens=24/11 gw=128ms client=380ms  caller audio → text
       caller: Hi, I'd like to check on my order. Can you tell me whether it has shipped yet?
-[chat] turn=1 req_01J... claude-haiku-4-5     exact $0.000411 tokens=98/41 690ms  assistant reply
+[chat] turn=1 req_01J... claude-haiku-4-5     exact $0.000411 tokens=98/41 gw=612ms client=690ms  assistant reply
       agent : Your order shipped yesterday and is with the carrier now. It should arrive within two business days.
-[tts] turn=1 req_01J...  tts-1                exact $0.000174 tokens=—/—   351ms  assistant reply → audio
+[tts] turn=1 req_01J...  tts-1                exact $0.000174 tokens=—/—   gw=289ms client=351ms  assistant reply → audio
       wrote out/turn-1.mp3 (28160 bytes)
 ...
 
@@ -39,6 +39,7 @@ SESSION SUMMARY
 | **Price honesty** | an unpriced call logs `cost: null`, is **excluded** from the total, and the summary says `TOTAL INCOMPLETE` |
 | **Failing closed** | a cost status the SDK does not recognise is excluded even when it carries an amount — `isPriced()` accepts `exact` and nothing else |
 | **Usage** | `meta.inputTokens` / `outputTokens` / `totalTokens`, where the wire reports them |
+| **Latency, two clocks** | `gw=` is `meta.latencyMs`, the gateway's `x-nr-latency-ms`: edge arrival to response-headers-ready, which on these buffered calls includes the provider round trip. `client=` is what this process timed around the whole call, so it adds the network to and from the edge. Neither alone tells a slow model from a slow link. Absent is `—`, never `0ms`. It is time-to-HEADERS, so on a streamed response it would not be a total-generation figure — nothing here streams. |
 | **Spend join** | `meta.requestId` on every record — the key that finds this exact call on the dashboard |
 | **Logging** | one JSONL record per call, written on the failure path as well as the success path |
 | **Refusals** | typed errors: `kind`, `status`, `requestId`, `authReason`, `limitSource` |
@@ -143,9 +144,14 @@ where the default Claude model actually goes — and stamps the same `x-nr-*`
 headers. Four runs, no key, no network, under a second:
 
 1. **Everything priced.** Every call reaches the log with a request id, and
-   `pricedTotalUsd` equals the mock's own arithmetic.
-2. **One `unpriced` speech call.** It is excluded from the total, logs
-   `cost: null` rather than `0`, and the session reports `TOTAL INCOMPLETE`.
+   `pricedTotalUsd` equals the mock's own arithmetic. Each wire is given a
+   distinct `x-nr-latency-ms`, so a record that copied another call's timing
+   fails rather than passing on a plausible-looking number.
+2. **One `unpriced` speech call**, on a run where the gateway also reports no
+   latency for speech. The cost is excluded from the total and logs
+   `cost: null` rather than `0`, the session reports `TOTAL INCOMPLETE`, and the
+   missing latency logs `null` and renders `—` rather than `0ms`. An absent
+   measurement and a measurement of zero are different facts.
 3. **An unrecognised cost status carrying an amount.** Excluded too — the
    number alone is not authority to bill against — and the assertion proves the
    exclusion by showing the total is *not* higher by that amount.
