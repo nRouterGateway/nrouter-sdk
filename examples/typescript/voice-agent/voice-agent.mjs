@@ -74,6 +74,10 @@ const CHAT_MODEL = env.NROUTER_CHAT_MODEL || 'claude-haiku-4-5-20251001';
 const SPEECH_MODEL = env.NROUTER_SPEECH_MODEL || 'tts-1';
 const SPEECH_VOICE = env.NROUTER_SPEECH_VOICE || 'alloy';
 const TRANSCRIBE_MODEL = env.NROUTER_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';
+// Audio container for the synthesised speech. Unset takes the provider default
+// (mp3). The SDK validates it against its own list BEFORE sending, which is the
+// fourth failure class this example accounts for — see `deliveryOf` below.
+const SPEECH_FORMAT = env.NROUTER_SPEECH_FORMAT || undefined;
 const MAX_TOKENS = positiveInt(env.NROUTER_MAX_TOKENS, 120, 'NROUTER_MAX_TOKENS');
 const TURNS = positiveInt(env.NROUTER_TURNS, 2, 'NROUTER_TURNS');
 
@@ -135,7 +139,9 @@ function extensionFor(contentType) {
   if (type.includes('ogg')) return 'ogg';
   if (type.includes('aac')) return 'aac';
   if (type.includes('pcm')) return 'pcm';
-  return 'mp3';
+  // Nothing recognisable in the content type: fall back to what was ASKED for
+  // rather than to a guess, and to mp3 only when nothing was asked.
+  return SPEECH_FORMAT || 'mp3';
 }
 
 // --------------------------------------------------------------------------
@@ -143,6 +149,76 @@ function extensionFor(contentType) {
 // --------------------------------------------------------------------------
 
 const calls = [];
+
+/**
+ * Did this failure reach the gateway?
+ *
+ * ONE field with THREE values, because "we do not know" is a real and common
+ * answer and collapsing it into either neighbour is a lie in one direction or
+ * the other.
+ *
+ *   true   the gateway answered — there is a status, a request id, or response
+ *          metadata. It was sent.
+ *   false  the SDK refused BEFORE any I/O: an audio format not on its list, an
+ *          empty `input`, a filename with no extension. There was no request,
+ *          so there is no request id and no spend row to go looking for.
+ *   null   it left this process and nothing usable came back — a connection
+ *          failure, a timeout. Unknowable from here.
+ *
+ * `false` is keyed on `kind === 'configuration'` and NEVER on a missing request
+ * id. An absent request id proves nothing: a connection that died mid-flight
+ * has none either, and that request may well have been served and billed.
+ * Keying on the absence would silently reclassify every network blip as "we owe
+ * nothing", which is the expensive direction to be wrong in.
+ *
+ * The `reachedGateway` check comes FIRST for a reason: `configuration` is also
+ * thrown for a 2xx whose body is not JSON, which is a served, BILLED response.
+ * That one carries a status and metadata, so it is caught here and never
+ * reaches the `configuration` arm below.
+ */
+function deliveryOf(error) {
+  if (!(error instanceof nRouterError)) return null;
+
+  // STATUS FIRST, kind second, and the order is the whole correctness argument.
+  //
+  // An HTTP status exists only if a response came back, so it is the one piece
+  // of evidence that cannot be produced without the gateway. `requestId` and
+  // `meta` are the same evidence by another route — headers we parsed off a
+  // real response. Any of the three means it was sent.
+  //
+  // The kind cannot lead, because `configuration` is raised on BOTH sides of
+  // the wire: by the pre-send validators, and by `requireJson()` /
+  // `requireBinary()` for a 2xx whose body has the wrong shape — which is a
+  // SERVED, BILLED response. Check the kind first and that billed call is
+  // written off as never sent, with its request id sitting in the log.
+  //
+  // `!= null` is LOOSE on purpose — the one place in this file where it is.
+  // `undefined !== null` is true, so a strict check would read an UNSET
+  // property as gateway evidence: if a future SDK left `status` undefined
+  // rather than explicitly null on a local validation error, every local
+  // refusal would silently reclassify as gateway-answered and be reported as
+  // billed, and no build would have broken.
+  if (error.status != null || error.requestId != null || error.meta != null) return true;
+
+  // No response evidence at all. Only now does the kind decide, and only
+  // `configuration` — the kind the pre-send validators raise — is provably
+  // never-sent. A transport failure falls through to `null`.
+  if (error.kind === 'configuration') return false;
+  return null;
+}
+
+/**
+ * Assume it cost money unless we can PROVE it did not.
+ *
+ * Only a refusal raised before the request left this process is provably free.
+ * Everything else — a gateway-side refusal, a timeout we never got an answer to
+ * — is counted as billed, because under-counting spend is the failure that
+ * shows up later as a surprise invoice, and over-counting is the one that shows
+ * up as a question.
+ */
+function billedFor(sentToGateway) {
+  return sentToGateway !== false;
+}
 
 function money(value) {
   return value === null || value === undefined ? '—' : `$${value.toFixed(6)}`;
@@ -212,6 +288,11 @@ async function metered(step, turn, label, call) {
       gatewayMs: meta.latencyMs ?? null,
       latencyMs,
       ok: true,
+      // It answered, so it was sent, and a served call is billed even when it
+      // could not be priced — `unpriced` means "no price attached", never
+      // "free".
+      sentToGateway: true,
+      billed: billedFor(true),
       priced,
     });
 
@@ -235,6 +316,7 @@ async function metered(step, turn, label, call) {
     return result;
   } catch (error) {
     const meta = error instanceof nRouterError ? error.meta : undefined;
+    const sentToGateway = deliveryOf(error);
     await record({
       ts: new Date().toISOString(),
       step,
@@ -250,6 +332,8 @@ async function metered(step, turn, label, call) {
       gatewayMs: meta?.latencyMs ?? null,
       latencyMs: Date.now() - started,
       ok: false,
+      sentToGateway,
+      billed: billedFor(sentToGateway),
       // A refused call is not a priced one, and it is not an unpriced SERVED
       // one either — the summary counts it separately.
       priced: false,
@@ -260,12 +344,25 @@ async function metered(step, turn, label, call) {
 }
 
 function printSummary() {
-  // Three buckets, not two. A call that FAILED is not a call that was "served
-  // without a price": lumping them together tells the operator the gateway
-  // priced nothing when in fact it refused, which sends them to the wrong page.
+  // FOUR buckets, and the fourth is the one that is easy to get wrong.
+  //
+  //   priced         served and priced exactly — the only thing summed
+  //   unpriced       SERVED, but the gateway attached no price
+  //   localRefusals  refused by the SDK before the request was sent: nothing
+  //                  reached the gateway, so nothing can have been billed
+  //   unknownBilling failed at or after the gateway, or got no answer at all —
+  //                  counted as billed, because we cannot prove otherwise
+  //
+  // Merging the last two is the defect. A call the SDK refused for an invalid
+  // audio format has no request id, because there was no request; reporting it
+  // as possibly billed sends the operator hunting a spend row that does not
+  // exist. It costs money in the other direction too: a genuinely unknown
+  // billing state hidden among local refusals stops being investigated.
   const failed = calls.filter((entry) => !entry.ok);
   const priced = calls.filter((entry) => entry.ok && entry.priced);
   const unpriced = calls.filter((entry) => entry.ok && !entry.priced);
+  const localRefusals = failed.filter((entry) => entry.sentToGateway === false);
+  const unknownBilling = failed.filter((entry) => entry.sentToGateway !== false);
   const pricedTotalUsd = priced.reduce((sum, entry) => sum + entry.cost, 0);
 
   console.log('\nSESSION SUMMARY');
@@ -273,26 +370,44 @@ function printSummary() {
   console.log(`  pricedCalls      ${priced.length}`);
   console.log(`  unpricedCalls    ${unpriced.length}`);
   console.log(`  failedCalls      ${failed.length}`);
+  console.log(`  localRefusals    ${localRefusals.length}`);
   console.log(`  pricedTotalUsd   ${pricedTotalUsd.toFixed(8)}`);
 
-  if (unpriced.length > 0 || failed.length > 0) {
+  // Only what was SENT can make the money total incomplete. A local refusal is
+  // a failed session, not an unaccounted-for dollar.
+  if (unpriced.length > 0 || unknownBilling.length > 0) {
     const reasons = [];
     if (unpriced.length > 0) {
       reasons.push(`${unpriced.length} call(s) were SERVED without a price`);
     }
-    if (failed.length > 0) {
-      // "may": the gateway releases what it reserved on a routing or upstream
-      // failure, but a call refused after the provider ran was still billed
-      // upstream. The log rows say which calls, and the request ids say where
-      // to check.
-      reasons.push(`${failed.length} call(s) FAILED and may still have been billed`);
+    if (unknownBilling.length > 0) {
+      // "may", and "after leaving this process" rather than "at the gateway":
+      // this bucket holds both a refusal the gateway ANSWERED and a call that
+      // got no answer at all, and only the first is known to have arrived. The
+      // gateway releases what it reserved on a routing or upstream failure, but
+      // a call refused after the provider ran was still billed upstream. The
+      // log rows say which calls, and the request ids — where there are any —
+      // say where to check.
+      reasons.push(
+        `${unknownBilling.length} call(s) FAILED after leaving this process and may still have been billed`,
+      );
     }
     console.log(
       `  TOTAL INCOMPLETE — ${reasons.join('; ')}. ` +
         'The figure above is the priced subset, NOT the session total.',
     );
+  } else if (priced.length === 0) {
+    console.log('  TOTAL COMPLETE — nothing reached a provider, so nothing was billed.');
   } else {
-    console.log('  TOTAL COMPLETE — every call in this session was priced exactly.');
+    console.log('  TOTAL COMPLETE — every call that was sent was priced exactly.');
+  }
+
+  if (localRefusals.length > 0) {
+    console.log(
+      `  ${localRefusals.length} call(s) refused locally, never sent, nothing billed — ` +
+        'the SDK rejected them before any request was made, so they carry no request id ' +
+        'and there is no spend row to look for. Fix the arguments, not the account.',
+    );
   }
 
   console.log(`\n  log: ${LOG_PATH}`);
@@ -334,7 +449,12 @@ async function openingAudio() {
   }
 
   const spoken = await metered('tts', 0, 'bootstrap: synthesise the caller\'s opening line', () =>
-    client.nr.media.speech({ model: SPEECH_MODEL, input: OPENING_LINE, voice: SPEECH_VOICE }),
+    client.nr.media.speech({
+      model: SPEECH_MODEL,
+      input: OPENING_LINE,
+      voice: SPEECH_VOICE,
+      ...(SPEECH_FORMAT ? { response_format: SPEECH_FORMAT } : {}),
+    }),
   );
   return { bytes: spoken.bytes, fileName: `user-turn-1.${extensionFor(spoken.contentType)}` };
 }
@@ -400,6 +520,7 @@ async function main() {
         // useless, it is a refused request. Say something short instead.
         input: reply || 'Sorry, I did not catch that.',
         voice: SPEECH_VOICE,
+        ...(SPEECH_FORMAT ? { response_format: SPEECH_FORMAT } : {}),
       }),
     );
 
@@ -410,7 +531,12 @@ async function main() {
     if (turn < TURNS) {
       const line = FOLLOW_UPS[(turn - 1) % FOLLOW_UPS.length];
       const nextAudio = await metered('tts', turn + 1, 'synthesise the caller\'s next turn', () =>
-        client.nr.media.speech({ model: SPEECH_MODEL, input: line, voice: SPEECH_VOICE }),
+        client.nr.media.speech({
+          model: SPEECH_MODEL,
+          input: line,
+          voice: SPEECH_VOICE,
+          ...(SPEECH_FORMAT ? { response_format: SPEECH_FORMAT } : {}),
+        }),
       );
       userAudio = {
         bytes: nextAudio.bytes,

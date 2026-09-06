@@ -27,6 +27,7 @@ SESSION SUMMARY
   pricedCalls      8
   unpricedCalls    0
   failedCalls      0
+  localRefusals    0
   pricedTotalUsd   0.00811300
   TOTAL COMPLETE — every call in this session was priced exactly.
 ```
@@ -43,6 +44,7 @@ SESSION SUMMARY
 | **Spend join** | `meta.requestId` on every record — the key that finds this exact call on the dashboard |
 | **Logging** | one JSONL record per call, written on the failure path as well as the success path |
 | **Refusals** | typed errors: `kind`, `status`, `requestId`, `authReason`, `limitSource` |
+| **Blame, correctly assigned** | every record carries `sentToGateway` and `billed`. A refusal the SDK raised *before sending* is `false`/`false` — no request id, no spend row, nothing billed — and is reported separately from one that came back **from** the gateway, where billing is genuinely unknown |
 
 ## Billing, wire by wire
 
@@ -133,6 +135,37 @@ A record is written for failed calls too, with `ok: false` and the error kind. A
 log that only records successes is a spend report that only sees the cheap half of
 a bad day.
 
+**Not every failure is a billing question.** Each record also carries
+`sentToGateway` and `billed`, because there are three answers and not two:
+
+| `sentToGateway` | `billed` | what happened |
+|---|---|---|
+| `true` | `true` | the gateway answered — served, or a refusal like a 402. Either way it carries a request id and may be on your spend rows |
+| `false` | `false` | the SDK refused **before sending**: an invalid audio format, an empty `input`, a filename with no extension. There was no request, so there is no request id and no spend row to go looking for |
+| `null` | `true` | it left this process and nothing usable came back — a connection failure or a timeout. Counted as billed, because we cannot prove it was not |
+
+`billed` is derived, not decided twice: it is `sentToGateway !== false`. Only a
+call that never left this process is *provably* free, and everything else is
+assumed to have cost money — under-counting spend surfaces later as a surprise
+invoice, over-counting surfaces immediately as a question.
+
+The classifier checks **response evidence first, kind second**, and both halves
+of that order are load-bearing:
+
+- An HTTP status exists only if a response came back, so a status (or a request
+  id, or parsed response metadata) means it was sent — whatever the kind says.
+- `false` is then keyed on the error **kind** (`configuration`, what the
+  pre-send validators raise) and **never** on a missing request id. A connection
+  that died mid-flight has no request id either, and that request may well have
+  been served and billed; keying on the absence would silently write off every
+  network blip.
+- The kind cannot lead, because `configuration` is raised on *both* sides of the
+  wire — the SDK's `requireJson()` / `requireBinary()` raise it for a `2xx`
+  whose body has the wrong shape, and that response was served and **billed**.
+
+Runs 5, 6 and 7 below pin all three, and the ordering is mutation-checked: swap
+the two checks and run 7 goes red.
+
 ## Verify it without spending anything
 
 ```bash
@@ -141,7 +174,7 @@ node ../voice_agent_suite.js
 
 A local mock gateway speaks the four wires — including `/v1/messages`, which is
 where the default Claude model actually goes — and stamps the same `x-nr-*`
-headers. Four runs, no key, no network, under a second:
+headers. Seven runs, no key, no network, about a second:
 
 1. **Everything priced.** Every call reaches the log with a request id, and
    `pricedTotalUsd` equals the mock's own arithmetic. Each wire is given a
@@ -155,12 +188,30 @@ headers. Four runs, no key, no network, under a second:
 3. **An unrecognised cost status carrying an amount.** Excluded too — the
    number alone is not authority to bill against — and the assertion proves the
    exclusion by showing the total is *not* higher by that amount.
-4. **A refused call mid-session.** The process exits non-zero, the failure is
-   logged with its request id, and the summary still reports the money already
-   spent before the refusal, in its own `failedCalls` bucket. A refused call was
-   not "served without a price", and the summary says so.
+4. **A refused call mid-session** — a 402 *from the gateway*. The process exits
+   non-zero, the failure is logged with its request id, and the summary still
+   reports the money already spent before the refusal, in its own `failedCalls`
+   bucket. A refused call was not "served without a price", and the summary says
+   so.
+5. **A refusal raised locally, before anything is sent.** An invalid
+   `response_format` fails the SDK's own validation, so there is no request, no
+   request id and nothing billed. The mock asserts it received **zero** speech
+   requests and exactly the two it was meant to — the proof is the gateway's
+   silence, not the example's own flag — and the summary says `refused locally,
+   never sent, nothing billed` rather than "may still have been billed". The
+   money total stays `TOTAL COMPLETE`, because a call that was never sent did
+   not cost anything.
+6. **The connection dies with no answer.** Same missing request id as run 5, and
+   it must NOT be treated the same: the mock confirms the request arrived, so it
+   is `sentToGateway: null`, counted as billed, and reported as possibly billed.
+7. **A billed `2xx` whose body is not JSON.** The SDK raises the *same*
+   `configuration` kind a local refusal raises, but this call was served and the
+   response carries a request id, a cost and a latency. It is `sentToGateway:
+   true` and billed — writing it off as never-sent would discard a real charge
+   with its spend-row key sitting in the log.
 
-The suite also runs as step 3 of `tests/demo-e2e-record.test.sh`.
+The suite also runs as step 3 of `tests/demo-e2e-record.test.sh`, and in its
+`--mock-only` mode, which is the whole-repo gate that needs no key and no network.
 
 ## What this example does not do
 

@@ -60,7 +60,7 @@ const DEMO_KEY = 'sk-nrouter-voiceagentsuite000000000000000000000000';
  *                 the amount out of the total rather than trusting a number
  *                 whose meaning it cannot vouch for.
  */
-function startMock({ firstSpeechStatus = null, refuseChat = false, omitSpeechLatency = false } = {}) {
+function startMock({ firstSpeechStatus = null, refuseChat = false, omitSpeechLatency = false, dropChatConnection = false, chatNonJson = false } = {}) {
   let requests = 0;
   let speechCalls = 0;
   let sttCalls = 0;
@@ -175,6 +175,30 @@ function startMock({ firstSpeechStatus = null, refuseChat = false, omitSpeechLat
       if (url === '/v1/chat/completions') {
         chatCalls += 1;
         chatCompletionCalls += 1;
+        if (chatNonJson) {
+          // A 2xx the SDK cannot read, WITH full metadata. This is a served,
+          // BILLED response whose body did not arrive as JSON — and the SDK
+          // raises `configuration` for it, the same kind a pre-send refusal
+          // uses. The headers are what tell them apart.
+          res.writeHead(200, {
+            'content-type': 'text/html',
+            'x-nr-request-id': requestId,
+            'x-nr-model': 'mock-chat-1',
+            'x-nr-request-cost': COST.chat.toFixed(6),
+            'x-nr-cost-status': 'exact',
+            'x-nr-latency-ms': String(GATEWAY_MS.chat),
+          });
+          res.end('<html>a proxy replaced the body</html>');
+          return;
+        }
+        if (dropChatConnection) {
+          // The request ARRIVED and then the connection died with no answer.
+          // No status, no request id, nothing — which is exactly the shape a
+          // pre-send refusal has, and exactly why the two must not be told
+          // apart by a missing request id.
+          req.socket.destroy();
+          return;
+        }
         if (refuseChat) {
           // 402 with the gateway's own envelope shape: `error.type`, no
           // top-level `code`. Nothing was served, so nothing is added to the
@@ -217,11 +241,73 @@ function startMock({ firstSpeechStatus = null, refuseChat = false, omitSpeechLat
     });
   });
 
+  // A deliberately destroyed socket emits 'clientError' on the server, and
+  // without a listener Node turns that into an unhandled exception — the suite
+  // would die for the wrong reason. But a BLANKET handler is worse than none:
+  // it also eats a port conflict or a descriptor exhaustion, and the run then
+  // hangs with no diagnostic instead of failing fast. So only the reset codes
+  // the destroy itself produces are expected, only on the run that destroys,
+  // and everything else is collected and asserted on.
+  const EXPECTED_DROP_CODES = new Set(['ECONNRESET', 'EPIPE', 'ERR_STREAM_DESTROYED']);
+  const errors = [];
+  server.on('clientError', (err, socket) => {
+    if (!(dropChatConnection && EXPECTED_DROP_CODES.has(err && err.code))) {
+      errors.push(err);
+    }
+    if (socket && !socket.destroyed) socket.destroy();
+  });
+  // A server-level error is never expected: nothing in this suite provokes one.
+  server.on('error', (err) => errors.push(err));
+
   return {
     server,
+    errors: () => errors,
     counts: () => ({ requests, speechCalls, sttCalls, chatCalls, messagesCalls, chatCompletionCalls }),
     expectedPricedTotal: () => expectedPricedTotal,
   };
+}
+
+/**
+ * A 0.25s silent 8kHz mono WAV.
+ *
+ * Only needed so `NROUTER_AUDIO_IN` has something real to point at: run 5 needs
+ * the example to SKIP the bootstrap TTS, so that the speech call it does make
+ * is the reply — and the mock can then prove that call never arrived.
+ */
+function tinyWav() {
+  const sampleRate = 8000;
+  const samples = sampleRate / 4;
+  const dataSize = samples * 2;
+  const bytes = new Uint8Array(44 + dataSize);
+  const view = new DataView(bytes.buffer);
+  const write = (offset, text) => {
+    for (let i = 0; i < text.length; i += 1) bytes[offset + i] = text.charCodeAt(i);
+  };
+  write(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  write(8, 'WAVE');
+  write(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, 'data');
+  view.setUint32(40, dataSize, true);
+  return Buffer.from(bytes);
+}
+
+/** Fail loudly on any mock-gateway error the suite did not deliberately cause. */
+function assertNoMockErrors(mock, runName) {
+  const errors = mock.errors();
+  assert.equal(
+    errors.length,
+    0,
+    `${runName}: the mock gateway raised ${errors.length} unexpected error(s): ` +
+      errors.map((e) => `${e && e.code ? e.code : ''} ${e && e.message}`).join(' | '),
+  );
 }
 
 function listen(server) {
@@ -236,7 +322,7 @@ function listen(server) {
  * child on its first request and the suite reports a hang as a failure of the
  * example. That cost an hour once; it is why this returns a promise.
  */
-async function runExample({ port, turns, workDir, chatModel }) {
+async function runExample({ port, turns, workDir, chatModel, extraEnv = {} }) {
   const logPath = path.join(workDir, 'voice-agent.log.jsonl');
   const outDir = path.join(workDir, 'out');
 
@@ -258,6 +344,7 @@ async function runExample({ port, turns, workDir, chatModel }) {
     NROUTER_VOICE_LOG: logPath,
     NROUTER_VOICE_OUT: outDir,
   });
+  Object.assign(env, extraEnv);
 
   const child = await new Promise((resolve, reject) => {
     const proc = spawn(process.execPath, [EXAMPLE], { env, cwd: workDir });
@@ -324,7 +411,7 @@ async function main() {
     // ---------------------------------------------------------------- run 1
     // Two turns, every call priced. The full loop: bootstrap TTS, then per
     // turn STT -> chat -> TTS, plus one TTS synthesising the follow-up.
-    console.log('\n[1/4] Fully priced session (2 turns)...');
+    console.log('\n[1/7] Fully priced session (2 turns)...');
     const priced = startMock();
     const pricedPort = await listen(priced.server);
     const workA = path.join(workRoot, 'priced');
@@ -332,6 +419,7 @@ async function main() {
     // An OpenAI-shaped id, so this run exercises /v1/chat/completions.
     const a = await runExample({ port: pricedPort, turns: 2, workDir: workA, chatModel: 'mock-chat' });
     priced.server.close();
+    assertNoMockErrors(priced, 'run 1');
 
     if (a.child.status !== 0) {
       fail('run 1', a.child);
@@ -418,7 +506,7 @@ async function main() {
     // One TTS call comes back unpriced. The session still succeeds — unpriced
     // is a served request, not an error — but the total is INCOMPLETE and must
     // say so rather than silently under-reporting by one call.
-    console.log('\n[2/4] One unpriced TTS call (1 turn)...');
+    console.log('\n[2/7] One unpriced TTS call (1 turn)...');
     const mixed = startMock({ firstSpeechStatus: 'unpriced', omitSpeechLatency: true });
     const mixedPort = await listen(mixed.server);
     const workB = path.join(workRoot, 'unpriced');
@@ -427,6 +515,7 @@ async function main() {
     // DEFAULT model takes. nrouter-doc-wire: messages
     const b = await runExample({ port: mixedPort, turns: 1, workDir: workB, chatModel: 'claude-mock-haiku-4-5' });
     mixed.server.close();
+    assertNoMockErrors(mixed, 'run 2');
 
     if (b.child.status !== 0) {
       fail('run 2', b.child);
@@ -493,13 +582,14 @@ async function main() {
     // never summed on the strength of the number alone. Without this run a
     // future third status would be summed silently by any code that checked
     // `cost !== null` instead of the status.
-    console.log('\n[3/4] An unrecognised cost status carrying an amount (1 turn)...');
+    console.log('\n[3/7] An unrecognised cost status carrying an amount (1 turn)...');
     const odd = startMock({ firstSpeechStatus: 'estimated' });
     const oddPort = await listen(odd.server);
     const workC = path.join(workRoot, 'estimated');
     fs.mkdirSync(workC);
     const c = await runExample({ port: oddPort, turns: 1, workDir: workC, chatModel: 'mock-chat' });
     odd.server.close();
+    assertNoMockErrors(odd, 'run 3');
 
     if (c.child.status !== 0) {
       fail('run 3', c.child);
@@ -535,13 +625,14 @@ async function main() {
     // notices, AND it must still report the money it had already spent before
     // the refusal. A run that dies without printing its summary hands the
     // operator a bill with no itemisation.
-    console.log('\n[4/4] A refused chat call mid-session (1 turn)...');
+    console.log('\n[4/7] A refused chat call mid-session (1 turn)...');
     const refused = startMock({ refuseChat: true });
     const refusedPort = await listen(refused.server);
     const workD = path.join(workRoot, 'refused');
     fs.mkdirSync(workD);
     const d = await runExample({ port: refusedPort, turns: 1, workDir: workD, chatModel: 'mock-chat' });
     refused.server.close();
+    assertNoMockErrors(refused, 'run 4');
 
     assert.equal(d.child.status, 1, 'a refused call must exit non-zero');
     // The typed refusal, not a stack trace.
@@ -569,9 +660,17 @@ async function main() {
     assert.equal(summaryNumber(d.child.stdout, 'unpricedCalls'), 0);
     assert.ok(d.child.stdout.includes('TOTAL INCOMPLETE'));
     assert.ok(
-      /FAILED and may still have been billed/.test(d.child.stdout),
+      /FAILED after leaving this process and may still have been billed/.test(d.child.stdout),
       'the summary must distinguish a failed call from an unpriced one',
     );
+    // A 402 came FROM the gateway, so it is not a local refusal: it has a
+    // request id and it may have been billed. The two failure classes must not
+    // collapse into each other in either direction.
+    assert.equal(summaryNumber(d.child.stdout, 'localRefusals'), 0);
+    assert.equal(failedRecord.sentToGateway, true, 'a 402 is an answer, so the call WAS sent');
+    // Counted as billed: a 402 reached the gateway, and only a call that never
+    // left this process is provably free.
+    assert.equal(failedRecord.billed, true, 'a call the gateway answered is counted as billed');
 
     const refusedReported = summaryNumber(d.child.stdout, 'pricedTotalUsd');
     assert.equal(
@@ -582,6 +681,185 @@ async function main() {
     assert.ok(refusedReported > 0, 'two calls were billed before the refusal');
 
     console.log(`      exit=1 calls=${d.records.length} pricedTotalUsd=${refusedReported.toFixed(8)} failedCalls=1`);
+
+    // ---------------------------------------------------------------- run 5
+    // A refusal raised by the SDK BEFORE the request leaves this process:
+    // `response_format: 'xyz'` fails `validateAudioFormat`, which throws a
+    // configuration error carrying no status, no meta and no request id.
+    //
+    // That is a FOURTH failure class and it is not the 402 of run 4. Nothing
+    // was sent, so nothing can have been billed — and telling the operator it
+    // "may still have been billed" sends them hunting a spend row that does not
+    // exist, for a call the gateway never saw. The proof is not the example's
+    // own flag: the mock counts ZERO speech requests.
+    //
+    // `NROUTER_AUDIO_IN` points at a real recording so the bootstrap TTS is
+    // skipped and two calls are genuinely BILLED before the refusal — which is
+    // the other half of the property: money already spent is still reported,
+    // and the priced total stays COMPLETE because the refused call cost
+    // nothing.
+    console.log('\n[5/7] A refusal raised locally, before the request is sent (1 turn)...');
+    const local = startMock();
+    const localPort = await listen(local.server);
+    const workE = path.join(workRoot, 'local-refusal');
+    fs.mkdirSync(workE);
+    fs.writeFileSync(path.join(workE, 'caller.wav'), tinyWav());
+    const e = await runExample({
+      port: localPort,
+      turns: 1,
+      workDir: workE,
+      chatModel: 'mock-chat',
+      extraEnv: { NROUTER_AUDIO_IN: 'caller.wav', NROUTER_SPEECH_FORMAT: 'xyz' },
+    });
+    local.server.close();
+    assertNoMockErrors(local, 'run 5');
+
+    assert.equal(e.child.status, 1, 'a refused call must exit non-zero, local or not');
+
+    // THE PROOF, and it is the mock's, not the example's: the speech request
+    // never arrived. A self-reported `sentToGateway: false` that the gateway
+    // could contradict would be worth nothing.
+    const localCounts = local.counts();
+    assert.equal(localCounts.speechCalls, 0, 'the refused speech call must never have been sent');
+    assert.equal(localCounts.sttCalls, 1);
+    assert.equal(localCounts.chatCalls, 1);
+
+    assert.deepEqual(e.records.map((r) => r.step), ['stt', 'chat', 'tts']);
+    const refusedLocally = e.records[2];
+    assert.equal(refusedLocally.ok, false);
+    assert.equal(refusedLocally.sentToGateway, false, 'a pre-send refusal never reached the gateway');
+    assert.equal(refusedLocally.billed, false, 'a call that was never sent cannot have been billed');
+    // The gateway saw the two calls that were meant to reach it, and NOTHING
+    // else. A third request would mean the refusal was not local at all.
+    assert.equal(localCounts.requests, 2, 'the gateway saw only the two calls that were sent');
+    assert.equal(refusedLocally.requestId, null, 'there is no request id for a request never made');
+    assert.equal(refusedLocally.gatewayMs, null);
+    assert.ok(
+      /configuration/.test(refusedLocally.error || ''),
+      `the error kind was not recorded: ${JSON.stringify(refusedLocally)}`,
+    );
+
+    // The two calls that DID reach the gateway are still marked sent and billed.
+    for (const sent of e.records.slice(0, 2)) {
+      assert.equal(sent.sentToGateway, true, `a served call must be marked sent: ${JSON.stringify(sent)}`);
+      assert.equal(sent.billed, true, `a served call must be marked billed: ${JSON.stringify(sent)}`);
+    }
+
+    assert.equal(summaryNumber(e.child.stdout, 'localRefusals'), 1);
+    assert.equal(summaryNumber(e.child.stdout, 'failedCalls'), 1);
+    assert.equal(summaryNumber(e.child.stdout, 'unpricedCalls'), 0);
+    assert.ok(
+      /refused locally, never sent, nothing billed/.test(e.child.stdout),
+      `the summary does not name the local refusal:\n${e.child.stdout}`,
+    );
+    // The defect this run exists to prevent: a locally refused call must NOT be
+    // described as possibly billed.
+    assert.ok(
+      !/may still have been billed/.test(e.child.stdout),
+      'a call that was never sent must not be reported as possibly billed',
+    );
+    // And the MONEY total is complete: everything that was sent was priced.
+    assert.ok(
+      !e.child.stdout.includes('TOTAL INCOMPLETE'),
+      'a local refusal bills nothing, so the priced total is still complete',
+    );
+
+    const localReported = summaryNumber(e.child.stdout, 'pricedTotalUsd');
+    assert.equal(localReported.toFixed(8), local.expectedPricedTotal().toFixed(8));
+    assert.ok(localReported > 0, 'the two calls billed before the refusal must still be reported');
+
+    console.log(`      exit=1 calls=${e.records.length} pricedTotalUsd=${localReported.toFixed(8)} localRefusals=1 (0 speech requests reached the mock)`);
+
+    // ---------------------------------------------------------------- run 6
+    // The THIRD delivery state: the request arrived and the connection died
+    // with no answer. It carries no status and no request id — the same
+    // evidence a pre-send refusal carries, which is the whole reason the two
+    // are told apart by the error KIND and never by a missing request id.
+    //
+    // It must be counted as BILLED. The gateway may well have served it; we
+    // simply never heard. Classifying it as "never sent, nothing billed"
+    // because the request id is missing would silently write off every network
+    // blip, and that is the expensive direction to be wrong in.
+    console.log('\n[6/7] The connection dies with no answer (1 turn)...');
+    const dropped = startMock({ dropChatConnection: true });
+    const droppedPort = await listen(dropped.server);
+    const workF = path.join(workRoot, 'dropped');
+    fs.mkdirSync(workF);
+    const f = await runExample({ port: droppedPort, turns: 1, workDir: workF, chatModel: 'mock-chat' });
+    dropped.server.close();
+    assertNoMockErrors(dropped, 'run 6');
+
+    assert.equal(f.child.status, 1, 'a call that got no answer must exit non-zero');
+    assert.deepEqual(f.records.map((r) => r.step), ['tts', 'stt', 'chat']);
+
+    const noAnswer = f.records[2];
+    assert.equal(noAnswer.ok, false);
+    assert.equal(noAnswer.requestId, null, 'a dropped connection carries no request id');
+    assert.equal(
+      noAnswer.sentToGateway,
+      null,
+      `an unanswered call is UNKNOWN, neither sent-and-answered nor never-sent: ${JSON.stringify(noAnswer)}`,
+    );
+    assert.equal(noAnswer.billed, true, 'an unanswered call is counted as billed — we cannot prove otherwise');
+
+    // The mock SAW it. This is the assertion that separates run 6 from run 5.
+    assert.equal(dropped.counts().chatCalls, 1, 'the dropped request did reach the gateway');
+
+    assert.equal(summaryNumber(f.child.stdout, 'localRefusals'), 0, 'a dropped connection is not a local refusal');
+    assert.equal(summaryNumber(f.child.stdout, 'failedCalls'), 1);
+    assert.ok(f.child.stdout.includes('TOTAL INCOMPLETE'));
+    assert.ok(
+      /may still have been billed/.test(f.child.stdout),
+      'an unanswered call must be reported as possibly billed',
+    );
+    assert.ok(
+      !/refused locally/.test(f.child.stdout),
+      'nothing here was refused locally',
+    );
+
+    console.log(`      exit=1 calls=${f.records.length} sentToGateway=null billed=true localRefusals=0`);
+
+    // ---------------------------------------------------------------- run 7
+    // The trap the classifier's ORDERING exists for. A 2xx whose body is not
+    // JSON makes the SDK raise `configuration` — the SAME KIND a pre-send
+    // refusal raises — but this one was SERVED and BILLED, and it carries a
+    // request id, a cost and a latency to prove it.
+    //
+    // Key the "never sent" decision on the kind alone and this billed call is
+    // written off as costing nothing, with its request id sitting right there
+    // in the log. The gateway evidence has to be checked FIRST.
+    console.log('\n[7/7] A billed 2xx whose body is not JSON (1 turn)...');
+    const unreadable = startMock({ chatNonJson: true });
+    const unreadablePort = await listen(unreadable.server);
+    const workG = path.join(workRoot, 'unreadable');
+    fs.mkdirSync(workG);
+    const g = await runExample({ port: unreadablePort, turns: 1, workDir: workG, chatModel: 'mock-chat' });
+    unreadable.server.close();
+    assertNoMockErrors(unreadable, 'run 7');
+
+    assert.equal(g.child.status, 1);
+    const unread = g.records[2];
+    assert.equal(unread.ok, false);
+    // The kind is `configuration` — identical to the pre-send refusal in run 5.
+    assert.ok(
+      /configuration/.test(unread.error || ''),
+      `this failure must carry the same kind a local refusal does: ${JSON.stringify(unread)}`,
+    );
+    // And yet it was SENT and is counted as BILLED, because the gateway
+    // answered and said what it charged.
+    assert.equal(unread.sentToGateway, true, 'a 2xx is an answer; this call was sent');
+    assert.equal(unread.billed, true, 'a served response is billed even when its body is unreadable');
+    assert.ok(unread.requestId, 'the request id came back and must be logged — it is the spend-row key');
+    assert.equal(unread.gatewayMs, GATEWAY_MS.chat);
+
+    assert.equal(summaryNumber(g.child.stdout, 'localRefusals'), 0, 'a billed 2xx is not a local refusal');
+    assert.ok(
+      !/refused locally/.test(g.child.stdout),
+      'a served, billed call must never be reported as never sent',
+    );
+    assert.ok(/may still have been billed/.test(g.child.stdout));
+
+    console.log(`      exit=1 kind=configuration sentToGateway=true billed=true requestId=${unread.requestId}`);
 
     console.log('\n======================================================================');
     console.log('Result: PASS (voice-agent cost, usage and logging verified)');
