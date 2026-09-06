@@ -197,17 +197,27 @@ Every record carries `sentToGateway`, and `billed` is derived from it as
 
 | `sentToGateway` | When | Billed? |
 |---|---|---|
-| `false` | the SDK refused **before anything left the process** — `err.kind === 'configuration'`, e.g. `n > 1` on the Messages wire, which returns exactly one completion | **no.** Nothing was sent, so nothing can have been charged |
-| `true` | the gateway answered, whatever the status | yes, per its own rules |
+| `false` | `err.kind === 'configuration'` **and the error carries no HTTP status** — the SDK refused before anything left the process, e.g. `n > 1` on the Messages wire, which returns exactly one completion | **no.** Nothing was sent, so nothing can have been charged |
+| `true` | the error carries **any** HTTP status, or a request id came back — a response existed, so the request was sent | yes, per its own rules |
 | `null` | **no answer at all** — a transport failure or a timeout | treat as **yes**: the request may well have arrived and been billed |
 
-The `null` is the one that must never be flattened. Calling it `false` writes off
-a charge that may exist; calling it `true` claims knowledge nobody has.
+⚠ **The kind alone is not enough, and getting it wrong writes off a real
+charge.** `configuration` covers two different moments: a refusal built before
+the socket opened, *and* `requireJson()` rejecting a served **2xx whose body was
+not JSON** — a request that reached the gateway, ran, and settled. The SDK tells
+them apart by carrying `status` on the second (see `sdks/js/src/json.ts`, whose
+own comment says omitting it would report "never reached the gateway" for a
+request that plainly did). So `false` requires the kind **and** the absence of a
+status; any status means `true`.
 
-It is keyed on the **error kind, never on a missing `requestId`** — a gateway
-that answered without one still charged for the call. A locally refused call is
-counted under `localRefusals`, is excluded from `TOTAL INCOMPLETE`, and is never
-described as possibly billed.
+The `null` is the other one that must never be flattened. Calling it `false`
+writes off a charge that may exist; calling it `true` claims knowledge nobody
+has.
+
+None of the three is decided by a **missing `requestId`** — a gateway that
+answered without one still charged for the call, and an intermediary can strip a
+header. A locally refused call is counted under `localRefusals`, is excluded from
+`TOTAL INCOMPLETE`, and is never described as possibly billed.
 
 `limitSource` on a `429` is one of `key | plan | team | user | budget`, and
 `null` means the gateway did not say. **Do not guess** — sending a customer to
@@ -311,8 +321,12 @@ excluded and announced; a settled join where every billed call resolves and the
 streamed call's cost finally becomes visible; a stream whose spend row has not
 landed, which must be reported as pending and must not produce a total; and a
 master-shaped key, which must be refused with **zero** requests reaching either
-server; and a local `configuration` refusal, which must reach the gateway zero
-times and must never be reported as possibly billed.
+server; a local `configuration` refusal, which must reach the gateway zero times
+and must never be reported as possibly billed; a dropped connection, whose
+`null` must stay billed; and a served 2xx with a non-JSON body — the same
+`configuration` kind as the local refusal, but sent, settled and billed — run
+both with and without a request-id header, so the HTTP status alone is proven
+sufficient.
 
 The last four fields of the log record above are written by the join and are
 **absent** — not `null` — when it did not run: a `null` there could not be told

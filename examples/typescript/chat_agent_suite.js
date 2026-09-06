@@ -123,6 +123,8 @@ function startMock(options = {}) {
     refuseChatWith429 = false,
     cacheDisabled = false,
     dropChatConnection = false,
+    plainTextChatBody = false,
+    omitRequestIdOnPlainText = false,
     omitStreamUsage = false,
     omitStreamLatency = false,
     streamCarriesCost = false,
@@ -338,6 +340,31 @@ function startMock(options = {}) {
         if (dropChatConnection && counts.chatCompletionsBuffered === 0) {
           counts.chatCompletionsBuffered += 1;
           req.socket.destroy();
+          return;
+        }
+
+        // SERVED, BILLED, AND NOT JSON. A 2xx whose body is text/plain: the
+        // request reached the gateway, ran, and settled — the cost headers say
+        // so — but `requireJson()` refuses to parse it and raises a
+        // `configuration` error CARRYING the status. Classifying on the kind
+        // alone writes that charge off.
+        if (plainTextChatBody && counts.chatCompletionsBuffered === 0) {
+          counts.chatCompletionsBuffered += 1;
+          expectedPricedTotal += COST.chat;
+          const plainHeaders = {
+            'content-type': 'text/plain; charset=utf-8',
+            'x-nr-model': 'mock-chat-1',
+            'x-nr-request-cost': COST.chat.toFixed(6),
+            'x-nr-cost-status': 'exact',
+            'x-nr-latency-ms': String(GATEWAY_MS.chat),
+          };
+          // Optionally WITHOUT the request id — an intermediary can strip a
+          // header, and the request was still served and billed. It is the only
+          // shape in which the HTTP status is the sole evidence that anything
+          // was sent.
+          if (!omitRequestIdOnPlainText) plainHeaders['x-nr-request-id'] = requestId;
+          res.writeHead(200, plainHeaders);
+          res.end('upstream returned a plain-text body');
           return;
         }
 
@@ -639,7 +666,7 @@ async function main() {
 
   try {
     // ---------------------------------------------------------------- run 1
-    console.log('\n[1/11] Fully priced session, cache miss then hit (2 turns)...');
+    console.log('\n[1/12] Fully priced session, cache miss then hit (2 turns)...');
     const green = startMock();
     const greenPort = await listen(green.server);
     const workA = path.join(workRoot, 'green');
@@ -858,7 +885,7 @@ async function main() {
     // One BUFFERED call comes back unpriced. The session still succeeds —
     // unpriced is a served request, not an error — but the total is INCOMPLETE
     // and must say so rather than silently under-reporting by one call.
-    console.log('\n[2/11] One unpriced buffered call (1 turn)...');
+    console.log('\n[2/12] One unpriced buffered call (1 turn)...');
     const mixed = startMock({ unpriceResponses: true });
     const mixedPort = await listen(mixed.server);
     const workB = path.join(workRoot, 'unpriced');
@@ -914,7 +941,7 @@ async function main() {
     // are easy to lose: the process must exit NON-ZERO so a scripted caller
     // notices, it must print WHICH limit measured it, and it must still report
     // the money it had already spent before the refusal.
-    console.log('\n[3/11] A rate-limited chat call mid-session (1 turn)...');
+    console.log('\n[3/12] A rate-limited chat call mid-session (1 turn)...');
     const limited = startMock({ refuseChatWith429: true });
     const limitedPort = await listen(limited.server);
     const workC = path.join(workRoot, 'limited');
@@ -969,7 +996,7 @@ async function main() {
     // A deployment that never opted into response caching, and a provider that
     // sent no usage frame. NULL is not `miss` and NULL is not `0`: three
     // absences that a careless reader turns into three measurements.
-    console.log('\n[4/11] Caching off, no stream usage frame, no stream latency (1 turn)...');
+    console.log('\n[4/12] Caching off, no stream usage frame, no stream latency (1 turn)...');
     const bare = startMock({ cacheDisabled: true, omitStreamUsage: true, omitStreamLatency: true });
     const barePort = await listen(bare.server);
     const workD = path.join(workRoot, 'bare');
@@ -1028,7 +1055,7 @@ async function main() {
     // A stream whose HEADERS carry an exact cost. Today's gateway cannot do
     // this — which is exactly why it is worth testing: the exclusion must hold
     // by construction, not because the fixture happened to omit the header.
-    console.log('\n[5/11] A stream carrying an exact cost header (1 turn)...');
+    console.log('\n[5/12] A stream carrying an exact cost header (1 turn)...');
     const oddStream = startMock({ streamCarriesCost: true });
     const oddPort = await listen(oddStream.server);
     const workE = path.join(workRoot, 'stream-cost');
@@ -1073,7 +1100,7 @@ async function main() {
     // can only ever print `$0.000000` under a `RECOMPUTED` label, and a
     // labelled zero is read as a price. It must refuse before it spends
     // anything, which is why this run needs no mock.
-    console.log('\n[6/11] Both client rates at 0 must be refused, not printed as $0...');
+    console.log('\n[6/12] Both client rates at 0 must be refused, not printed as $0...');
     const refusal = await new Promise((resolve, reject) => {
       const env = {};
       for (const [key, value] of Object.entries(process.env)) {
@@ -1121,7 +1148,7 @@ async function main() {
     // ---------------------------------------------------------------- run 7
     // THE SETTLED JOIN. The streamed call's cost exists only on the spend row,
     // and this is the run that proves the example can actually see it.
-    console.log('\n[7/11] The settled join — every billed call resolves, streams included (1 turn)...');
+    console.log('\n[7/12] The settled join — every billed call resolves, streams included (1 turn)...');
     const joinGw = startMock();
     const joinGwPort = await listen(joinGw.server);
     const joinDash = startDashboardMock(joinGw.ledger);
@@ -1210,7 +1237,7 @@ async function main() {
     // ---------------------------------------------------------------- run 8
     // The row has not landed yet. `{"log":null,"total":0}` is ALSO what a
     // foreign id and an unknown id return, so it can never be read as $0.
-    console.log('\n[8/11] A stream whose spend row has not landed — pending, never $0 (1 turn)...');
+    console.log('\n[8/12] A stream whose spend row has not landed — pending, never $0 (1 turn)...');
     const pendGw = startMock();
     const pendGwPort = await listen(pendGw.server);
     const pendDash = startDashboardMock(pendGw.ledger, {
@@ -1282,7 +1309,7 @@ async function main() {
     // A MASTER-shaped key. Every call here is billed inference and the join
     // sends the same key, so it must be refused BEFORE anything is sent —
     // proven by the gateway seeing zero requests, not by reading the message.
-    console.log('\n[9/11] A master-shaped key must be refused before the first call...');
+    console.log('\n[9/12] A master-shaped key must be refused before the first call...');
     const masterGw = startMock();
     const masterGwPort = await listen(masterGw.server);
     const masterDash = startDashboardMock(masterGw.ledger);
@@ -1318,7 +1345,7 @@ async function main() {
     // It costs nothing, and the whole assertion is that the log says so: a
     // summary that lumps it in with "FAILED and may still have been billed"
     // sends an operator to check an invoice line that cannot exist.
-    console.log('\n[10/11] A local refusal — nothing sent, nothing billed (1 turn)...');
+    console.log('\n[10/12] A local refusal — nothing sent, nothing billed (1 turn)...');
     const localGw = startMock();
     const localGwPort = await listen(localGw.server);
     const workI = path.join(workRoot, 'local-refusal');
@@ -1372,7 +1399,7 @@ async function main() {
     // than a comment: every other run produces `true` or `false`, so a
     // classifier keyed on a missing request id, or a `billed` derived as
     // `=== true`, is indistinguishable from the correct one without it.
-    console.log('\n[11/11] A dropped connection — no answer, so BILLED is unknown-but-assumed (1 turn)...');
+    console.log('\n[11/12] A dropped connection — no answer, so BILLED is unknown-but-assumed (1 turn)...');
     const dropGw = startMock({ dropChatConnection: true });
     const dropGwPort = await listen(dropGw.server);
     const workJ = path.join(workRoot, 'dropped');
@@ -1414,6 +1441,78 @@ async function main() {
     );
 
     console.log('      exit=1, sentToGateway=null, billed=true, reported as possibly billed');
+
+    // --------------------------------------------------------------- run 12
+    // A SERVED, BILLED 2xx WITH A NON-JSON BODY. `requireJson()` raises kind
+    // `configuration` for it — the same kind as a refusal built before the
+    // socket opened — but it carries an HTTP status, because the request
+    // reached the gateway, ran and settled.
+    //
+    // This is the run that makes `sentToGateway` correct rather than merely
+    // three-valued: classifying on the KIND ALONE marks a real charge
+    // `billed: false` and drops it out of the maybe-billed warning entirely.
+    console.log('\n[12/12] A served 2xx with a non-JSON body is BILLED, not a local refusal (1 turn)...');
+    const plainGw = startMock({ plainTextChatBody: true });
+    const plainGwPort = await listen(plainGw.server);
+    const workK = path.join(workRoot, 'plain-text');
+    fs.mkdirSync(workK);
+    const k = await runExample({ port: plainGwPort, turns: 1, workDir: workK });
+    plainGw.server.close();
+
+    assert.equal(k.child.status, 1, 'an unparseable body must exit non-zero');
+    // The request DID reach the gateway and DID settle.
+    assert.equal(plainGw.counts().chatCompletionsBuffered, 1);
+
+    assert.deepEqual(k.records.map((r) => r.step), ['messages', 'chat']);
+    const plainRecord = k.records[1];
+    assert.equal(plainRecord.ok, false);
+    assert.match(plainRecord.error, /configuration/, 'the SDK raises the configuration kind here');
+    // TRUE, not false. The kind matches a local refusal; the status does not.
+    assert.equal(
+      plainRecord.sentToGateway,
+      true,
+      'a served 2xx reached the gateway however its body was shaped',
+    );
+    assert.equal(plainRecord.billed, true, 'a served, settled request must never be written off');
+    assert.ok(plainRecord.requestId, 'the response carried a request id to join the spend row on');
+
+    // Counted as a FAILURE whose money is in doubt — never as a local refusal.
+    assert.equal(summaryNumber(k.child.stdout, 'failedCalls'), 1);
+    assert.equal(summaryNumber(k.child.stdout, 'localRefusals'), 0, 'this was not refused locally');
+    assert.ok(
+      /may still have been billed/.test(k.child.stdout),
+      `a served-and-settled failure must be flagged as possibly billed:\n${k.child.stdout}`,
+    );
+    assert.ok(!/REFUSED LOCALLY/.test(k.child.stdout));
+
+    console.log('      exit=1, sentToGateway=true, billed=true despite the configuration kind');
+
+    // ...and the same thing with the request-id header STRIPPED. Now the HTTP
+    // STATUS is the only evidence the request was ever sent, so this is what
+    // makes "any status ⇒ true" a tested rule rather than a redundant clause
+    // that the request id happened to satisfy.
+    console.log('        ...and again with the request-id header stripped...');
+    const strippedGw = startMock({ plainTextChatBody: true, omitRequestIdOnPlainText: true });
+    const strippedGwPort = await listen(strippedGw.server);
+    const workL = path.join(workRoot, 'plain-text-no-id');
+    fs.mkdirSync(workL);
+    const l = await runExample({ port: strippedGwPort, turns: 1, workDir: workL });
+    strippedGw.server.close();
+
+    assert.equal(l.child.status, 1);
+    assert.equal(strippedGw.counts().chatCompletionsBuffered, 1, 'the request reached the gateway');
+    const strippedRecord = l.records[1];
+    assert.equal(strippedRecord.requestId, null, 'no request id came back');
+    assert.equal(
+      strippedRecord.sentToGateway,
+      true,
+      'an HTTP status alone proves a response existed, so the request was sent',
+    );
+    assert.equal(strippedRecord.billed, true);
+    assert.equal(summaryNumber(l.child.stdout, 'localRefusals'), 0);
+    assert.ok(/may still have been billed/.test(l.child.stdout));
+
+    console.log('        no request id, status 200 alone ⇒ sentToGateway=true, billed=true');
 
     console.log('\n======================================================================');
     console.log('Result: PASS (chat-agent cost, usage, streaming, cache and logging verified)');

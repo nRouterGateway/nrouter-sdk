@@ -443,25 +443,45 @@ async function metered(step, turn, label, wire, call, options = {}) {
 
     // THREE-VALUED, and the third value is the honest one.
     //
-    //   false  the SDK refused BEFORE anything left this process — a
-    //          `configuration` error. Nothing was sent, so nothing can have
-    //          been billed, and saying it "may have been" sends an operator to
-    //          check an invoice line that cannot exist.
+    //   false  the SDK refused BEFORE anything left this process. Nothing was
+    //          sent, so nothing can have been billed, and saying it "may have
+    //          been" sends an operator to check an invoice line that cannot
+    //          exist.
     //   true   the gateway answered. It reached us, so it is billed per its own
     //          rules whatever the status was.
     //   null   we got NO answer: a transport failure or a timeout. The request
     //          may well have arrived and been billed, and this is the state that
     //          must never be flattened into either of the other two.
     //
-    // Keyed on the ERROR KIND, never on a missing request id: a gateway that
-    // answered without one still charged for the call, and reading absence as
-    // "never sent" would write that charge off.
-    const sentToGateway =
-      error instanceof nRouterError && error.kind === 'configuration'
-        ? false
-        : meta?.requestId
-          ? true
-          : null;
+    // ⚠ THE KIND ALONE IS NOT ENOUGH, and getting this wrong writes off a real
+    // charge. `configuration` covers two different moments: a refusal built
+    // before the socket opened, and `requireJson()` rejecting a SERVED 2xx whose
+    // body was not JSON — a request that reached the gateway, ran, and was
+    // billed. The SDK distinguishes them itself by carrying `status` (and the
+    // meta) on the second: see the comment in `sdks/js/src/json.ts`, which says
+    // in as many words that omitting them would report "never reached the
+    // gateway" for a request that plainly did.
+    //
+    // So: `false` requires the kind AND the absence of any HTTP status. ANY
+    // status means a response existed, which means it was sent.
+    //
+    // Decided from the ERROR, never from a missing request id: a gateway that
+    // answered without one still charged for the call, and reading that absence
+    // as "never sent" would write the charge off just as surely.
+    const refusedBeforeSend =
+      error instanceof nRouterError &&
+      error.kind === 'configuration' &&
+      (error.status === null || error.status === undefined);
+    //
+    // `> 0`, not merely "not null": some stacks surface status 0 for an aborted
+    // or cross-origin request where NO HTTP response existed. A 0 must fall
+    // through to `null` — unknown — rather than claim a response arrived. There
+    // is no real status 0, so treating it as evidence is claiming knowledge from
+    // a placeholder.
+    const answered =
+      (error instanceof nRouterError && typeof error.status === 'number' && error.status > 0) ||
+      Boolean(meta?.requestId);
+    const sentToGateway = refusedBeforeSend ? false : answered ? true : null;
 
     await append({
       ts: new Date().toISOString(),
