@@ -109,9 +109,9 @@ public final class NRouterPrompts {
     /**
      * Safely renders a prompt template by interpolating `{{variable}}` or `{{ variable }}` tokens.
      *
-     * Security & resiliency features:
+     * Security and resiliency features:
      * - Single-pass replacement prevents recursive variable expansion loops.
-     * - Matcher.quoteReplacement avoids regex backreference corruption ($1, $&).
+     * - Matcher.quoteReplacement avoids regex backreference corruption ($1, {@literal $&}).
      * - Strict mode: throws NRouterException when any template variable is missing.
      * - System variables: take precedence over caller variables matching gateway rules.
      */
