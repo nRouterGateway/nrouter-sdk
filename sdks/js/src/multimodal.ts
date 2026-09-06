@@ -497,6 +497,28 @@ function coerceSeconds(value: number | string): number {
 }
 
 /**
+ * Render `seconds` the way the video WIRE requires it: as a string.
+ *
+ * The gateway is the permissive half — `src/http/videos.rs` reads `seconds`
+ * through `as_seconds`, which admits a number or a numeric string — and it
+ * then relays the request body to the provider VERBATIM. OpenAI's video wire
+ * types the field as a string and answers 400 for a JSON number, so the shape
+ * this SDK serialises is the shape the provider refuses or accepts. Measured
+ * against the live route: `4` was refused twice, `"4"` rendered.
+ *
+ * A caller who writes the natural `seconds: 4` must therefore not be handed a
+ * provider 400, and a caller who already wrote a string must get their exact
+ * bytes back — `"4.0"` and `"04"` are theirs to send, not ours to normalise.
+ * `validateVideoParams` has already bounded the value at this point, so the
+ * number here is finite and at most `MAX_VIDEO_SECONDS`; `String()` cannot
+ * produce exponent notation in that range.
+ */
+function wireSeconds(value: number | string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === 'number' ? String(value) : value;
+}
+
+/**
  * Everything `image()` can refuse without spending anything.
  *
  * Exported so a caller validating a form before submit gets the same answer
@@ -733,7 +755,8 @@ export class Multimodal {
       ...defined({
         model: params.model,
         prompt: params.prompt,
-        seconds: params.seconds,
+        // A STRING on the wire whatever the caller passed — see `wireSeconds`.
+        seconds: wireSeconds(params.seconds),
         size: params.size,
       }),
     });

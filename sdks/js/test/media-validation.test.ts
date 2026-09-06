@@ -276,6 +276,47 @@ test('video() accepts seconds as a numeric string, at the ceiling', async () => 
   assert.equal(state.calls, 1);
 });
 
+// Validation ACCEPTS a number; the wire does not. OpenAI's video wire types
+// `seconds` as a string and answers 400 for a JSON number, while the gateway
+// accepts both and relays the body verbatim — so what the SDK serialises is
+// what the provider sees. These two cases pin the serialisation beside the
+// bounds, because a caller who passes the bound-check and still gets a 400 has
+// been refused by the SDK's silence rather than by its validator.
+
+/** A counting client that also records the JSON body it was handed. */
+function bodyCountingClient() {
+  const state = { calls: 0, body: null as any };
+  const client = new nRouter({
+    apiKey: TEST_KEY,
+    fetch: async (_url: unknown, init: any) => {
+      state.calls++;
+      const raw = init?.body;
+      const text =
+        typeof raw === 'string' ? raw : new TextDecoder().decode(raw as Uint8Array);
+      state.body = JSON.parse(text);
+      return new Response(JSON.stringify({ id: 'vid_1', status: 'queued' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+  return { client, state };
+}
+
+test('video() serialises a numeric seconds as a string on the wire', async () => {
+  const { client, state } = bodyCountingClient();
+  await client.nr.media.video({ model: 'sora-2', prompt: 'a wave', seconds: 4 });
+  assert.equal(state.calls, 1);
+  assert.equal(state.body.seconds, '4');
+});
+
+test('video() passes a string seconds through unchanged', async () => {
+  const { client, state } = bodyCountingClient();
+  await client.nr.media.video({ model: 'sora-2', prompt: 'a wave', seconds: '4' });
+  assert.equal(state.calls, 1);
+  assert.equal(state.body.seconds, '4');
+});
+
 // ---------------------------------------------------------------------------
 // video(): size
 // ---------------------------------------------------------------------------

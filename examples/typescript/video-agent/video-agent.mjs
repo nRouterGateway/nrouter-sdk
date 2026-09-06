@@ -92,6 +92,12 @@ const VIDEO_MODEL = env.NROUTER_VIDEO_MODEL || 'sora-2';
 // REPORTS. Doubling either roughly doubles the bill, which is why they are
 // printed on the create line and written to the log even though no response
 // header carries them.
+// Validated as an INTEGER here and handed to the SDK as a number. The wire
+// wants a string — OpenAI's video route types `seconds` as one and answers 400
+// for a JSON number, while the gateway accepts both and relays the body
+// verbatim — and `media.video()` does that serialisation itself
+// (`sdks/js/src/multimodal.ts`, `wireSeconds`). Stringifying here too would be
+// a second place to get it wrong.
 const SECONDS = positiveInt(env.NROUTER_VIDEO_SECONDS, 4, 'NROUTER_VIDEO_SECONDS');
 const SIZE = env.NROUTER_VIDEO_SIZE || '1280x720';
 

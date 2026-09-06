@@ -236,3 +236,54 @@ test('nr.media.waitForVideo throws on failed status', async () => {
     /ended with status: failed/
   );
 });
+
+// ---------------------------------------------------------------------------
+// video(): `seconds` is a STRING on the wire
+// ---------------------------------------------------------------------------
+//
+// OpenAI's video wire types `seconds` as a string and rejects a JSON number
+// with a 400 before anything renders. The gateway accepts BOTH shapes
+// (`src/http/videos.rs` reads it through `as_seconds`) and relays the body
+// verbatim, so whatever the SDK serialises is what the provider sees. That
+// makes the serialisation the SDK's responsibility: a caller passing the
+// natural `seconds: 4` must not be handed a provider 400.
+
+/** Capture the JSON body a single media call put on the wire. */
+function bodyCapturingClient() {
+  const seen: { body: any } = { body: null };
+  const client = new nRouter({
+    apiKey: TEST_KEY,
+    fetch: async (_url: unknown, init: any) => {
+      const raw = init?.body;
+      const text =
+        typeof raw === 'string' ? raw : new TextDecoder().decode(raw as Uint8Array);
+      seen.body = JSON.parse(text);
+      return jsonResponse({ id: 'vid_1', status: 'queued' });
+    },
+  });
+  return { client, seen };
+}
+
+test('video() sends a numeric seconds as a decimal STRING on the wire', async () => {
+  const { client, seen } = bodyCapturingClient();
+
+  await client.nr.media.video({ model: 'sora-2', prompt: 'a wave', seconds: 4 });
+
+  assert.equal(seen.body.seconds, '4');
+});
+
+test('video() leaves a string seconds exactly as the caller wrote it', async () => {
+  const { client, seen } = bodyCapturingClient();
+
+  await client.nr.media.video({ model: 'sora-2', prompt: 'a wave', seconds: '4' });
+
+  assert.equal(seen.body.seconds, '4');
+});
+
+test('video() omits seconds entirely when the caller did not set it', async () => {
+  const { client, seen } = bodyCapturingClient();
+
+  await client.nr.media.video({ model: 'sora-2', prompt: 'a wave' });
+
+  assert.equal('seconds' in seen.body, false);
+});

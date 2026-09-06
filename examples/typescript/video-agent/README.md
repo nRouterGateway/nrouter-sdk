@@ -170,6 +170,10 @@ call the gateway serves: the reservation floors at `$3.00` and adds `$0.75` per
 requested second, so a sixty-second job holds `$45` before a frame is rendered.
 Cut `NROUTER_VIDEO_SECONDS` before you experiment.
 
+`NROUTER_VIDEO_SECONDS` is a plain integer here; the SDK serialises `seconds`
+as the string the video wire requires, because the gateway accepts a number and
+relays the body verbatim to a provider that does not.
+
 There is no retry loop in this file and the client pins `maxRetries: 0`
 explicitly. On every other wire a retry is a second bill; **here it is a second
 render** — the first job keeps rendering and keeps being charged for, and you

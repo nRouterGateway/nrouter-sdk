@@ -103,6 +103,23 @@ const VIDEO_BYTES = Buffer.concat([
  *
  * `refuseCreate` answers 402 before any job exists.
  */
+/**
+ * Parse a collected request body, or `null` when there is nothing JSON there.
+ *
+ * Deliberately forgiving: a mock that THREW on an unparseable body would turn
+ * a wire-shape assertion into a server crash, which reads as "the harness is
+ * broken" rather than "the request was wrong".
+ */
+function parseJsonBody(chunks) {
+  if (!chunks.length) return null;
+  try {
+    const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function startMock({
   createStatus = null,
   jobOutcome = 'completed',
@@ -137,6 +154,35 @@ function startMock({
 
       if (url === '/v1/videos' && req.method === 'POST') {
         createCalls += 1;
+
+        // ⚠️ `seconds` is a STRING on the OpenAI video wire, and a JSON number
+        // is a 400 before anything renders. The gateway itself accepts BOTH
+        // (`src/http/videos.rs` reads it through `as_seconds`) and then relays
+        // the body VERBATIM, so the provider — not the gateway — is what
+        // refuses. This mock therefore has to be stricter than the gateway to
+        // catch the class at all: measured live, `seconds: 4` was refused
+        // twice and `seconds: "4"` rendered and downloaded. Refusing here is
+        // what keeps the example from regressing back to a number.
+        const createBody = parseJsonBody(chunks);
+        if (createBody !== null && typeof createBody.seconds === 'number') {
+          res.writeHead(400, {
+            'content-type': 'application/json',
+            'x-nr-request-id': requestId,
+          });
+          res.end(
+            JSON.stringify({
+              error: {
+                message:
+                  "Invalid type for 'seconds': expected a string, but got a number instead.",
+                type: 'invalid_request_error',
+                param: 'seconds',
+                code: 'invalid_type',
+              },
+            }),
+          );
+          return;
+        }
+
         if (destroyCreate) {
           // The request ARRIVED and then the connection died. This is the
           // UNKNOWN case: the gateway may have reserved credit before the
