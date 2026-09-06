@@ -22,8 +22,11 @@ def diagnose_reasoning_exhaustion(
 ) -> ReasoningExhaustionReport:
     """Diagnoses whether a completion produced no content because reasoning tokens consumed the budget."""
     f = (finish_reason or "").strip().lower()
-    if (f == "length" or f == "max_tokens") and not (content or "").strip():
-        if reasoning_tokens > 0 or output_tokens > 0:
+    if (
+        (f == "length" or f == "max_tokens")
+        and not (content or "").strip()
+        and (reasoning_tokens > 0 or output_tokens > 0)
+    ):
             return ReasoningExhaustionReport(
                 exhausted=True,
                 finish_reason=finish_reason,

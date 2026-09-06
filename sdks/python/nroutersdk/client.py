@@ -19,7 +19,7 @@ else:
     try:
         import openai._base_client as _oai_base
         _httpx = getattr(_oai_base, "httpx2", getattr(_oai_base, "httpx", None))
-    except Exception:
+    except (ImportError, AttributeError):
         _httpx = None
 
     if _httpx is None:
@@ -272,8 +272,8 @@ def extract_trace_headers(meta: Any) -> dict[str, str]:
             kl = str(k).lower()
             if kl in ("x-nr-request-id", "x-nr-trace-id", "x-nr-session-id"):
                 out[kl] = str(v)
-    elif hasattr(meta, "headers") and isinstance(getattr(meta, "headers"), Mapping):
-        for k, v in getattr(meta, "headers").items():
+    elif hasattr(meta, "headers") and isinstance(meta.headers, Mapping):
+        for k, v in meta.headers.items():
             kl = str(k).lower()
             if kl in ("x-nr-request-id", "x-nr-trace-id", "x-nr-session-id"):
                 out[kl] = str(v)
@@ -1306,8 +1306,7 @@ def parse_sse(raw: str) -> list[dict[str, str]]:
                 field, value = line.split(":", 1)
             else:
                 field, value = line, ""
-            if value.startswith(" "):
-                value = value[1:]
+            value = value.removeprefix(" ")
             if field == "data":
                 data_lines.append(value)
             elif field == "event":
