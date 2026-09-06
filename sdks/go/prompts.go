@@ -159,4 +159,3 @@ func RenderPrompt(template string, variables map[string]any, opts ...RenderPromp
 
 	return result, nil
 }
-

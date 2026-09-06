@@ -212,7 +212,6 @@ func FormatError(err error) string {
 	return RedactKeys(err.Error())
 }
 
-
 // Unwrap exposes the sentinel so errors.Is matches on the condition, AND the
 // underlying cause so errors.Is(err, context.Canceled) still matches through
 // it. Multi-error Unwrap needs Go 1.20; go.mod declares 1.21.

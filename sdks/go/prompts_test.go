@@ -113,4 +113,3 @@ func TestRenderPrompt(t *testing.T) {
 		t.Fatalf("expected system variable override, got %q", out5)
 	}
 }
-

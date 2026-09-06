@@ -33,9 +33,9 @@ func TestNormalizeAnthropicMessages(t *testing.T) {
 			map[string]any{"role": "system", "content": "System turn 1"},
 			map[string]any{"role": "user", "content": "Hello"},
 		},
-		"system": "Initial system",
+		"system":                "Initial system",
 		"max_completion_tokens": 1024,
-		"stop": "Human:",
+		"stop":                  "Human:",
 	}
 	normalized := NormalizeAnthropicMessages(input).(map[string]any)
 	if normalized["system"] != "Initial system\n\nSystem turn 1" {
