@@ -1204,7 +1204,7 @@ def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
         # The code-to-status binding IS proven, per SDK, by each suite's
         # `each gateway code maps to its type` and its codeless-status tests,
         # every one of them mutation-checked. That is where the guarantee lives;
-        # this gate covers what those cannot — that all nine agree.
+        # this gate covers what those cannot — that every SDK agrees.
         for status in sorted({str(e["http"]) for e in spec["errors"].values()}):
             if status not in blob:
                 failures.append(
