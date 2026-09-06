@@ -310,13 +310,21 @@ async function metered(promptIndex, label, call, enrich) {
       quality: IMAGE_QUALITY,
       responseFormat: RESPONSE_FORMAT ?? null,
       ...extra,
-      // ALWAYS null on this route: the gateway publishes no guardrail posture
-      // for images (`ResponseMeta.guardrails`: "Not published on the image,
-      // audio or video routes"). That is "the gateway made no claim", NOT "no
-      // guardrail applied" — `none` is an explicit posture with a different
-      // meaning, and rendering null as `none` invents a reassurance nobody
-      // gave. Recorded so a later log reader can see the claim was absent
-      // rather than assume it was never asked for.
+      // PUBLISHED on this route since gateway `1c2c3df` — one of
+      // `none | monitor | pass | partial | blocked`, the PRE-CALL chain's
+      // posture over the request, upgraded to `blocked` when a post-call chain
+      // withheld the response.
+      //
+      // It describes the PROMPT, never the picture. `prompt` is a text field
+      // like any other and the chain scans text; no check in it reads image
+      // bytes. So `pass` means "your prompt was inspected and allowed", never
+      // "this image is clean" — do not render it as a claim about the output.
+      //
+      // `null` remains a distinct state and is NOT `none`: it means the gateway
+      // made no claim at all (an auth refusal that never reached preflight, an
+      // older gateway), whereas `none` says the chain ran and no rule applied.
+      // Recorded verbatim so a later reader can tell the two apart; the print
+      // line renders `null` as `—` for exactly that reason.
       guardrails: meta.guardrails,
       costStatus: meta.costStatus,
       // `meta.cost` is already `null` when absent. Never `?? 0`.

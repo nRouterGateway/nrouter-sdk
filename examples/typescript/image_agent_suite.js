@@ -90,7 +90,7 @@ function pngBytes(seed) {
  *                 header at all — the real shape for a model the gateway
  *                 cannot price. It is never a `0` on the wire.
  */
-function startMock({ mode = 'per_image', firstCostStatus = null, refuse = false, shortBy = 0, notJson = false, destroySocket = false } = {}) {
+function startMock({ mode = 'per_image', firstCostStatus = null, refuse = false, shortBy = 0, notJson = false, destroySocket = false, guardrails = null } = {}) {
   let requests = 0;
   let imageCalls = 0;
   let expectedPricedTotal = 0;
@@ -196,6 +196,15 @@ function startMock({ mode = 'per_image', firstCostStatus = null, refuse = false,
         'x-nr-cost-status': status,
         'x-nr-latency-ms': String(gatewayMsForCall(imageCalls)),
       };
+      // `x-nr-guardrails` is published on the image route since gateway
+      // `1c2c3df`. `guardrails` is a per-CALL list so two calls in one run get
+      // DIFFERENT postures — a record that copied its neighbour's must fail
+      // rather than pass on a plausible token. An entry of `null` sends no
+      // header at all, which is the distinct "made no claim" state.
+      if (Array.isArray(guardrails)) {
+        const posture = guardrails[(imageCalls - 1) % guardrails.length];
+        if (posture !== null) headers['x-nr-guardrails'] = posture;
+      }
       // ABSENT, not zero, when unpriced. A `0` on the wire would be a price.
       if (status !== 'unpriced') {
         headers['x-nr-request-cost'] = cost.toFixed(6);
@@ -364,7 +373,11 @@ async function main() {
     // ---------------------------------------------------------------- run 1
     // A per-IMAGE model: two prompts, two images each, every call priced.
     console.log('\n[1/12] Per-image billing, fully priced (2 prompts x n=2)...');
-    const perImage = startMock({ mode: 'per_image' });
+    // Two DIFFERENT postures, and one of them is `none` — the token this suite
+    // used to forbid outright, back when the image route published nothing.
+    // `none` is a real verdict (the chain ran, no rule applied) and must round
+    // trip; only an ABSENT header may render as `—`.
+    const perImage = startMock({ mode: 'per_image', guardrails: ['pass', 'none'] });
     const perImagePort = await listen(perImage.server);
     const workA = path.join(workRoot, 'per-image');
     fs.mkdirSync(workA);
@@ -417,11 +430,13 @@ async function main() {
       assert.ok(Number.isInteger(record.latencyMs), 'the client clock is always measured');
       assert.ok(Array.isArray(record.files) && record.files.length === 2, 'two files per call');
       assert.equal(record.urls.length, 0, 'a b64 response records no urls');
-      // The gateway publishes NO guardrail posture on the image route, so
-      // `meta.guardrails` is null: "the gateway made no claim". Recording it
-      // as `none` would read as "the chain ran and found nothing", which is a
-      // reassurance nobody gave.
-      assert.equal(record.guardrails, null, 'the image route publishes no guardrail posture');
+      // Published on this route now, so it must be recorded VERBATIM and per
+      // call — never defaulted, never copied from a neighbour.
+      assert.equal(
+        record.guardrails,
+        ['pass', 'none'][callIndex],
+        `the guardrail posture came from the wrong call: ${JSON.stringify(record)}`,
+      );
 
       // The bytes claimed on disk must be the bytes that arrived. A truncated
       // decode is a corrupt image that still reports success.
@@ -474,13 +489,10 @@ async function main() {
       `the per-call line does not print the gateway latency:\n${a.child.stdout}`,
     );
     assert.ok(/client=\d+ms/.test(a.child.stdout), 'the per-call line does not print the client latency');
+    assert.ok(/guardrails=pass/.test(a.child.stdout), 'the per-call line must print the posture');
     assert.ok(
-      /guardrails=—/.test(a.child.stdout),
-      'an absent guardrail posture must render as — , never as "none"',
-    );
-    assert.ok(
-      !/guardrails=none/.test(a.child.stdout),
-      '`none` is an explicit posture the image route never sends; printing it invents a reassurance',
+      /guardrails=none/.test(a.child.stdout),
+      '`none` is a real verdict the gateway sends and must be printed, not suppressed',
     );
 
     console.log(
@@ -526,6 +538,15 @@ async function main() {
     assert.equal(tokenRecord.inputTokens, 41);
     assert.equal(tokenRecord.outputTokens, 901);
     assert.ok(/tokens=41\/901/.test(b.child.stdout), 'the per-call line does not print the token usage');
+    // THE OTHER STATE, and the one that must never be invented. This mock sends
+    // no `x-nr-guardrails` header, so the gateway made NO CLAIM: the record is
+    // `null` and the line renders `—`. Printing `none` here would manufacture a
+    // verdict — "the chain ran and no rule applied" — out of silence.
+    assert.equal(tokenRecord.guardrails, null, 'an absent header is a null claim, never a posture');
+    assert.ok(
+      /guardrails=—/.test(b.child.stdout),
+      'an absent guardrail posture must render as — , never as "none"',
+    );
 
     // A gpt-image-* model must NOT be sent `response_format`: the provider
     // rejects the parameter outright and the whole call 400s.
