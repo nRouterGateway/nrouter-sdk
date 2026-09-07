@@ -178,7 +178,7 @@ per character of `input`.
 
 There is no streaming TTS and no realtime session: a voice turn is a cascade of
 three separately billed calls, `transcribe()` → `nr.chat()` → `speech()`. The
-runnable version is [`examples/typescript/voice-agent/`](../../examples/typescript/voice-agent/),
+runnable version is [`demo/voice-agent/`](demo/voice-agent/),
 and the full semantics — the upload rules, what is and is not guardrail-scanned,
 and why a missing cost must never be summed as zero — are in
 [docs/audio.md](./docs/audio.md).
@@ -207,7 +207,7 @@ Which quantity you are billed on depends on the model — `gpt-image-*` prices f
 the `usage` block in the body, everything else prices per image from `n` × size ×
 quality — and **no response header carries the count, size or quality**. Reconcile
 against the spend row by request id rather than recomputing. The runnable version
-is [`examples/typescript/image-agent/`](../../examples/typescript/image-agent/)
+is [`demo/image-agent/`](demo/image-agent/)
 and the semantics are in [docs/images.md](./docs/images.md).
 
 ## Video
@@ -235,7 +235,7 @@ reports `costStatus: null`, which is **not** the same as the `unpriced` a billed
 call reports when it could not be priced; conflating them turns a long render into
 a pricing bug that does not exist. A retry of the create is a second *render*, not
 merely a second bill. The runnable version is
-[`examples/typescript/video-agent/`](../../examples/typescript/video-agent/) and
+[`demo/video-agent/`](demo/video-agent/) and
 the semantics — the sealed job handle, why an accepted-then-failed job stays
 billed, and the download bound — are in [docs/video.md](./docs/video.md).
 
@@ -272,16 +272,16 @@ The repo includes JavaScript examples for manual SDK checks:
 
 ```bash
 npm run build
-node examples/javascript/sdk-demo/agent.js --live
-node examples/javascript/sdk-demo/feature-spend-test.js
-node examples/javascript/sdk-demo/ui/server.js
+node demo/agent.js --live
+node demo/feature-spend-test.js
+node demo/ui/server.js
 ```
 
-`examples/javascript/sdk-demo/ui/server.js` starts a browser UI at `http://127.0.0.1:4317`. The browser
+`demo/ui/server.js` starts a browser UI at `http://127.0.0.1:4317`. The browser
 does not receive the API key; the local Node server reads `NROUTER_API_KEY` and
 calls the built SDK package.
 
-See [`examples/javascript/sdk-demo/README.md`](../../examples/javascript/sdk-demo/README.md) for commands and
+See [`demo/README.md`](demo/README.md) for commands and
 [`docs/live-sdk-agent-report.md`](./docs/live-sdk-agent-report.md) for the latest
 manual test findings.
 

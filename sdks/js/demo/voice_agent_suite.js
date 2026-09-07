@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Mock-gateway certification for examples/typescript/voice-agent.
+ * Mock-gateway certification for sdks/js/demo/voice-agent.
  *
  * The example under test spends real money against a real gateway, which makes
  * it exactly the kind of code nobody exercises in CI. So the gateway is stood
@@ -13,7 +13,7 @@
  *
  * No network, no key, no credits. Runs in about a second.
  *
- *   node examples/typescript/voice_agent_suite.js
+ *   node sdks/js/demo/voice_agent_suite.js
  *
  * Requires the JS SDK to be built first (the example imports its dist):
  *
@@ -30,7 +30,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const EXAMPLE = path.resolve(__dirname, 'voice-agent', 'voice-agent.mjs');
-const SDK_DIST = path.resolve(__dirname, '..', '..', 'sdks', 'js', 'dist', 'index.mjs');
+const SDK_DIST = path.resolve(__dirname, '..', 'dist', 'index.mjs');
 
 // The mock's price list. Deliberately three DIFFERENT numbers: a single shared
 // cost would let a summation bug that counts the wrong call still produce the

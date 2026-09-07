@@ -30,7 +30,7 @@ cd "$ROOT_DIR"
 # Step 0 covers EVERY shipped runnable example, and protects two different
 # things across them.
 #
-# 1. SDK MAJOR + LOCKFILE, for examples/demo-e2e-sdk-example only. That is the
+# 1. SDK MAJOR + LOCKFILE, for sdks/js/demo/demo-e2e-sdk-example only. That is the
 #    only example that INSTALLS the published package, so it is the only one a
 #    major drift can break at a customer's `npm start` rather than here. The
 #    other examples import `sdks/js/dist/` directly, so they always demonstrate
@@ -57,11 +57,11 @@ const path = require('node:path');
 // source of truth for what `.env.example` must document. `sdkMajor: true` marks
 // the one example that installs the PUBLISHED package (see the comment above).
 const EXAMPLES = [
-  { dir: 'examples/demo-e2e-sdk-example', entry: 'index.mjs', sdkMajor: true },
-  { dir: 'examples/typescript/voice-agent', entry: 'voice-agent.mjs' },
-  { dir: 'examples/typescript/chat-agent', entry: 'chat-agent.mjs' },
-  { dir: 'examples/typescript/image-agent', entry: 'image-agent.mjs' },
-  { dir: 'examples/typescript/video-agent', entry: 'video-agent.mjs' },
+  { dir: 'sdks/js/demo/demo-e2e-sdk-example', entry: 'index.mjs', sdkMajor: true },
+  { dir: 'sdks/js/demo/voice-agent', entry: 'voice-agent.mjs' },
+  { dir: 'sdks/js/demo/chat-agent', entry: 'chat-agent.mjs' },
+  { dir: 'sdks/js/demo/image-agent', entry: 'image-agent.mjs' },
+  { dir: 'sdks/js/demo/video-agent', entry: 'video-agent.mjs' },
 ];
 const PKG_NAME = '@nrouter_ai/sdk';
 const read = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -287,8 +287,8 @@ fi
 
 # Steps 1-2 are the BILLED suites: a real key, a real provider, real credits.
 if [ "$MODE" != mock ]; then
-  run_step 1 "Executing Python SDK Demo E2E..." "$PYTHON_BIN" examples/python/demo_e2e_suite.py
-  run_step 2 "Executing TypeScript/JavaScript SDK Demo E2E..." node examples/typescript/demo_e2e_suite.js
+  run_step 1 "Executing Python SDK Demo E2E..." "$PYTHON_BIN" sdks/python/demo/demo_e2e_suite.py
+  run_step 2 "Executing TypeScript/JavaScript SDK Demo E2E..." node sdks/js/demo/demo_e2e_suite.js
 fi
 
 # ---------------------------------------------------------------------------
@@ -301,7 +301,7 @@ fi
 # 3. voice-agent: three billed wires (transcribe, chat, speak), asserted for
 #    request ids, exact-cost summation and the unpriced case that must NOT be
 #    summed as zero. About a second.
-run_step 3 "Executing voice-agent cost & usage certification..." node examples/typescript/voice_agent_suite.js
+run_step 3 "Executing voice-agent cost & usage certification..." node sdks/js/demo/voice_agent_suite.js
 
 # 4. chat-agent: all four TEXT wires (messages, chat completions, responses,
 #    plus a streamed call), a byte-identical repeat that probes the response
@@ -310,7 +310,7 @@ run_step 3 "Executing voice-agent cost & usage certification..." node examples/t
 #    same absence: streamed (unpriced by design, settled server-side), free
 #    (absent means zero) and unpriced (served but unpriceable, which must make
 #    the total INCOMPLETE). About two seconds.
-run_step 4 "Executing chat-agent cost, streaming & cache certification..." node examples/typescript/chat_agent_suite.js
+run_step 4 "Executing chat-agent cost, streaming & cache certification..." node sdks/js/demo/chat_agent_suite.js
 
 # 5. image-agent: /v1/images/generations only. Seven runs -- per-image billing,
 #    per-image-TOKEN billing (the gpt-image-* usage block), an unpriced call, an
@@ -318,13 +318,13 @@ run_step 4 "Executing chat-agent cost, streaming & cache certification..." node 
 #    response and a short delivery. It covers the property unique to images:
 #    the count, size and quality that produced the price are carried by NO
 #    response header, so the client has to record them itself.
-run_step 5 "Executing image-agent cost & usage certification..." node examples/typescript/image_agent_suite.js
+run_step 5 "Executing image-agent cost & usage certification..." node sdks/js/demo/image_agent_suite.js
 
 # 6. video-agent: the create-bills / collection-is-free money split. One billed
 #    POST /v1/videos and four FREE collection calls carrying no cost header,
 #    proving the example counts them as `free` rather than as `unpriced` or as
 #    $0.00.
-run_step 6 "Executing video-agent cost & usage certification..." node examples/typescript/video_agent_suite.js
+run_step 6 "Executing video-agent cost & usage certification..." node sdks/js/demo/video_agent_suite.js
 
 if [ "$MODE" = mock ]; then
   assert_steps_run "$MOCK_ONLY_STEPS" "--mock-only"

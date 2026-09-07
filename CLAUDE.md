@@ -71,7 +71,6 @@ skills/              # nrouter-sdk-parity skill enforcing cross-SDK alignment
 sdks/{python,js,java,kotlin,android,swift,rust,dart,r,go}/
   ├── demo/          # runnable SDK demonstrations and quickstarts
   └── docs/          # validation-playbook.md for each technology
-examples/            # canonical snippets nrouter-app imports (Rule #14)
 ```
 
 ## The one rule that matters here

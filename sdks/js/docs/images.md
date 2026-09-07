@@ -134,7 +134,7 @@ and it is never a reassurance.
 
 ## A runnable one
 
-[`examples/typescript/image-agent/`](../../../examples/typescript/image-agent/)
+[`demo/image-agent/`](../demo/image-agent/)
 loops the call over N prompts and prices, counts, logs and joins every one of
 them. It writes a JSONL record on the failure path as well as the success path,
 excludes unpriced calls from its total and says `TOTAL INCOMPLETE` when it does,

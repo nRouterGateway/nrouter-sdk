@@ -1,7 +1,7 @@
 // nRouter TypeScript hello world
 //
 // npm install @nrouter_ai/sdk
-// npx tsx examples/hello-world/typescript.ts
+// npx tsx sdks/js/demo/quickstart.ts
 // set NROUTER_API_KEY before running.
 
 import { nRouter } from "@nrouter_ai/sdk";

@@ -7,7 +7,7 @@
     "start": "node index.mjs"
   },
   "dependencies": {
-    "@nrouter_ai/sdk": "file:../../sdks/js",
+    "@nrouter_ai/sdk": "file:../..",
     "dotenv": "^17.4.2"
   }
 }

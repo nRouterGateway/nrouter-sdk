@@ -4,7 +4,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { nRouter, isRetryable } = require('../../../../sdks/js');
+const { nRouter, isRetryable } = require('../../');
 
 const PORT = Number.parseInt(process.env.PORT || '4317', 10);
 // nrouter-doc-wire: messages

@@ -188,7 +188,7 @@ one of them can be the unpriced one. Track cost per leg, not per turn.
 
 A runnable version, with a per-call cost table and a session total that reports
 `TOTAL INCOMPLETE` the moment any leg comes back unpriced, is at
-[`examples/typescript/voice-agent/`](../../../examples/typescript/voice-agent/).
+[`demo/voice-agent/`](../demo/voice-agent/).
 
 Two things worth copying from it. Latency is the sum of the legs, and each leg
 reports its own on `meta.latencyMs` — milliseconds from the gateway's edge until

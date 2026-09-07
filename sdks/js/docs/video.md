@@ -204,7 +204,7 @@ is clean*.
 
 ## A runnable one
 
-[`examples/typescript/video-agent/`](../../../examples/typescript/video-agent/)
+[`demo/video-agent/`](../demo/video-agent/)
 is create → poll → download in one file, with the one call that costs money
 accounted for separately from the four that do not. It keeps `freeCalls` and
 `unpricedCalls` in different buckets, logs every call including the free ones,

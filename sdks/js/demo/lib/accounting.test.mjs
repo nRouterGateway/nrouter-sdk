@@ -7,7 +7,7 @@
 // gateway said it did not know. That logic is extracted into `accounting.js`
 // precisely so it can be pinned here.
 //
-//   node --test examples/javascript/sdk-demo/lib/
+//   node --test sdks/js/demo/lib/
 //
 // Requires a built SDK (`cd sdks/js && npm run build`), because the pricing
 // predicate under test is the SDK's own `isPriced`, imported rather than

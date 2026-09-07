@@ -49,7 +49,7 @@ import { fileURLToPath } from 'node:url';
 
 // The built-from-source package, not a published one: this example is the
 // SDK's own proof, so it must exercise the code in this repository.
-import { isPriced, nRouter, nRouterError } from '../../../sdks/js/dist/index.mjs';
+import { isPriced, nRouter, nRouterError } from '../../dist/index.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const env = process.env;

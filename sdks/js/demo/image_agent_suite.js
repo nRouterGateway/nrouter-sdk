@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Mock-gateway certification for examples/typescript/image-agent.
+ * Mock-gateway certification for sdks/js/demo/image-agent.
  *
  * The example under test spends real money against a real gateway, which makes
  * it exactly the kind of code nobody exercises in CI. So the gateway is stood
@@ -27,7 +27,7 @@
  *
  * No network, no key, no credits. Runs in about a second.
  *
- *   node examples/typescript/image_agent_suite.js
+ *   node sdks/js/demo/image_agent_suite.js
  *
  * Requires the JS SDK to be built first (the example imports its dist):
  *
@@ -44,7 +44,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const EXAMPLE = path.resolve(__dirname, 'image-agent', 'image-agent.mjs');
-const SDK_DIST = path.resolve(__dirname, '..', '..', 'sdks', 'js', 'dist', 'index.mjs');
+const SDK_DIST = path.resolve(__dirname, '..', 'dist', 'index.mjs');
 
 // A DISTINCT cost per call. A single shared price would let a summation bug
 // that counted the wrong call still produce the right total.

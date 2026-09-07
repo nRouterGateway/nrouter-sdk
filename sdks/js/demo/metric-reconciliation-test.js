@@ -3,7 +3,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { nRouter } = require('../../../sdks/js/dist/index.js');
+const { nRouter } = require('../dist/index.js');
 
 function loadRootEnv() {
   const envPath = path.resolve(__dirname, '..', '..', '..', '.env');

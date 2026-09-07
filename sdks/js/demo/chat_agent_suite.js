@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Mock-gateway certification for examples/typescript/chat-agent.
+ * Mock-gateway certification for sdks/js/demo/chat-agent.
  *
  * The example under test spends real money against a real gateway, which makes
  * it exactly the kind of code nobody exercises in CI. So the gateway is stood
@@ -25,7 +25,7 @@
  *
  * No network, no key, no credits. Runs in a few seconds.
  *
- *   node examples/typescript/chat_agent_suite.js
+ *   node sdks/js/demo/chat_agent_suite.js
  *
  * Requires the JS SDK to be built first (the example imports its dist):
  *
@@ -34,9 +34,8 @@
 
 // COMMONJS, in a `.js` file, deliberately — the same shape as every sibling
 // suite in this directory, and what `tests/demo-e2e-record.test.sh` invokes.
-// That is only safe because NO `package.json` exists at the repository root,
-// at `examples/`, or at `examples/typescript/`. Adding one anywhere on that
-// path with `"type": "module"` would break `require` and `__dirname` here and
+// That is only safe because NO `package.json` exists at the repository root
+// or at `sdks/js/demo/`. Adding one anywhere on that path with `"type": "module"` would break `require` and `__dirname` here and
 // in every sibling suite at once; if that ever becomes desirable, rename all
 // of them to `.cjs` together rather than one at a time.
 'use strict';
@@ -49,7 +48,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const EXAMPLE = path.resolve(__dirname, 'chat-agent', 'chat-agent.mjs');
-const SDK_DIST = path.resolve(__dirname, '..', '..', 'sdks', 'js', 'dist', 'index.mjs');
+const SDK_DIST = path.resolve(__dirname, '..', 'dist', 'index.mjs');
 
 // The mock's price list. Deliberately FIVE different numbers: a single shared
 // cost would let a summation bug that counted the wrong call still produce the

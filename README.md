@@ -480,14 +480,14 @@ provider key. This table is derived from `spec/nrouter-sdk-spec.json` › `suppo
 
 ### Runnable end-to-end example
 
-[`examples/demo-e2e-sdk-example/`](examples/demo-e2e-sdk-example/) is a complete,
+[`sdks/js/demo/demo-e2e-sdk-example/`](sdks/js/demo/demo-e2e-sdk-example/) is a complete,
 runnable npm consumer of the JS SDK: one real request that prints what it cost
 and, if it is refused, why. It is the shortest demonstration of the two fields a
 production integration has to branch on — `meta.costStatus`, because an unpriced
 request reports no cost at all rather than a silent zero, and `err.authReason`,
 because "your key is wrong" and "your key is fine but the account is on hold"
 need different responses and neither is fixed by retrying. `npm start` sends a
-real, billed request. It depends on `file:../../sdks/js` rather than a published
+real, billed request. It depends on `file:../..` rather than a published
 range, so build `sdks/js` first; the example's own README carries the one-line
 change to make once the matching version publishes.
 
@@ -496,7 +496,7 @@ change to make once the matching version publishes.
 There is no voice endpoint and no realtime session. A voice turn is a cascade —
 `/v1/audio/transcriptions` → a chat wire → `/v1/audio/speech` — so it produces
 three request ids and three spend rows, any of which can come back unpriced.
-[`examples/typescript/voice-agent/`](examples/typescript/voice-agent/) is a
+[`sdks/js/demo/voice-agent/`](sdks/js/demo/voice-agent/) is a
 runnable one that prints the per-call cost and refuses to report a session total
 as complete when a leg was not priced. The JS semantics are in
 [`sdks/js/docs/audio.md`](sdks/js/docs/audio.md).
@@ -509,9 +509,9 @@ without spending anything.
 
 | Example | Wires | The money question it answers |
 |---|---|---|
-| [`examples/typescript/chat-agent/`](examples/typescript/chat-agent/) | the four text wires, buffered and streamed | why a streamed call reports `unpriced` permanently, and why a cache hit is still billed — semantics in [`sdks/js/docs/cost.md`](sdks/js/docs/cost.md) |
-| [`examples/typescript/image-agent/`](examples/typescript/image-agent/) | `/v1/images/generations` | which of two billing units the model measured, and why no header carries the quantity that produced the price — semantics in [`sdks/js/docs/images.md`](sdks/js/docs/images.md) |
-| [`examples/typescript/video-agent/`](examples/typescript/video-agent/) | the three video routes | why the create is the only call that bills, and why a *free* call is not an *unpriced* one — semantics in [`sdks/js/docs/video.md`](sdks/js/docs/video.md) |
+| [`sdks/js/demo/chat-agent/`](sdks/js/demo/chat-agent/) | the four text wires, buffered and streamed | why a streamed call reports `unpriced` permanently, and why a cache hit is still billed — semantics in [`sdks/js/docs/cost.md`](sdks/js/docs/cost.md) |
+| [`sdks/js/demo/image-agent/`](sdks/js/demo/image-agent/) | `/v1/images/generations` | which of two billing units the model measured, and why no header carries the quantity that produced the price — semantics in [`sdks/js/docs/images.md`](sdks/js/docs/images.md) |
+| [`sdks/js/demo/video-agent/`](sdks/js/demo/video-agent/) | the three video routes | why the create is the only call that bills, and why a *free* call is not an *unpriced* one — semantics in [`sdks/js/docs/video.md`](sdks/js/docs/video.md) |
 
 ### Routing strategies are selected by the model value
 
@@ -542,33 +542,29 @@ example for any of these without first adding the route to the gateway and the s
 
 | Language | Install | Example |
 |----------|---------|---------|
-| **Python (branded)** | `pip install nrouter-sdk` | [`sdks/python/`](sdks/python/) · [`examples/python/`](examples/python/), [`notebooks/quickstart.ipynb`](notebooks/quickstart.ipynb) |
-| **TypeScript / JS (branded)** | `npm install @nrouter_ai/sdk` | [`sdks/js/`](sdks/js/) · [`examples/typescript/quickstart.ts`](examples/typescript/quickstart.ts), [`examples/javascript/quickstart.js`](examples/javascript/quickstart.js) |
-| **Java (branded)** | `ai.nrouter:nrouter-sdk` | [`sdks/java/`](sdks/java/) · [`examples/java/quickstart.java`](examples/java/quickstart.java) |
-| **Kotlin (branded)** | Maven `ai.nrouter:nrouter-sdk-kotlin:2.1.0` | [`sdks/kotlin/`](sdks/kotlin/) · [`examples/kotlin/quickstart.kt`](examples/kotlin/quickstart.kt) |
-| **Android (branded)** | Maven `ai.nrouter:nrouter-sdk-android:2.1.0` | [`sdks/android/`](sdks/android/) |
-| **Rust (branded)** | `cargo add nrouter@2.1.0` | [`sdks/rust/`](sdks/rust/) · [`examples/rust/quickstart.rs`](examples/rust/quickstart.rs) |
-| **Dart / Flutter (branded)** | `dart pub add nrouter` | [`sdks/dart/`](sdks/dart/) · [`examples/dart/quickstart.dart`](examples/dart/quickstart.dart) |
-| **R (branded)** | `install.packages("nrouter", repos = c(nrouterai = "https://nrouterai.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [`sdks/r/`](sdks/r/) · [`examples/r/quickstart.R`](examples/r/quickstart.R) |
-| **Node.js / TypeScript (plain openai)** | `npm install openai` | [`examples/typescript/node.ts`](examples/typescript/node.ts) |
-| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.0`, or plain `openai-go` | [`examples/go/quickstart.go`](examples/go/quickstart.go) |
-| **Java (plain openai-java)** | `com.openai:openai-java` | [`examples/java/quickstart.java`](examples/java/quickstart.java) |
-| **Ruby** | `gem install ruby-openai` | [`examples/ruby/quickstart.rb`](examples/ruby/quickstart.rb) |
-| **PHP** | `composer require openai-php/client` | [`examples/php/quickstart.php`](examples/php/quickstart.php) |
-| **C# / .NET** | `dotnet add package OpenAI` | [`examples/dotnet/quickstart.cs`](examples/dotnet/quickstart.cs) |
-| **cURL** | Built-in | [`examples/curl/quickstart.sh`](examples/curl/quickstart.sh) |
+| **Python (branded)** | `pip install nrouter-sdk` | [`sdks/python/`](sdks/python/) · [`sdks/python/demo/`](sdks/python/demo/), [`notebooks/quickstart.ipynb`](notebooks/quickstart.ipynb) |
+| **TypeScript / JS (branded)** | `npm install @nrouter_ai/sdk` | [`sdks/js/`](sdks/js/) · [`sdks/js/demo/quickstart.ts`](sdks/js/demo/quickstart.ts), [`sdks/js/demo/quickstart.js`](sdks/js/demo/quickstart.js) |
+| **Java (branded)** | `ai.nrouter:nrouter-sdk` | [`sdks/java/`](sdks/java/) · [`sdks/java/demo/quickstart.java`](sdks/java/demo/quickstart.java) |
+| **Kotlin (branded)** | Maven `ai.nrouter:nrouter-sdk-kotlin:2.1.0` | [`sdks/kotlin/`](sdks/kotlin/) · [`sdks/kotlin/demo/quickstart.kt`](sdks/kotlin/demo/quickstart.kt) |
+| **Android (branded)** | Maven `ai.nrouter:nrouter-sdk-android:2.1.0` | [`sdks/android/`](sdks/android/) · [`sdks/android/demo/`](sdks/android/demo/) |
+| **Rust (branded)** | `cargo add nrouter@2.1.0` | [`sdks/rust/`](sdks/rust/) · [`sdks/rust/demo/quickstart.rs`](sdks/rust/demo/quickstart.rs) |
+| **Dart / Flutter (branded)** | `dart pub add nrouter` | [`sdks/dart/`](sdks/dart/) · [`sdks/dart/demo/quickstart.dart`](sdks/dart/demo/quickstart.dart) |
+| **R (branded)** | `install.packages("nrouter", repos = c(nrouterai = "https://nrouterai.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [`sdks/r/`](sdks/r/) · [`sdks/r/demo/quickstart.R`](sdks/r/demo/quickstart.R) |
+| **Node.js / TypeScript (plain openai)** | `npm install openai` | [`sdks/js/demo/node.ts`](sdks/js/demo/node.ts) |
+| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.0`, or plain `openai-go` | [`sdks/go/demo/quickstart.go`](sdks/go/demo/quickstart.go) |
+| **Java (plain openai-java)** | `com.openai:openai-java` | [`sdks/java/demo/quickstart.java`](sdks/java/demo/quickstart.java) |
 
-Every language under `examples/` holds standalone, runnable starter scripts and framework integrations.
+Every language under `sdks/*/demo/` holds standalone, runnable starter scripts and framework integrations.
 
 ### AI Frameworks
 
 | Framework | Install | Example | What Changes |
 |-----------|---------|---------|-------------|
-| **LangChain** | `pip install langchain-openai` | [`examples/python/frameworks/langchain.py`](examples/python/frameworks/langchain.py) | `base_url` + `api_key` on `ChatOpenAI` |
-| **LlamaIndex** | `pip install llama-index-llms-openai` | [`examples/python/frameworks/llamaindex.py`](examples/python/frameworks/llamaindex.py) | `api_base` + `api_key` on `OpenAI` |
-| **Vercel AI SDK** | `npm install ai @ai-sdk/openai` | [`examples/typescript/vercel_ai.ts`](examples/typescript/vercel_ai.ts) | `baseURL` on `createOpenAI()` |
-| **CrewAI** | `pip install crewai` | [`examples/python/frameworks/crewai.py`](examples/python/frameworks/crewai.py) | `OPENAI_API_BASE` env var |
-| **AutoGen** | `pip install autogen-agentchat` | [`examples/python/frameworks/autogen.py`](examples/python/frameworks/autogen.py) | `base_url` in config_list |
+| **LangChain** | `pip install langchain-openai` | [`sdks/python/demo/frameworks/langchain.py`](sdks/python/demo/frameworks/langchain.py) | `base_url` + `api_key` on `ChatOpenAI` |
+| **LlamaIndex** | `pip install llama-index-llms-openai` | [`sdks/python/demo/frameworks/llamaindex.py`](sdks/python/demo/frameworks/llamaindex.py) | `api_base` + `api_key` on `OpenAI` |
+| **Vercel AI SDK** | `npm install ai @ai-sdk/openai` | [`sdks/js/demo/vercel_ai.ts`](sdks/js/demo/vercel_ai.ts) | `baseURL` on `createOpenAI()` |
+| **CrewAI** | `pip install crewai` | [`sdks/python/demo/frameworks/crewai.py`](sdks/python/demo/frameworks/crewai.py) | `OPENAI_API_BASE` env var |
+| **AutoGen** | `pip install autogen-agentchat` | [`sdks/python/demo/frameworks/autogen.py`](sdks/python/demo/frameworks/autogen.py) | `base_url` in config_list |
 
 **Every framework** that supports OpenAI-compatible endpoints works with nRouter. Set `base_url` to `https://api.nrouter.ai/v1` and `api_key` to your `NROUTER_API_KEY`. That's it.
 
@@ -619,35 +615,16 @@ nrouter-sdk/
 ├── LANGUAGES.md                     ← every-language guide (any OpenAI-format client)
 ├── spec/nrouter-sdk-spec.json       ← Source of truth (headers, errors, endpoints, Rule #14)
 ├── sdks/
-│   ├── python/                      ← Branded SDK → pip install nrouter-sdk
-│   ├── js/                          ← Branded SDK → npm install @nrouter_ai/sdk
-│   ├── java/                        ← Branded SDK → Maven ai.nrouter:nrouter-sdk
-│   ├── kotlin/                      ← Branded SDK → Maven ai.nrouter:nrouter-sdk-kotlin
-│   ├── android/                     ← Branded SDK → Maven ai.nrouter:nrouter-sdk-android
-│   ├── swift/                       ← SwiftPM package from the root git tag
-│   ├── rust/                        ← Branded SDK → crates.io nrouter
-│   ├── dart/                        ← Branded SDK → pub.dev nrouter
-│   ├── go/                          ← Branded SDK → tagged Go module
-│   └── r/                           ← Branded SDK → R-universe public preview
-└── examples/
-    ├── curl.sh                      ← cURL
-    ├── node.ts                      ← Node.js / TypeScript (plain openai)
-    ├── go.go                        ← Go (plain openai-go; sdks/go/ is branded)
-    ├── java.java                    ← Java (plain openai-java)
-    ├── ruby.rb                      ← Ruby
-    ├── php.php                      ← PHP
-    ├── dotnet.cs                    ← C# / .NET
-    ├── langchain.py                 ← LangChain
-    ├── llamaindex.py                ← LlamaIndex
-    ├── vercel_ai.ts                 ← Vercel AI SDK
-    ├── crewai.py                    ← CrewAI
-    ├── autogen.py                   ← AutoGen
-    └── hello-world/                 ← one minimal script per non-Python branded SDK
-        ├── typescript.ts
-        ├── javascript.js
-        ├── java.java
-        ├── rust.rs
-        └── r.R
+│   ├── python/                      ← Branded SDK → pip install nrouter-sdk (demo/ included)
+│   ├── js/                          ← Branded SDK → npm install @nrouter_ai/sdk (demo/ included)
+│   ├── java/                        ← Branded SDK → Maven ai.nrouter:nrouter-sdk (demo/ included)
+│   ├── kotlin/                      ← Branded SDK → Maven ai.nrouter:nrouter-sdk-kotlin (demo/ included)
+│   ├── android/                     ← Branded SDK → Maven ai.nrouter:nrouter-sdk-android (demo/ included)
+│   ├── swift/                       ← SwiftPM package from root git tag (demo/ included)
+│   ├── rust/                        ← Branded SDK → crates.io nrouter (demo/ included)
+│   ├── dart/                        ← Branded SDK → pub.dev nrouter (demo/ included)
+│   ├── go/                          ← Branded SDK → tagged Go module (demo/ included)
+│   └── r/                           ← Branded SDK → R-universe public preview (demo/ included)
 ```
 
 This is the **single reference** for all SDK/examples. The playground code generation and docs site pull from these examples.

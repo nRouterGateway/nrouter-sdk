@@ -1,7 +1,0 @@
-# This repository is PUBLIC and the README says `cp .env.example .env`, so a
-# missing rule here turns the next `git add` into a disclosed API key.
-.env
-
-# The per-call spend log. Session output, not source: it carries request ids and
-# the conversation text, neither of which belongs in a public repository.
-*.log.jsonl

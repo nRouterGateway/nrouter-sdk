@@ -8,7 +8,7 @@ void main() async {
   try {
     // 2. Chat Completion
     final response = await client.chatCompletions({
-      'model': 'claude-sonnet-4-5-20250929',
+      'model': 'gpt-5.4-mini',
       'messages': [
         {'role': 'user', 'content': 'Hello, nRouter!'},
       ],

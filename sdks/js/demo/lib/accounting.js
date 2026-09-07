@@ -33,7 +33,7 @@
  * priced one.
  */
 
-const { isPriced } = require('../../../../sdks/js/dist/index.js');
+const { isPriced } = require('../../dist/index.js');
 
 const BUCKETS = Object.freeze(['priced', 'streamed', 'free', 'unpriced', 'failed']);
 

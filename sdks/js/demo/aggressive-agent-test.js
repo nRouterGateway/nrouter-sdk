@@ -2,7 +2,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { nRouter, nRouterConfigurationError, isRetryable } = require('../../../sdks/js/dist/index.js');
+const { nRouter, nRouterConfigurationError, isRetryable } = require('../dist/index.js');
 const { classify, summarize, summaryLines } = require('./lib/accounting.js');
 
 const DEFAULT_MODEL = process.env.NROUTER_DEMO_MODEL || 'claude-haiku-4-5-20251001';

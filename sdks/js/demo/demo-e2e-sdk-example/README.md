@@ -11,8 +11,7 @@ The example resolves `@nrouter_ai/sdk` from this repo's `sdks/js` rather than fr
 npm (see [Why `file:`](#why-file) below), so build the SDK first:
 
 ```bash
-cd ../../sdks/js && npm install && npm run build   # sdks/js/dist is gitignored
-cd -                                                # back to examples/demo-e2e-sdk-example
+(cd ../.. && npm install && npm run build)           # sdks/js/dist is gitignored
 npm install
 cp .env.example .env                                # copy template to .env
 # Edit .env and set your NROUTER_API_KEY=sk-nrouter-...
@@ -24,7 +23,7 @@ npm start
 
 ## Environment
 
-`.env.example` is the complete list; copy it to `.env` in this directory (`examples/demo-e2e-sdk-example/.env`), which is gitignored.
+`.env.example` is the complete list; copy it to `.env` in this directory (`sdks/js/demo/demo-e2e-sdk-example/.env`), which is gitignored.
 
 | Variable | Required | Default | What it does |
 |---|---|---|---|

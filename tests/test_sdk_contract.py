@@ -691,7 +691,8 @@ class ShellExampleContractTests(unittest.TestCase):
     """
 
     def test_no_comment_interrupts_a_line_continuation(self) -> None:
-        for script in sorted((SDK_ROOT / "examples").rglob("*.sh")):
+        scripts = sorted((SDK_ROOT / "sdks").glob("*/demo/**/*.sh"))
+        for script in scripts:
             lines = script.read_text().split("\n")
             for index, line in enumerate(lines[:-1]):
                 if not line.rstrip().endswith("\\"):
@@ -705,7 +706,7 @@ class ShellExampleContractTests(unittest.TestCase):
 
 
 class ExampleBodyFieldContractTests(unittest.TestCase):
-    """`examples/` is the Rule #14 canonical copy-paste starter for every
+    """`sdks/*/demo/` is the Rule #14 canonical copy-paste starter for every
     language, and it is world-readable — so an `nrouter_*` field that no
     gateway reads is not a doc typo, it is a starter that guarantees a failed
     request in twelve languages at once.
@@ -894,7 +895,8 @@ class ExampleBodyFieldContractTests(unittest.TestCase):
         request_allowed = self._spec_fields()
         metadata_allowed = self._spec_metadata_fields()
         offenders = {}
-        for path in sorted((SDK_ROOT / "examples").rglob("*")):
+        paths = sorted((SDK_ROOT / "sdks").glob("*/demo/**/*"))
+        for path in paths:
             if not path.is_file():
                 continue
             found = self._offenders(
@@ -921,7 +923,7 @@ class ExampleBodyFieldContractTests(unittest.TestCase):
         `{"log": {..., "metadata": {"nrouter_units": ..., "nrouter_cost": ...}}}`
         — which is a RESPONSE surface, not a request body, and must not be read
         as an example teaching customers to send those fields."""
-        suite = SDK_ROOT / "examples" / "typescript" / "chat_agent_suite.js"
+        suite = SDK_ROOT / "sdks" / "js" / "demo" / "chat_agent_suite.js"
         self.assertTrue(suite.is_file(), f"{suite} is missing")
         body = suite.read_text(encoding="utf-8")
 
@@ -1037,7 +1039,8 @@ class ExampleBodyFieldContractTests(unittest.TestCase):
     def test_the_retired_guardrail_override_is_gone_everywhere(self) -> None:
         """Named explicitly, because a regex pin can be loosened by accident
         and this particular field was shipped publicly in twelve languages."""
-        for path in sorted((SDK_ROOT / "examples").rglob("*")):
+        paths = sorted((SDK_ROOT / "sdks").glob("*/demo/**/*"))
+        for path in paths:
             if not path.is_file():
                 continue
             self.assertNotIn(

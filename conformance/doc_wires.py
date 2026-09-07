@@ -2,7 +2,7 @@
 """Prove every documented snippet calls a wire the gateway serves for its model.
 
 Two independent failures live in the same corpus (`README.md`, `LANGUAGES.md`,
-`examples/**`, `sdks/*/README.md`, `sdks/*/docs/**`), and both ship as
+`sdks/*/demo/**`, `sdks/*/README.md`, `sdks/*/docs/**`), and both ship as
 copy-pasteable code:
 
 1. **Wire mismatch.** The gateway resolves a provider endpoint per wire, and a
@@ -40,7 +40,12 @@ ROOT = Path(__file__).resolve().parent.parent
 # Customer-facing prose and runnable examples. SDK *source* is deliberately out
 # of scope: `check_conformance.py` holds that to the spec.
 DOC_FILES = ("README.md", "LANGUAGES.md")
-DOC_GLOBS = ("examples/**/*", "sdks/*/README.md", "sdks/*/docs/**/*")
+DOC_GLOBS = (
+    "sdks/*/demo/**/*",
+    "sdks/*/README.md",
+    "sdks/*/docs/**/*",
+    "docs/**/*",
+)
 SKIP_PARTS = {"node_modules", ".git", "target", "build", "dist", ".dart_tool"}
 # Internal audit evidence is not a copy-pasteable SDK example. Treating its
 # prose table as executable documentation creates false positives when a model

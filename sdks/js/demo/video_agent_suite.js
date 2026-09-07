@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Mock-gateway certification for examples/typescript/video-agent.
+ * Mock-gateway certification for sdks/js/demo/video-agent.
  *
  * The example under test starts a real video generation job, which is the most
  * expensive single call this gateway serves — a floor of $3.00 held at create,
@@ -29,7 +29,7 @@
  *
  * No network, no key, no credits. Runs in about a second.
  *
- *   node examples/typescript/video_agent_suite.js
+ *   node sdks/js/demo/video_agent_suite.js
  *
  * Requires the JS SDK to be built first (the example imports its dist):
  *
@@ -46,7 +46,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const EXAMPLE = path.resolve(__dirname, 'video-agent', 'video-agent.mjs');
-const SDK_DIST = path.resolve(__dirname, '..', '..', 'sdks', 'js', 'dist', 'index.mjs');
+const SDK_DIST = path.resolve(__dirname, '..', 'dist', 'index.mjs');
 
 // The mock's price for the ONE billed call. Deliberately not a round number and
 // deliberately not zero: a summation bug that dropped the create cost would

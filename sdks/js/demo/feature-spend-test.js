@@ -3,7 +3,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { nRouter, isRetryable } = require('../../../sdks/js/dist/index.js');
+const { nRouter, isRetryable } = require('../dist/index.js');
 const { classify, summarize, summaryLines } = require('./lib/accounting.js');
 
 const DEFAULTS = {
