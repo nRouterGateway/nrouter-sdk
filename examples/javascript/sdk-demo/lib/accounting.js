@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Spend accounting for the demo probes in `sdks/js/demo/`.
+ * Spend accounting for the JS SDK example probes.
  *
  * These probes are opt-in LIVE scripts — they spend real credit — so what they
  * print is the only report anyone gets of what a run cost. Both of them used to
@@ -33,7 +33,7 @@
  * priced one.
  */
 
-const { isPriced } = require('../../dist/index.js');
+const { isPriced } = require('../../../../sdks/js/dist/index.js');
 
 const BUCKETS = Object.freeze(['priced', 'streamed', 'free', 'unpriced', 'failed']);
 

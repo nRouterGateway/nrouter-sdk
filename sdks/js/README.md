@@ -266,22 +266,22 @@ The test suite runs TypeScript test files directly through Node's built-in test
 runner, so use Node `22.18.0` or newer. Older Node 22 builds fail before the
 tests execute because they cannot strip TypeScript syntax from `.ts` test files.
 
-## Demo And Live Diagnostics
+## Examples And Live Diagnostics
 
-The repo includes local demo tools for manual SDK checks:
+The repo includes JavaScript examples for manual SDK checks:
 
 ```bash
 npm run build
-node demo/agent.js --live
-node demo/feature-spend-test.js
-node demo/ui/server.js
+node examples/javascript/sdk-demo/agent.js --live
+node examples/javascript/sdk-demo/feature-spend-test.js
+node examples/javascript/sdk-demo/ui/server.js
 ```
 
-`demo/ui/server.js` starts a browser UI at `http://127.0.0.1:4317`. The browser
+`examples/javascript/sdk-demo/ui/server.js` starts a browser UI at `http://127.0.0.1:4317`. The browser
 does not receive the API key; the local Node server reads `NROUTER_API_KEY` and
 calls the built SDK package.
 
-See [`demo/README.md`](./demo/README.md) for commands and
+See [`examples/javascript/sdk-demo/README.md`](../../examples/javascript/sdk-demo/README.md) for commands and
 [`docs/live-sdk-agent-report.md`](./docs/live-sdk-agent-report.md) for the latest
 manual test findings.
 

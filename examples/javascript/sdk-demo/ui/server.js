@@ -4,9 +4,10 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { nRouter, isRetryable } = require('../..');
+const { nRouter, isRetryable } = require('../../../../sdks/js');
 
 const PORT = Number.parseInt(process.env.PORT || '4317', 10);
+// nrouter-doc-wire: messages
 const DEFAULT_MODEL = process.env.NROUTER_DEMO_MODEL || 'claude-haiku-4-5-20251001';
 
 function loadRootEnv() {

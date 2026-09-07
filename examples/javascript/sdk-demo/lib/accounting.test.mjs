@@ -1,13 +1,13 @@
 // Unit test for the demo probes' spend accounting.
 //
-// The probes in `sdks/js/demo/` are OPT-IN LIVE scripts: running them spends
+// The probes in this directory are OPT-IN LIVE scripts: running them spends
 // real credit against a real key, so there is no mock and no CI lane that can
 // exercise them end to end. What CAN be tested offline is the part that was
 // actually wrong — the arithmetic that decided a call's cost was `0` when the
 // gateway said it did not know. That logic is extracted into `accounting.js`
 // precisely so it can be pinned here.
 //
-//   node --test sdks/js/demo/lib/
+//   node --test examples/javascript/sdk-demo/lib/
 //
 // Requires a built SDK (`cd sdks/js && npm run build`), because the pricing
 // predicate under test is the SDK's own `isPriced`, imported rather than
