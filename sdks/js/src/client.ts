@@ -12,7 +12,7 @@ import OpenAI from 'openai';
 import { chat as runChat, chatText, compare as runCompare, type ChatRunner } from './chat';
 import { configurationError, isAbortLike, redactKeys, transportError } from './errors';
 import { metaFromHeaders, type HeaderSource } from './meta';
-import { NRouterModels, type RawRequester } from './models';
+import { NRouterModels, type NRouterCapabilities, type RawRequester } from './models';
 import { Multimodal, type Transport, type TransportRequest, type TransportResponse } from './multimodal';
 import { buildFeatureBody } from './options';
 import { jsonRequest } from './json';
@@ -820,6 +820,16 @@ export class NRouterSurface implements ChatRunner, StreamRunner, Transport {
   /** Model discovery, reachable from the same namespace as everything else. */
   get models(): NRouterModels {
     return this.client.nrouterModels;
+  }
+
+  /** Gateway capabilities and served endpoints. */
+  capabilities(): Promise<NRouterCapabilities> {
+    return this.models.capabilities();
+  }
+
+  /** List of distinct upstream providers available through this gateway. */
+  providers(): Promise<string[]> {
+    return this.models.providers();
   }
 
   /** One buffered call with full playground parity; returns body AND metadata. */

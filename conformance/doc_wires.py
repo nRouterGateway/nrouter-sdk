@@ -259,11 +259,11 @@ _SPEC = {"unsupported_endpoints": {"moderations": "not mounted"}}
 
 def _fixture(tmp: Path, readme: str, example: str = "") -> Path:
     root = tmp / "repo"
-    (root / "examples" / "curl").mkdir(parents=True, exist_ok=True)
+    (root / "docs" / "curl").mkdir(parents=True, exist_ok=True)
     (root / "spec").mkdir(parents=True, exist_ok=True)
     (root / "README.md").write_text(readme)
     (root / "LANGUAGES.md").write_text("# Languages\n")
-    (root / "examples" / "curl" / "quickstart.sh").write_text(example or "#!/bin/sh\n")
+    (root / "docs" / "curl" / "quickstart.sh").write_text(example or "#!/bin/sh\n")
     (root / "spec" / "nrouter-sdk-spec.json").write_text(json.dumps(_SPEC))
     return root
 

@@ -175,6 +175,8 @@ export interface NRouterCallOptions extends NRouterFeatureOptions {
   topP?: number;
   /** Provider attribution when known; only used to detect the Claude family. */
   modelProvider?: string | null;
+  /** Canonical model id behind an alias, if applicable (e.g. for sampling deprecation checks). */
+  canonicalModel?: string | null;
 
   /** Prompt template + its Jinja2 variables. */
   promptTemplateId?: string;

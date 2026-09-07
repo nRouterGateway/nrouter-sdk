@@ -50,6 +50,12 @@ export interface SamplingInput {
   model: string;
   /** Optional provider attribution, when the caller knows it (e.g. from model_info). */
   provider?: string | null;
+  /**
+   * The catalogue's canonical/upstream model id, when the selected id is a
+   * public ALIAS that resolves to a different model. A deprecating model
+   * reached through an alias rejects the request exactly the same way.
+   */
+  canonicalModel?: string | null;
   /** Caller-chosen temperature. Absent = not chosen; never defaulted to a number. */
   temperature?: number;
   /** Caller-chosen top_p. Absent (or 1, the neutral value) = never sent. */
@@ -140,11 +146,45 @@ function requireUsable(name: string, value: number, max?: number): void {
   }
 }
 
+/**
+ * Claude models that reject sampling parameters ENTIRELY.
+ *
+ * MEASURED against production https://api.nrouter.ai/v1/messages on
+ * 2026-09-01 with a real customer virtual key and max_tokens: 1:
+ *
+ *   400  opus-4-7 · opus-4-8 · opus-5 · sonnet-5 · fable-5
+ *   200  opus-4-5 · opus-4-6 · sonnet-4-5 · sonnet-4-6 · haiku-4-5
+ *
+ * Both temperature and top_p returned 400, so this is not the XOR rule —
+ * sampling is gone on those models, not merely constrained.
+ */
+export const SAMPLING_DEPRECATED: readonly RegExp[] = [
+  /claude-opus-4-7/i,
+  /claude-opus-4-8/i,
+  /claude-opus-5/i,
+  /claude-sonnet-5/i,
+  /claude-fable-5/i,
+];
+
+/** True when the model rejects temperature and top_p outright. */
+export function samplingParamsDeprecated(model: string): boolean {
+  return SAMPLING_DEPRECATED.some((re) => re.test(model ?? ''));
+}
+
 export function buildSamplingParams(input: SamplingInput): SamplingParams {
   // Rule 1: default mode is a hard "send nothing", checked before anything else.
   // Validation comes AFTER it on purpose: with advanced off these values are
   // ignored entirely, so refusing them would break a request that works.
   if (!input.advanced) return {};
+
+  // Rule 1b: models that reject sampling parameters outright get neither param.
+  // Checked against both the model id and any canonical upstream model behind an alias.
+  if (
+    samplingParamsDeprecated(input.model) ||
+    samplingParamsDeprecated(input.canonicalModel ?? '')
+  ) {
+    return {};
+  }
 
   const { temperature, topP } = input;
 

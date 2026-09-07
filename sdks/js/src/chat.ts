@@ -143,6 +143,7 @@ export async function chat(
     advanced: opts.advancedSampling ?? false,
     model: opts.model,
     provider: opts.modelProvider ?? null,
+    canonicalModel: opts.canonicalModel ?? null,
     temperature: opts.temperature,
     topP: opts.topP,
   });

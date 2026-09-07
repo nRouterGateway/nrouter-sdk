@@ -213,6 +213,7 @@ export async function streamChat(
     advanced: opts.advancedSampling === true,
     model: opts.model,
     provider: opts.modelProvider,
+    canonicalModel: opts.canonicalModel,
     temperature: opts.temperature,
     topP: opts.topP,
   });

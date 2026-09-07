@@ -113,3 +113,52 @@ test('has() lets an auth or transport failure propagate as itself', async () => 
   };
   await assert.rejects(() => new NRouterModels(client).has('gpt-4o'), /401/);
 });
+
+const CAPABILITIES_BODY = {
+  gateway: 'nrouter',
+  providers: ['anthropic', 'bedrock', 'dashscope', 'openai', 'vertex_ai'],
+  models: ['claude-haiku-4-5', 'gpt-4o'],
+  endpoints: ['/v1/chat/completions', '/v1/messages'],
+  mcp_servers: ['filesystem', 'fetch'],
+};
+
+test('capabilities() retrieves gateway capabilities document and preserves fields', async () => {
+  const client = fakeClient({ '/../capabilities': CAPABILITIES_BODY });
+  const models = new NRouterModels(client);
+  const caps = await models.capabilities();
+
+  assert.equal(caps.gateway, 'nrouter');
+  assert.deepEqual(caps.providers, ['anthropic', 'bedrock', 'dashscope', 'openai', 'vertex_ai']);
+  assert.deepEqual(caps.models, ['claude-haiku-4-5', 'gpt-4o']);
+  assert.deepEqual(caps.endpoints, ['/v1/chat/completions', '/v1/messages']);
+  assert.deepEqual(caps.mcp_servers, ['filesystem', 'fetch']);
+});
+
+test('capabilities() falls back to /capabilities if /../capabilities fails', async () => {
+  const client = fakeClient((path: string) => {
+    if (path === '/../capabilities') throw new Error('404 Not Found');
+    return CAPABILITIES_BODY;
+  });
+  const models = new NRouterModels(client);
+  const caps = await models.capabilities();
+
+  assert.deepEqual(caps.providers, ['anthropic', 'bedrock', 'dashscope', 'openai', 'vertex_ai']);
+});
+
+test('providers() returns list of providers from capabilities', async () => {
+  const client = fakeClient({ '/../capabilities': CAPABILITIES_BODY });
+  const models = new NRouterModels(client);
+  const providers = await models.providers();
+
+  assert.deepEqual(providers, ['anthropic', 'bedrock', 'dashscope', 'openai', 'vertex_ai']);
+});
+
+test('capabilities() degrades gracefully on non-object body', async () => {
+  const client = fakeClient({ '/../capabilities': 'invalid string' });
+  const models = new NRouterModels(client);
+  const caps = await models.capabilities();
+
+  assert.equal(caps.gateway, 'nrouter');
+  assert.deepEqual(caps.providers, []);
+  assert.deepEqual(caps.models, []);
+});

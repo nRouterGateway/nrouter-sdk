@@ -97,6 +97,8 @@ export {
 export {
   buildSamplingParams,
   isClaudeModel,
+  SAMPLING_DEPRECATED,
+  samplingParamsDeprecated,
   type SamplingInput,
   type SamplingParams,
 } from './sampling';
@@ -104,7 +106,7 @@ export {
 // Body construction, exported for the same reason.
 export { buildChatBody, buildExtraBody, buildFeatureBody, buildMessages } from './options';
 
-export { NRouterModels, type NRouterModel, type NRouterModelList, type RawRequester } from './models';
+export { NRouterModels, type NRouterModel, type NRouterModelList, type NRouterCapabilities, type RawRequester } from './models';
 
 // The Anthropic Messages wire. Exported for the same reason `buildChatBody` is:
 // a caller assembling its own request needs to know which wire a model is

@@ -15,7 +15,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { buildSamplingParams, isClaudeModel } = require('../dist/sampling');
+const { buildSamplingParams, isClaudeModel, SAMPLING_DEPRECATED, samplingParamsDeprecated } = require('../dist/sampling');
 
 test('the Claude family is matched by FAMILY, not by host cloud', () => {
   // The same weights are served by Anthropic direct, by Bedrock and by Vertex,
@@ -168,3 +168,60 @@ test('default mode still sends nothing and refuses nothing', () => {
     {},
   );
 });
+
+test('sends NO sampling params to a Claude model that deprecates them outright', () => {
+  for (const model of [
+    'claude-opus-4-7',
+    'claude-opus-4-8',
+    'claude-opus-5',
+    'claude-sonnet-5',
+    'claude-fable-5',
+  ]) {
+    assert.equal(samplingParamsDeprecated(model), true, `${model} must be recognized as deprecating sampling`);
+    assert.deepEqual(
+      buildSamplingParams({ advanced: true, model, temperature: 0.7, topP: 1 }),
+      {},
+    );
+    assert.deepEqual(
+      buildSamplingParams({ advanced: true, model, temperature: 0.7, topP: 0.4 }),
+      {},
+    );
+  }
+});
+
+test('matches the deprecating family across host clouds (Bedrock/Vertex ids)', () => {
+  assert.equal(samplingParamsDeprecated('us.anthropic.claude-opus-5-v1:0'), true);
+  assert.deepEqual(
+    buildSamplingParams({
+      advanced: true,
+      model: 'us.anthropic.claude-opus-5-v1:0',
+      temperature: 0.7,
+      topP: 0.4,
+    }),
+    {},
+  );
+});
+
+test('withholds sampling when a public ALIAS resolves to a deprecating model via canonicalModel', () => {
+  assert.deepEqual(
+    buildSamplingParams({
+      advanced: true,
+      model: 'claude-premium',
+      canonicalModel: 'anthropic/claude-opus-5',
+      temperature: 0.7,
+      topP: 0.4,
+    }),
+    {},
+  );
+  assert.deepEqual(
+    buildSamplingParams({
+      advanced: true,
+      model: 'claude-standard',
+      canonicalModel: 'anthropic/claude-sonnet-4-6',
+      temperature: 0.7,
+      topP: 1,
+    }),
+    { temperature: 0.7 },
+  );
+});
+

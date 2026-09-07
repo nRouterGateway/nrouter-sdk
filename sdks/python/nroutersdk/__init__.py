@@ -63,7 +63,12 @@ from nroutersdk.prompts import (
 )
 from nroutersdk.diagnostics import ReasoningExhaustionReport, diagnose_reasoning_exhaustion
 from nroutersdk.media import VALID_AUDIO_FORMATS, validate_audio_format
-from nroutersdk.sampling import build_sampling_params, is_claude_model
+from nroutersdk.sampling import (
+    SAMPLING_DEPRECATED,
+    build_sampling_params,
+    is_claude_model,
+    sampling_params_deprecated,
+)
 
 __all__ = [
     "DEFAULT_MODEL",
@@ -78,9 +83,11 @@ __all__ = [
     "NRouterErrorEnvelope",
     "PromptSelection",
     "ReasoningExhaustionReport",
+    "SAMPLING_DEPRECATED",
     "__version__",
     "apply_prompt",
     "build_sampling_params",
+    "sampling_params_deprecated",
     "format_error",
     "create_array_store",
     "create_memory",

@@ -143,3 +143,11 @@ def test_client_accepts_and_injects_trace_headers(cls):
     assert th_dict.get("x-nr-request-id") == "req-888"
 
 
+def test_capabilities_and_providers_are_exposed(client):
+    assert hasattr(client, "capabilities")
+    assert hasattr(client, "providers")
+    assert hasattr(client.nrouter_models, "capabilities")
+    assert hasattr(client.nrouter_models, "providers")
+
+
+

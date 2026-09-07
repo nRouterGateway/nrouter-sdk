@@ -495,6 +495,20 @@ class _nRouterModels:
         """List all models available through nRouter."""
         return cast(dict, self._c._nrouter_get("/v1/models"))
 
+    def capabilities(self) -> Any:
+        """Fetch the gateway's self-described capabilities from /capabilities."""
+        return self._c._nrouter_get("/capabilities")
+
+    def providers(self) -> Any:
+        """List the distinct upstream providers available through this gateway."""
+        res = self.capabilities()
+        if asyncio.iscoroutine(res):
+            async def _providers():
+                caps = await res
+                return caps.get("providers", []) if isinstance(caps, dict) else []
+            return _providers()
+        return res.get("providers", []) if isinstance(res, dict) else []
+
 
 def _messages_payload(
     *,
@@ -1107,6 +1121,14 @@ class nRouter(_OpenAI):
         """Poll a video generation job until completed or failed."""
         return self.videos.wait_for(video_id, poll_interval=poll_interval, timeout=timeout)
 
+    def capabilities(self) -> dict:
+        """Fetch gateway capabilities and served endpoints."""
+        return self.nrouter_models.capabilities()
+
+    def providers(self) -> list[str]:
+        """List the distinct upstream providers available through this gateway."""
+        return self.nrouter_models.providers()
+
 
 # ---------------------------------------------------------------------------
 # Async client
@@ -1282,6 +1304,14 @@ class AsyncnRouter(_AsyncOpenAI):
     ) -> dict:
         """Poll a video generation job until completed or failed."""
         return await self.videos.wait_for(video_id, poll_interval=poll_interval, timeout=timeout)
+
+    async def capabilities(self) -> dict:
+        """Fetch gateway capabilities and served endpoints."""
+        return await self.nrouter_models.capabilities()
+
+    async def providers(self) -> list[str]:
+        """List the distinct upstream providers available through this gateway."""
+        return await self.nrouter_models.providers()
 
 
 def parse_sse(raw: str) -> list[dict[str, str]]:

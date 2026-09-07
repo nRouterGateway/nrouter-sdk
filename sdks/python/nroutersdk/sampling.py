@@ -29,21 +29,41 @@ def _require_usable(name: str, value: float, maximum: float | None = None) -> No
         raise nRouterRequestError(f"{name} must be {bounds}, got {value}.")
 
 
+SAMPLING_DEPRECATED: tuple[str, ...] = (
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-opus-5",
+    "claude-sonnet-5",
+    "claude-fable-5",
+)
+
+
+def sampling_params_deprecated(model: str) -> bool:
+    """Return true when the model rejects sampling parameters entirely."""
+    m = (model or "").lower()
+    return any(dep in m for dep in SAMPLING_DEPRECATED)
+
+
 def build_sampling_params(
     *,
     advanced: bool,
     model: str,
     provider: str | None = None,
+    canonical_model: str | None = None,
     temperature: float | None = None,
     top_p: float | None = None,
 ) -> dict[str, float]:
     """Build the wire sampling fields.
 
-    With advanced sampling off, nothing is sent. For Claude-family models,
+    With advanced sampling off, nothing is sent. For models that deprecate
+    sampling outright, nothing is sent. For other Claude-family models,
     non-neutral top_p wins over temperature because Anthropic rejects both
     together.
     """
     if not advanced:
+        return {}
+
+    if sampling_params_deprecated(model) or sampling_params_deprecated(canonical_model or ""):
         return {}
 
     if temperature is not None:

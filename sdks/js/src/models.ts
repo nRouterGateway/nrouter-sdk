@@ -31,6 +31,18 @@ export type NRouterModelList = {
 };
 
 /**
+ * Gateway-level capabilities returned by `GET /capabilities`.
+ */
+export type NRouterCapabilities = {
+  gateway: string;
+  providers: string[];
+  models: string[];
+  endpoints: string[];
+  mcp_servers?: string[];
+  [key: string]: unknown;
+};
+
+/**
  * The slice of the inherited OpenAI client this helper needs: its own request
  * pipeline. Going through it is what keeps the caller's `fetch` override,
  * `timeout`, `maxRetries`, `fetchOptions`, `defaultHeaders` and `defaultQuery`
@@ -63,6 +75,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 function encodeModelId(modelId: string): string {
   return modelId.split('/').map(encodeURIComponent).join('/');
+}
+
+async function fetchCapabilities(client: RawRequester): Promise<NRouterCapabilities> {
+  const req = (path: string) => client.get(path).asResponse();
+  let response;
+  try {
+    response = await req('/../capabilities');
+  } catch {
+    response = await req('/capabilities');
+  }
+  const body: unknown = await response.json();
+  if (!isRecord(body)) {
+    return { gateway: 'nrouter', providers: [], models: [], endpoints: [] };
+  }
+  return {
+    gateway: typeof body.gateway === 'string' ? body.gateway : 'nrouter',
+    providers: Array.isArray(body.providers) ? (body.providers as string[]) : [],
+    models: Array.isArray(body.models) ? (body.models as string[]) : [],
+    endpoints: Array.isArray(body.endpoints) ? (body.endpoints as string[]) : [],
+    ...(Array.isArray(body.mcp_servers) ? { mcp_servers: body.mcp_servers as string[] } : {}),
+    ...body,
+  };
 }
 
 /**
@@ -167,5 +201,24 @@ export class NRouterModels {
   async has(modelId: string): Promise<boolean> {
     const ids = await this.ids();
     return ids.includes(modelId);
+  }
+
+  /**
+   * Fetch the gateway's self-described capabilities from `/capabilities`.
+   *
+   * The gateway mounts `/capabilities` at root, which resolves via `/../capabilities`
+   * when baseURL has a `/v1` suffix (e.g. https://api.nrouter.ai/v1), or directly via
+   * `/capabilities`.
+   */
+  capabilities(): Promise<NRouterCapabilities> {
+    return fetchCapabilities(this.client);
+  }
+
+  /**
+   * Return the list of distinct provider names the gateway currently serves.
+   */
+  async providers(): Promise<string[]> {
+    const caps = await this.capabilities();
+    return caps.providers ?? [];
   }
 }

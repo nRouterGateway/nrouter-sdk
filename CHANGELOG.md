@@ -9,6 +9,17 @@ Dates are the registry upload date, which is the only date a consumer can
 observe. Versions are immutable once published; nothing here is ever rewritten
 to correct a release, only appended to.
 
+## Coordinated SDK release — 3.1.1 — 2026-09-07
+
+- Coordinated release 3.1.1 across all ten SDKs.
+- JavaScript / TypeScript (`@nrouter_ai/sdk`):
+  - Added Anthropic deprecated sampling parameters protection (`SAMPLING_DEPRECATED`, `samplingParamsDeprecated()`, `canonicalModel`) to strip temperature and top_p on Claude 4.7+, Claude 5+, and Opus 5 models to prevent HTTP 400 gateway rejections.
+  - Added sampling parameters validation (`validateSamplingParams`) ensuring non-negative temperatures and top_p within [0, 1].
+  - Added runnable end-to-end Playground Parity simulation demo (`sdks/js/demo/playground-simulation.mjs`) verifying parameters, wires, TTFT streaming metrics, dual-model comparisons, and dynamic discovery.
+- Python (`nrouter-sdk`):
+  - Synchronized `samplingParamsDeprecated` and `SAMPLING_DEPRECATED` list in `nroutersdk.sampling`.
+  - Exported sampling utilities and updated client surface tests.
+
 ## Coordinated SDK release — 3.1.0 — 2026-09-07
 
 - Coordinated release 3.1.0 across all ten SDKs.
