@@ -2,8 +2,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { nRouter, NRouterModels, NRouterSurface, nRouterConfigurationError } = require('../dist/index.js');
+const { nRouter, NRouterModels, NRouterSurface, nRouterConfigurationError } = require('../../../sdks/js/dist/index.js');
 
+// nrouter-doc-wire: messages
 const MODEL = process.env.NROUTER_DEMO_MODEL || 'claude-haiku-4-5-20251001';
 
 function loadRootEnv() {

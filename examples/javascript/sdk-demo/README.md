@@ -1,12 +1,12 @@
-# JS SDK demo agent
+# JS SDK example agent
 
 This folder contains a tiny demo agent that exercises the JS SDK from built
 `dist/` output.
 
 ```bash
-cd sdks/js
-npm run build
-node demo/agent.js --dry-run
+cd D:\nrouter-sdk
+npm --prefix sdks/js run build
+node examples/javascript/sdk-demo/agent.js --dry-run
 ```
 
 Dry-run mode uses an in-memory requester and does not spend credits.
@@ -15,13 +15,15 @@ To hit the live gateway, set `NROUTER_API_KEY` or keep it in the repo-root
 `.env` file, then run:
 
 ```bash
-node demo/agent.js --live
+# nrouter-doc-wire: messages
+node examples/javascript/sdk-demo/agent.js --live
 ```
 
 The live mode defaults to `claude-haiku-4-5-20251001`. Override it with:
 
 ```bash
-NROUTER_DEMO_MODEL=claude-sonnet-4-5-20250929 node demo/agent.js --live
+<!-- nrouter-doc-wire: messages -->
+NROUTER_DEMO_MODEL=claude-sonnet-4-5-20250929 node examples/javascript/sdk-demo/agent.js --live
 ```
 
 The demo verifies:
@@ -40,13 +42,13 @@ request and a final summary.
 Start small:
 
 ```bash
-NROUTER_TARGET_USD=0.05 NROUTER_MAX_REQUESTS=20 node demo/aggressive-agent-test.js
+NROUTER_TARGET_USD=0.05 NROUTER_MAX_REQUESTS=20 node examples/javascript/sdk-demo/aggressive-agent-test.js
 ```
 
 To target about five dollars:
 
 ```bash
-NROUTER_TARGET_USD=5 NROUTER_MAX_REQUESTS=500 NROUTER_MAX_TOKENS=1024 node demo/aggressive-agent-test.js
+NROUTER_TARGET_USD=5 NROUTER_MAX_REQUESTS=500 NROUTER_MAX_TOKENS=1024 node examples/javascript/sdk-demo/aggressive-agent-test.js
 ```
 
 On PowerShell:
@@ -55,7 +57,7 @@ On PowerShell:
 $env:NROUTER_TARGET_USD="5"
 $env:NROUTER_MAX_REQUESTS="500"
 $env:NROUTER_MAX_TOKENS="1024"
-node demo\aggressive-agent-test.js
+node examples\javascript\sdk-demo\aggressive-agent-test.js
 ```
 
 It currently tests:
@@ -103,21 +105,21 @@ The bucketing lives in [`lib/accounting.js`](./lib/accounting.js) — shared by
 both probes so the two cannot disagree — and is unit-tested offline:
 
 ```bash
-cd sdks/js
-npm run build      # the probes and the test import the SDK's own isPriced()
-node --test demo/lib/
+cd D:\nrouter-sdk
+npm --prefix sdks/js run build
+node --test examples/javascript/sdk-demo/lib/
 ```
 
 ## Local browser UI
 
 The UI calls a tiny local Node server. The browser never receives the API key;
 the server loads `NROUTER_API_KEY` and calls the JS SDK package through
-`require('../..')`, which resolves `sdks/js/package.json` and uses built `dist/`.
+`require('../../../../sdks/js')`, which resolves `sdks/js/package.json` and uses built `dist/`.
 
 ```bash
-cd sdks/js
-npm run build
-node demo/ui/server.js
+cd D:\nrouter-sdk
+npm --prefix sdks/js run build
+node examples/javascript/sdk-demo/ui/server.js
 ```
 
 Open:
@@ -143,9 +145,9 @@ video call the gateway could not price is counted and named rather than added to
 the total as `0`.
 
 ```powershell
-cd D:\nrouter-sdk\sdks\js
-npm run build
-node demo\feature-spend-test.js
+cd D:\nrouter-sdk
+npm --prefix sdks/js run build
+node examples\javascript\sdk-demo\feature-spend-test.js
 ```
 
 By default it tries:
@@ -160,7 +162,7 @@ to your key later, run:
 $env:NROUTER_SPEECH_MODEL="your-speech-model-id"
 $env:NROUTER_TRANSCRIBE_MODEL="your-transcription-model-id"
 $env:NROUTER_VIDEO_MODEL="your-video-model-id"
-node demo\feature-spend-test.js
+node examples\javascript\sdk-demo\feature-spend-test.js
 ```
 
 Useful overrides:
@@ -169,14 +171,14 @@ Useful overrides:
 $env:NROUTER_EMBEDDING_MODEL="text-embedding-3-large"
 $env:NROUTER_IMAGE_MODEL="gemini-3-pro-image"
 $env:NROUTER_IMAGE_SIZE="1024x1024"
-node demo\feature-spend-test.js
+node examples\javascript\sdk-demo\feature-spend-test.js
 ```
 
 To spend more on embeddings, repeat the embedding call:
 
 ```powershell
 $env:NROUTER_EMBEDDING_REPEAT="100"
-node demo\feature-spend-test.js
+node examples\javascript\sdk-demo\feature-spend-test.js
 ```
 
 Embeddings are very cheap, so even 100 calls may still be only a tiny amount of
