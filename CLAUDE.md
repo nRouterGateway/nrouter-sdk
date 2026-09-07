@@ -66,7 +66,11 @@ them automatically; Codex, Gemini CLI and Antigravity do not and must open:
 Package.swift        # the SHIPPING Swift manifest — SwiftPM reads the REPO ROOT
 spec/                # nrouter-sdk-spec.json — the SoT under Rule #14
 conformance/         # the cross-SDK gate; run it before every release
+docs/                # validation-playbook-template.md & cross-SDK documentation
+skills/              # nrouter-sdk-parity skill enforcing cross-SDK alignment
 sdks/{python,js,java,kotlin,android,swift,rust,dart,r,go}/
+  ├── demo/          # runnable SDK demonstrations and quickstarts
+  └── docs/          # validation-playbook.md for each technology
 examples/            # canonical snippets nrouter-app imports (Rule #14)
 ```
 
@@ -80,6 +84,7 @@ SDK and the spec disagree, the SDK is wrong.
 ```bash
 python3 conformance/check_conformance.py             # all ten agree?
 python3 conformance/check_conformance.py --self-test # prove the gate bites
+python3 scripts/check_sdk_parity.py                   # check demos, playbooks & versions
 ```
 
 Each SDK's own suite proves it is self-consistent; the gate proves they agree

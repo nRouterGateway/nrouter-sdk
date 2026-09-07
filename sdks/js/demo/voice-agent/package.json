@@ -1,0 +1,11 @@
+{
+  "name": "nrouter-voice-agent-example",
+  "private": true,
+  "type": "module",
+  "description": "nRouter voice agent: speech-to-text, chat and text-to-speech in one loop, with per-call cost, usage and request-id logging.",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node voice-agent.mjs",
+    "test": "node ../voice_agent_suite.js"
+  }
+}

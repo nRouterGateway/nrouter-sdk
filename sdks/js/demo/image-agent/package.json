@@ -1,0 +1,11 @@
+{
+  "name": "nrouter-image-agent-example",
+  "private": true,
+  "type": "module",
+  "description": "nRouter image agent: /v1/images/generations with per-call cost, per-image and per-image-token usage, and request-id logging.",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node image-agent.mjs",
+    "test": "node ../image_agent_suite.js"
+  }
+}
