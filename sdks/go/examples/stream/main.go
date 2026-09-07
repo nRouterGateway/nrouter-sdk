@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	nrouter "github.com/nRouterAI/nrouter-sdk/sdks/go/v3"
+	nrouter "github.com/nRouterGateway/nrouter-sdk/sdks/go/v3"
 )
 
 func main() {

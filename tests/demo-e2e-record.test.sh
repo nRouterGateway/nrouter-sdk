@@ -39,7 +39,7 @@ cd "$ROOT_DIR"
 # 2. ENV DOCUMENTATION + THE .env IGNORE RULE, for every example. This repo is
 #    PUBLIC and every example's run instructions say `cp .env.example .env`, so
 #    an example folder whose `.gitignore` misses `.env` turns the next `git add`
-#    into a disclosed API key on nRouterAI/nrouter-sdk. That is the leak this
+#    into a disclosed API key on nRouterGateway/nrouter-sdk. That is the leak this
 #    half exists to stop, and it must hold for the newest example as much as the
 #    oldest.
 #

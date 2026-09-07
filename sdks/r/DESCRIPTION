@@ -1,7 +1,7 @@
 Package: nrouter
 Type: Package
 Title: OpenAI-Compatible SDK for the nRouter LLM Gateway
-Version: 3.0.0
+Version: 3.1.0
 Authors@R: person("nRouter", email = "hello@nrouter.ai", role = c("aut", "cre"))
 Author: nRouter [aut, cre]
 Maintainer: nRouter <hello@nrouter.ai>
@@ -12,8 +12,8 @@ Description: A client for the nRouter LLM gateway (<https://nrouter.ai>), an
     and per-request cost and token metadata are returned alongside every
     response.
 License: MIT + file LICENSE
-URL: https://nrouter.ai, https://github.com/nRouterAI/nrouter-sdk
-BugReports: https://github.com/nRouterAI/nrouter-sdk/issues
+URL: https://nrouter.ai, https://github.com/nRouterGateway/nrouter-sdk
+BugReports: https://github.com/nRouterGateway/nrouter-sdk/issues
 Encoding: UTF-8
 Imports:
     curl,

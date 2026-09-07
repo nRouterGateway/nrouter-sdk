@@ -4,7 +4,7 @@ import PackageDescription
 // Swift Package Manager reads `Package.swift` from the REPOSITORY ROOT and
 // offers no way to point a dependency at a subdirectory. That is why this
 // manifest is here rather than only in `sdks/swift/`: this directory is the
-// root of the public `nRouterAI/nrouter-sdk` repo, so a manifest here is a
+// root of the public `nRouterGateway/nrouter-sdk` repo, so a manifest here is a
 // manifest at that repository's root.
 //
 // The SOURCES stay where they belong. `path:` moves the targets, so nothing had

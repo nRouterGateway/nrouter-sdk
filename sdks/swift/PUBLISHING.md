@@ -7,7 +7,7 @@ the checks below happen before the tag, not after.
 
 ## It ships from the SAME repo as every other SDK
 
-`nRouterAI/nrouter-sdk` is the distribution target. No separate Swift repo.
+`nRouterGateway/nrouter-sdk` is the distribution target. No separate Swift repo.
 
 SwiftPM does impose one real constraint: it reads `Package.swift` from the
 **repository root** and offers no way to point a dependency at a subdirectory.
@@ -60,8 +60,8 @@ test -f Package.swift
 
 ```bash
 git ls-remote --tags origin
-git tag 3.0.0                  # bare semver, no `v` — see the trap below
-git push origin 3.0.0
+git tag 3.1.0                  # bare semver, no `v` — see the trap below
+git push origin 3.1.0
 ```
 
 The `test -f Package.swift` is the guard for exactly the mistake above: it fails
@@ -72,7 +72,7 @@ Use SSH URLs throughout. HTTPS git fails from the nRouter workspace.
 ## Consumers
 
 ```swift
-.package(url: "https://github.com/nRouterAI/nrouter-sdk.git", from: "3.0.0")
+.package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.0")
 ```
 
 Or in Xcode: **File → Add Package Dependencies** and paste that URL.

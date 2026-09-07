@@ -12,9 +12,10 @@ npm (see [Why `file:`](#why-file) below), so build the SDK first:
 
 ```bash
 cd ../../sdks/js && npm install && npm run build   # sdks/js/dist is gitignored
-cd -                                                # back to this directory
+cd -                                                # back to examples/demo-e2e-sdk-example
 npm install
-cp .env.example .env                                # then put your key in it
+cp .env.example .env                                # copy template to .env
+# Edit .env and set your NROUTER_API_KEY=sk-nrouter-...
 npm start
 ```
 
@@ -23,15 +24,22 @@ npm start
 
 ## Environment
 
-`.env.example` is the complete list; copy it to `.env`, which is gitignored.
+`.env.example` is the complete list; copy it to `.env` in this directory (`examples/demo-e2e-sdk-example/.env`), which is gitignored.
 
 | Variable | Required | Default | What it does |
 |---|---|---|---|
-| `NROUTER_API_KEY` | **yes** | — | Your `sk-nrouter-…` virtual key. Never commit it; this repo is public. |
-| `NROUTER_BASE_URL` | no | `https://api.nrouter.ai/v1` | Point at a local gateway for development. |
-| `NROUTER_MODEL` | no | `claude-fable-5` | Any model your key can reach. |
+| `NROUTER_API_KEY` | **yes** | — | Your `sk-nrouter-…` virtual key. Put this in `.env`. Never commit it; this repo is public. |
+| `NROUTER_BASE_URL` | no | `https://api.nrouter.ai/v1` | Point at a local gateway for development (`http://localhost:4000/v1`). |
+| `NROUTER_MODEL` | no | `claude-fable-5` | Any model your key can reach (e.g. `claude-fable-5` or `claude-haiku-4-5-20251001`). |
 | `NROUTER_PROMPT` | no | a question about unpriced costs | The prompt to send. |
 | `NROUTER_MAX_TOKENS` | no | `200` | Output ceiling — this is what you pay for. |
+
+### Local Docker Stack Notes
+When running against the local containerized stack:
+- The Rust gateway container (`nrouter-gw`) serves inference at `http://localhost:4000/v1` (health at `GET http://localhost:4000/health`).
+- The Next.js web application and dashboard (`nrouter-app-web`) serves at `http://localhost:3001` (where virtual keys can be created and spend logs viewed).
+- To test locally, ensure `NROUTER_BASE_URL=http://localhost:4000/v1` is set in your `.env`.
+
 
 <!-- nrouter-doc-wire: messages -->
 The default model is a Claude id, and the gateway serves Anthropic on `/v1/messages`

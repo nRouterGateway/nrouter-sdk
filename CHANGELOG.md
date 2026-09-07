@@ -9,6 +9,20 @@ Dates are the registry upload date, which is the only date a consumer can
 observe. Versions are immutable once published; nothing here is ever rewritten
 to correct a release, only appended to.
 
+## Coordinated SDK release — 3.1.0 — 2026-09-07
+
+- Coordinated release 3.1.0 across all ten SDKs.
+- Repository migration: updated repository metadata, SCM links, and distribution references to `nRouterGateway/nrouter-sdk`.
+- Go module path updated to `github.com/nRouterGateway/nrouter-sdk/sdks/go/v3`.
+- JavaScript / TypeScript (`@nrouter_ai/sdk`):
+  - Exported audio parameter and result types (`AudioSpeechParams`, `AudioTranscriptionParams`, etc.).
+  - Parameter validation for image and video requests before execution.
+  - Formatted video duration seconds as wire string expected by the gateway.
+  - Added runnable mock-gateway testing and e2e demo harness.
+- Java (`ai.nrouter:nrouter-sdk`): HTML entity escaping in `NRouterPrompts` javadoc.
+- Python (`nrouter-sdk`): dependency hygiene, mypy/ruff cleanups, spend-row metadata contract tests.
+- Conformance & CI: hardened cross-SDK conformance gate with dynamic SDK count scanning.
+
 ## Coordinated SDK release — 3.0.0 — 2026-09-04
 
 - Coordinated major release 3.0.0 across all ten SDKs.

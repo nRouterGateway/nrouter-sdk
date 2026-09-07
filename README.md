@@ -3,10 +3,10 @@
 [![npm](https://img.shields.io/npm/v/%40nrouter_ai%2Fsdk?logo=npm&label=%40nrouter_ai%2Fsdk)](https://www.npmjs.com/package/@nrouter_ai/sdk)
 [![PyPI](https://img.shields.io/pypi/v/nrouter-sdk?logo=pypi&logoColor=white&label=nrouter-sdk)](https://pypi.org/project/nrouter-sdk/)
 [![R-universe](https://nrouterai.r-universe.dev/nrouter/badges/version)](https://nrouterai.r-universe.dev/nrouter)
-[![Go Reference](https://pkg.go.dev/badge/github.com/nRouterAI/nrouter-sdk/sdks/go/v3.svg)](https://pkg.go.dev/github.com/nRouterAI/nrouter-sdk/sdks/go/v3)
+[![Go Reference](https://pkg.go.dev/badge/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3.svg)](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3)
 [![Socket](https://badge.socket.dev/npm/package/@nrouter_ai/sdk/latest)](https://socket.dev/npm/package/@nrouter_ai/sdk)
-[![npm publish](https://github.com/nRouterAI/nrouter-sdk/actions/workflows/publish-npm.yml/badge.svg)](https://github.com/nRouterAI/nrouter-sdk/actions/workflows/publish-npm.yml)
-[![PyPI publish](https://github.com/nRouterAI/nrouter-sdk/actions/workflows/publish-pypi.yml/badge.svg)](https://github.com/nRouterAI/nrouter-sdk/actions/workflows/publish-pypi.yml)
+[![npm publish](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/publish-npm.yml/badge.svg)](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/publish-npm.yml)
+[![PyPI publish](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/publish-pypi.yml/badge.svg)](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/publish-pypi.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 SDK and code examples for the [nRouter](https://nrouter.ai) LLM gateway.
@@ -20,19 +20,19 @@ Rust on crates.io, Dart / Flutter on pub.dev and R on R-universe are
 tags. Every SDK here is held to the same conformance and security gates.
 **Distribution does not broaden the support commitment.**
 
-⚠️ **Repository source is `3.0.0` for all ten, but four registry artifacts lag
+⚠️ **Repository source is `3.1.0` for all ten, but four registry artifacts lag
 that train** — Kotlin, Android and Rust serve `2.1.0`, Dart serves `2.1.1`. The
 install snippets below pin the version each registry *actually serves*, because
-asking for `3.0.0` there fails to resolve. Every version on this page was read
+asking for `3.1.0` there fails to resolve. Every version on this page was read
 from the registry on 2026-09-02; re-verify with the commands under
 [SDK Ecosystem & Status](#sdk-ecosystem--status) rather than trusting the
 number.
 
 | SDK | Registry | Registry URL | Package | Version |
 |---|---|---|---|---|
-| JavaScript / TypeScript | npm | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | `@nrouter_ai/sdk` | 3.0.0 |
-| Python | PyPI | [pypi.org/project/nrouter-sdk](https://pypi.org/project/nrouter-sdk/) | `nrouter-sdk` | 3.0.0 |
-| Java | Maven Central | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | `ai.nrouter:nrouter-sdk` | 3.0.0 |
+| JavaScript / TypeScript | npm | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | `@nrouter_ai/sdk` | 3.1.0 |
+| Python | PyPI | [pypi.org/project/nrouter-sdk](https://pypi.org/project/nrouter-sdk/) | `nrouter-sdk` | 3.1.0 |
+| Java | Maven Central | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | `ai.nrouter:nrouter-sdk` | 3.1.0 |
 
 All ten SDKs are held to the same public wire contract. The conformance gate
 accounts for all 150 route-ownership cells (15 routes × 10 SDKs): seven
@@ -216,7 +216,7 @@ System.out.println(res.choices().get(0).message().content());
 ### Swift
 ```swift
 // Swift Package Manager
-.package(url: "https://github.com/nRouterAI/nrouter-sdk.git", from: "3.0.0")
+.package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.0")
 ```
 ```swift
 import NRouter
@@ -322,9 +322,9 @@ nothing):
 | **Android** | Maven `ai.nrouter:nrouter-sdk-android:2.1.0` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android) | 🧪 PUBLIC PREVIEW — serves `2.1.0` | [`sdks/android/`](sdks/android/) | ✅ 9 codes | ✅ 14 headers |
 | **Rust** | `cargo add nrouter@2.1.0` | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | 🧪 PUBLIC PREVIEW — serves `2.1.0` | [`sdks/rust/`](sdks/rust/) | ✅ 9 codes | ✅ 14 headers |
 | **Dart / Flutter** | `dart pub add nrouter` | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | 🧪 PUBLIC PREVIEW — serves `2.1.1` | [`sdks/dart/`](sdks/dart/) | ✅ 9 codes | ✅ 14 headers |
-| **Swift** | SwiftPM, this repo's URL | [github.com/nRouterAI/nrouter-sdk](https://github.com/nRouterAI/nrouter-sdk) | ✅ git tag `3.0.0` | [`sdks/swift/`](sdks/swift/) | ✅ 9 codes | ✅ 14 headers |
+| **Swift** | SwiftPM, this repo's URL | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | ✅ git tag `3.1.0` | [`sdks/swift/`](sdks/swift/) | ✅ 9 codes | ✅ 14 headers |
 | **R** | `install.packages("nrouter", repos = c(nrouterai = "https://nrouterai.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nrouterai.r-universe.dev/nrouter](https://nrouterai.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW | [`sdks/r/`](sdks/r/) | ✅ 9 classed conditions | ✅ 14 headers |
-| **Go** | `go get github.com/nRouterAI/nrouter-sdk/sdks/go/v3@v3.0.0` | [pkg.go.dev/github.com/nRouterAI/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterAI/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.0.0` | [`sdks/go/`](sdks/go/) | ✅ 9 codes | ✅ 14 headers |
+| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.0` | [pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.1.0` | [`sdks/go/`](sdks/go/) | ✅ 9 codes | ✅ 14 headers |
 
 Verify any row rather than trusting it:
 
@@ -434,7 +434,7 @@ public `nrouter-sdk` repo, and the manifest uses `path:` to reach
 `sdks/swift/`, so the Swift sources stay beside the other eight. Consumers use:
 
 ```swift
-.package(url: "https://github.com/nRouterAI/nrouter-sdk.git", from: "3.0.0")
+.package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.0")
 ```
 
 ### Any Other Language (OpenAI SDK)
@@ -551,7 +551,7 @@ example for any of these without first adding the route to the gateway and the s
 | **Dart / Flutter (branded)** | `dart pub add nrouter` | [`sdks/dart/`](sdks/dart/) · [`examples/dart/quickstart.dart`](examples/dart/quickstart.dart) |
 | **R (branded)** | `install.packages("nrouter", repos = c(nrouterai = "https://nrouterai.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [`sdks/r/`](sdks/r/) · [`examples/r/quickstart.R`](examples/r/quickstart.R) |
 | **Node.js / TypeScript (plain openai)** | `npm install openai` | [`examples/typescript/node.ts`](examples/typescript/node.ts) |
-| **Go** | `go get github.com/nRouterAI/nrouter-sdk/sdks/go/v3@v3.0.0`, or plain `openai-go` | [`examples/go/quickstart.go`](examples/go/quickstart.go) |
+| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.0`, or plain `openai-go` | [`examples/go/quickstart.go`](examples/go/quickstart.go) |
 | **Java (plain openai-java)** | `com.openai:openai-java` | [`examples/java/quickstart.java`](examples/java/quickstart.java) |
 | **Ruby** | `gem install ruby-openai` | [`examples/ruby/quickstart.rb`](examples/ruby/quickstart.rb) |
 | **PHP** | `composer require openai-php/client` | [`examples/php/quickstart.php`](examples/php/quickstart.php) |
@@ -611,7 +611,7 @@ Python SDK captures these automatically in `client.last_response`. Other languag
 
 ## Structure
 
-This is the standalone public `nRouterAI/nrouter-sdk` repository:
+This is the standalone public `nRouterGateway/nrouter-sdk` repository:
 
 ```
 nrouter-sdk/

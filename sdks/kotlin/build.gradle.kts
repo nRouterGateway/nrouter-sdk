@@ -69,11 +69,11 @@ publishing {
                     }
                 }
                 scm {
-                    connection.set("scm:git:https://github.com/nRouterAI/nrouter-sdk.git")
+                    connection.set("scm:git:https://github.com/nRouterGateway/nrouter-sdk.git")
                     // The WRITE path. HTTPS git does not work from the nRouter
                     // workspace, so a release tag/push must travel SSH.
-                    developerConnection.set("scm:git:ssh://git@github.com/nRouterAI/nrouter-sdk.git")
-                    url.set("https://github.com/nRouterAI/nrouter-sdk")
+                    developerConnection.set("scm:git:ssh://git@github.com/nRouterGateway/nrouter-sdk.git")
+                    url.set("https://github.com/nRouterGateway/nrouter-sdk")
                 }
             }
         }

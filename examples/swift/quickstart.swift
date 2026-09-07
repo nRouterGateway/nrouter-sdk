@@ -8,7 +8,7 @@
 // 4. Custom base URL & configuration
 //
 // Swift Package Manager:
-// .package(url: "https://github.com/nRouterAI/nrouter-sdk.git", from: "2.1.0")
+// .package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.0")
 
 import Foundation
 import NRouter

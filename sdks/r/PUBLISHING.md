@@ -85,7 +85,7 @@ badge — which is the point.
 ## Meanwhile: install from GitHub
 
 ```r
-remotes::install_github("nRouterAI/nrouter-sdk", subdir = "sdks/r")
+remotes::install_github("nRouterGateway/nrouter-sdk", subdir = "sdks/r")
 ```
 
 `subdir` is required because the package lives at `sdks/r` inside the public

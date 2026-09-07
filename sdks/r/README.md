@@ -2,13 +2,13 @@
 
 [![R-universe version](https://nrouterai.r-universe.dev/nrouter/badges/version)](https://nrouterai.r-universe.dev/nrouter)
 [![R-universe checks](https://nrouterai.r-universe.dev/nrouter/badges/checks)](https://nrouterai.r-universe.dev/nrouter)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/nRouterAI/nrouter-sdk/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/nRouterGateway/nrouter-sdk/blob/main/LICENSE)
 
 One API key for models across six provider clouds. There is no official OpenAI
 SDK for R, so this package calls the gateway's HTTP API directly via `httr`.
 
 **Registry & Package URL:** [https://nrouterai.r-universe.dev/nrouter](https://nrouterai.r-universe.dev/nrouter)  
-**Registry Status:** 🧪 Public Preview on R-universe (Package `nrouter` v3.0.0)
+**Registry Status:** 🧪 Public Preview on R-universe (Package `nrouter` v3.1.0)
 
 ```r
 # Public preview from R-universe.
@@ -24,7 +24,7 @@ install.packages(
 For a development install directly from the monorepo:
 
 ```r
-remotes::install_github("nRouterAI/nrouter-sdk", subdir = "sdks/r")
+remotes::install_github("nRouterGateway/nrouter-sdk", subdir = "sdks/r")
 ```
 
 ## Authentication & Setup

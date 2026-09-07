@@ -2,8 +2,8 @@
 
 [![PyPI](https://img.shields.io/pypi/v/nrouter-sdk?logo=pypi&logoColor=white&label=nrouter-sdk)](https://pypi.org/project/nrouter-sdk/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/nrouter-sdk.svg)](https://pypi.org/project/nrouter-sdk/)
-[![CI](https://github.com/nRouterAI/nrouter-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/nRouterAI/nrouter-sdk/actions/workflows/ci.yml)
-[![PyPI publish](https://github.com/nRouterAI/nrouter-sdk/actions/workflows/publish-pypi.yml/badge.svg)](https://github.com/nRouterAI/nrouter-sdk/actions/workflows/publish-pypi.yml)
+[![CI](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/ci.yml)
+[![PyPI publish](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/publish-pypi.yml/badge.svg)](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/publish-pypi.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 The official Python client library for the [nRouter](https://nrouter.ai) LLM gateway.

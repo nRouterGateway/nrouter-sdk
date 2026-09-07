@@ -1,6 +1,6 @@
 {
   "name": "@nrouter_ai/sdk",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "nRouter SDK — one API key for models across six provider clouds. Native OpenAI and Anthropic wire formats, plus embeddings, audio, images and video.",
   "license": "MIT",
   "engines": {
@@ -52,11 +52,11 @@
   "homepage": "https://nrouter.ai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nRouterAI/nrouter-sdk.git",
+    "url": "git+https://github.com/nRouterGateway/nrouter-sdk.git",
     "directory": "sdks/js"
   },
   "bugs": {
-    "url": "https://github.com/nRouterAI/nrouter-sdk/issues"
+    "url": "https://github.com/nRouterGateway/nrouter-sdk/issues"
   },
   "publishConfig": {
     "access": "public"

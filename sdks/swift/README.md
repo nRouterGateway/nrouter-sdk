@@ -6,7 +6,7 @@ URLSession and async/await only.
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/nRouterAI/nrouter-sdk.git", from: "3.0.0")
+    .package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.0")
 ]
 ```
 
@@ -16,12 +16,12 @@ Or in Xcode: **File → Add Package Dependencies** and paste the URL.
 > It is not visible on Swift Package Index yet. [Issue #15033](https://github.com/SwiftPackageIndex/PackageList/issues/15033) is still open, and its automatic PR has not been created.
 >
 > Once accepted and indexed, the package page should be:
-> [swiftpackageindex.com/nrouterai/nrouter-sdk](https://swiftpackageindex.com/nrouterai/nrouter-sdk)
+> [swiftpackageindex.com/nroutergateway/nrouter-sdk](https://swiftpackageindex.com/nroutergateway/nrouter-sdk)
 >
 > You can use the package in Xcode immediately, without waiting for indexing:
 > 1. Select **File → Add Package Dependencies...**
-> 2. Paste `https://github.com/nRouterAI/nrouter-sdk.git`
-> 3. Select version `3.0.0`
+> 2. Paste `https://github.com/nRouterGateway/nrouter-sdk.git`
+> 3. Select version `3.1.0`
 > 4. Add the `NRouter` product.
 >
 > Swift Package Index is only a discovery and compatibility-testing service; the package itself already comes directly from GitHub.

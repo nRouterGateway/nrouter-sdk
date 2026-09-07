@@ -6,7 +6,7 @@
 
     <groupId>ai.nrouter</groupId>
     <artifactId>nrouter-sdk</artifactId>
-    <version>3.0.0</version>
+    <version>3.1.0</version>
     <packaging>jar</packaging>
 
     <name>nRouter SDK</name>
@@ -31,9 +31,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/nRouterAI/nrouter-sdk.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/nRouterAI/nrouter-sdk.git</developerConnection>
-        <url>https://github.com/nRouterAI/nrouter-sdk</url>
+        <connection>scm:git:https://github.com/nRouterGateway/nrouter-sdk.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/nRouterGateway/nrouter-sdk.git</developerConnection>
+        <url>https://github.com/nRouterGateway/nrouter-sdk</url>
     </scm>
 
     <properties>

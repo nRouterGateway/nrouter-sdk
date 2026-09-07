@@ -87,7 +87,7 @@ done
 
 curl -s -H 'User-Agent: nrouter-check' https://crates.io/api/v1/crates/nrouter | python3 -c 'import sys,json;print("crates.io",json.load(sys.stdin)["crate"]["max_version"])'
 curl -s https://pub.dev/api/packages/nrouter | python3 -c 'import sys,json;print("pub.dev",json.load(sys.stdin)["latest"]["version"])'
-curl -s https://proxy.golang.org/github.com/n!router!a!i/nrouter-sdk/sdks/go/v2/@latest
+curl -s https://proxy.golang.org/github.com/n!router!gateway/nrouter-sdk/sdks/go/v3/@latest
 curl -s https://nrouterai.r-universe.dev/src/contrib/PACKAGES | grep -A1 '^Package: nrouter$'
 ```
 
@@ -113,7 +113,7 @@ workflow FILENAME against the trusted publisher registered on the package.
 updated to match. That is the security property.
 
 The registration itself lives at npmjs.com > `@nrouter_ai/sdk` > Settings >
-Trusted Publisher > GitHub Actions — organization `nRouterAI`, repository
+Trusted Publisher > GitHub Actions — organization `nRouterGateway`, repository
 `nrouter-sdk`, workflow filename `publish-npm.yml`, environment **empty** (the
 job declares none, and a name here would never match). Editing it requires an
 interactive 2FA challenge, so no automation can do it.
