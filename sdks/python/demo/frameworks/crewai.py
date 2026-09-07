@@ -5,16 +5,18 @@
 
 import os
 from nroutersdk import nRouter
-
-os.environ["OPENAI_API_KEY"] = os.environ["NROUTER_API_KEY"]
-os.environ["OPENAI_API_BASE"] = "https://api.nrouter.ai/v1"
-
-from crewai import Agent, Task, Crew
+from crewai import Agent, Task, Crew, LLM
 
 # nRouter SDK for guardrails, credits, prompts.
-# CrewAI uses env vars (OPENAI_API_KEY/OPENAI_API_BASE) for LLM calls.
 client = nRouter()  # reads NROUTER_API_KEY from env
 MODEL = "gpt-5.4-mini"
+
+# Configure modern CrewAI LLM instance targeting nRouter gateway (no env pollution)
+nrouter_llm = LLM(
+    model=f"openai/{MODEL}",
+    base_url="https://api.nrouter.ai/v1",
+    api_key=os.environ["NROUTER_API_KEY"],
+)
 
 # ━━━ 1. SEE WHAT THIS KEY CAN REACH ━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -27,22 +29,19 @@ print("Models:", [m.id for m in client.models.list().data])
 
 # ━━━ 2. MULTI-MODEL AGENTS (each can use a different model) ━
 
-# Every agent below goes through LiteLLM/OpenAI chat-completions, so the model
-# must belong to a provider that serves that wire.
 researcher = Agent(
     role="Researcher",
     goal="Find accurate information about a topic",
     backstory="You are an expert researcher with attention to detail.",
-    llm="gpt-5.4-mini",
+    llm=nrouter_llm,
     verbose=True,
 )
 
-# Writer uses GPT-4o (best for creative writing)
 writer = Agent(
     role="Writer",
     goal="Write clear, engaging content",
     backstory="You are a skilled technical writer.",
-    llm="gpt-5.4-mini",
+    llm=nrouter_llm,
     verbose=True,
 )
 

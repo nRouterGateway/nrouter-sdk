@@ -1,16 +1,18 @@
 # nRouter — AutoGen (Microsoft) Integration
 # Multi-agent conversations with guardrails on every message.
 #
-# pip install autogen-agentchat nroutersdk
+# pip install autogen-agentchat autogen-ext[openai] nroutersdk
 
+import asyncio
 import os
 from nroutersdk import nRouter
+from autogen_agentchat.agents import AssistantAgent
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 
 NROUTER_BASE = "https://api.nrouter.ai"
 NROUTER_KEY = os.environ["NROUTER_API_KEY"]
 
 # nRouter SDK for guardrails, credits, prompts.
-# AutoGen uses config_list for LLM calls pointed at nRouter.
 client = nRouter()  # reads NROUTER_API_KEY from env
 MODEL = "gpt-5.4-mini"
 
@@ -23,63 +25,40 @@ print("Models:", [m.id for m in client.models.list().data])
 # applied server-side to every request. There is deliberately no client call to
 # list or override them — a request cannot opt out of its own org's policy.
 
-# ━━━ 2. MULTI-MODEL CONFIG (use different models per agent) ━
+# ━━━ 2. MODERN MODEL CLIENT (Microsoft AutoGen v0.4+) ━━━━━
 
-config_list = [
-    {
-        "model": "gpt-5.4-mini",
-        "api_key": NROUTER_KEY,
-        "base_url": f"{NROUTER_BASE}/v1",
-    },
-    {
-        "model": "gpt-5.4-mini",
-        "api_key": NROUTER_KEY,
-        "base_url": f"{NROUTER_BASE}/v1",
-    },
-]
+async def main():
+    model_client = OpenAIChatCompletionClient(
+        model=MODEL,
+        base_url=f"{NROUTER_BASE}/v1",
+        api_key=NROUTER_KEY,
+        model_info={
+            "vision": False,
+            "function_calling": True,
+            "json_output": True,
+            "family": "unknown",
+            "max_tokens": 1024,
+        },
+    )
 
-from autogen import AssistantAgent, UserProxyAgent
+    # ━━━ 3. AGENTS WITH SERVER-SIDE GUARDRAIL PROTECTION ━━━━━━━
 
-# ━━━ 3. AGENTS WITH GUARDRAIL PROTECTION ━━━━━━━━━━━━━━━━━━
+    assistant = AssistantAgent(
+        name="coding_assistant",
+        model_client=model_client,
+        system_message="You are an enterprise AI coding specialist.",
+    )
 
-assistant = AssistantAgent(
-    name="assistant",
-    llm_config={"config_list": config_list},
-    system_message="You are a helpful coding assistant.",
-)
+    # Every message between agents is checked by guardrails.
+    # Cache, guardrails, and rate limits auto-apply from org config.
+    # PII in agent conversations → blocked.
+    # Prompt injection in agent prompts → blocked.
 
-user_proxy = UserProxyAgent(
-    name="user",
-    human_input_mode="NEVER",
-    max_consecutive_auto_reply=3,
-)
+    response = await assistant.run(task="Write a Python function that validates email addresses.")
+    print(response.messages[-1].content)
 
-# Every message between agents is checked by guardrails.
-# Cache, guardrails, and rate limits auto-apply from org config.
-# PII in agent conversations → blocked.
-# Prompt injection in agent prompts → blocked.
-
-# Guardrails are assigned per key, team or org in the dashboard and apply
-# automatically — the narrowest assignment wins. There is no per-request
-# override to send in the body.
-
-# Per-request overrides:
-# AutoGen does not support extra body fields natively — use the nRouter SDK
-# for per-request control:
-#   response = client.nrouter.chat(
-#       messages=[{"role": "user", "content": "..."}],
-#       prompt_template_id="your-summarizer-id",
-#       prompt_variables={"language": "Spanish"},
-#   )
-# Or use cURL with these fields in the JSON body:
-#   "nrouter_prompt_template_id": "your-summarizer-id"
-#   "nrouter_prompt_variables": {"language": "Spanish", "max_length": "100"}
-#   "nrouter_cache": false   // disable cache for this request
-
-user_proxy.initiate_chat(
-    assistant,
-    message="Write a Python function that validates email addresses.",
-)
+if __name__ == "__main__":
+    asyncio.run(main())
 
 # ━━━ 4. WHAT THAT COST ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
