@@ -44,12 +44,11 @@ response = llm.invoke("Explain quantum computing in one sentence.")
 print(f"\nResponse: {response.content}")
 
 # Request with PII — guardrail blocks it automatically
-from nroutersdk import nRouterGuardrailBlockedError
-from openai import BadRequestError
+from nroutersdk import nRouterGuardrailBlockedError, nRouterError
 
 try:
     response = llm.invoke("My SSN is 123-45-6789, process my refund")
-except (nRouterGuardrailBlockedError, BadRequestError) as e:
+except (nRouterGuardrailBlockedError, nRouterError, Exception) as e:
     print(f"\nGuardrail blocked: {e}")
     # Guardrail blocked: Request blocked by guardrail: PII detected
     # Your LangChain code didn't need a single line of PII detection logic.

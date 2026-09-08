@@ -254,6 +254,32 @@ print("Budget Warning:    ", meta.budget_warning)     # "org soft_budget 80.00/1
 
 > **Note on Cost Accuracy:** Unpriced models return `cost=None` and `cost_status="unpriced"`. Never treat `None` as `$0.00` — free routes (like `/v1/messages/count_tokens`) emit no cost header, while billable inferences always track usage.
 
+### 6. Autonomous Agents (Native nRouter SDK)
+
+Build autonomous, multi-turn agents combining function calling, conversation memory, and telemetry with **zero external framework dependencies** (no LangChain, AutoGen, CrewAI, or raw OpenAI packages needed):
+
+```python
+from nroutersdk import nRouter, create_memory
+
+# Client-side multi-turn memory
+memory = create_memory()
+
+# Autonomous agent loop using native nRouter client
+with nRouter() as client:
+    response = client.chat.completions.create(
+        model="gpt-5.4-mini",
+        messages=await memory.messages(),
+        tools=TOOLS,
+    )
+    # Every turn automatically captures exact USD cost and latency
+    meta = client.last_response
+    print(f"Cost: ${meta.cost:.6f} | Request ID: {meta.request_id}")
+```
+
+Runnable demos:
+- [`sdks/python/demo/agent.py`](demo/agent.py): Complete autonomous agent with dynamic tool dispatch, guardrail protection, and per-turn spend telemetry (`--dry-run` and `--live`).
+- [`sdks/python/demo/13_multi_agent_workflow.py`](demo/13_multi_agent_workflow.py): Role-based multi-agent collaboration (Researcher + Writer) with independent memory states and spend tracking.
+
 ---
 
 ## Error Handling

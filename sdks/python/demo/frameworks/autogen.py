@@ -1,6 +1,12 @@
 # nRouter — AutoGen (Microsoft) Integration
 # Multi-agent conversations with guardrails on every message.
 #
+# NOTE: For conversational and collaborative agents built natively with zero
+# framework overhead, direct telemetry (client.last_response), and no OpenAI wrapper,
+# see the native SDK agent examples:
+#   - `sdks/python/demo/agent.py`: Autonomous agent with tools and memory.
+#   - `sdks/python/demo/13_multi_agent_workflow.py`: Role-based multi-agent collaboration.
+#
 # pip install autogen-agentchat autogen-ext[openai] nroutersdk
 
 import asyncio

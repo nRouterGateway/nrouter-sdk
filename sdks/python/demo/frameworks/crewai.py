@@ -1,6 +1,12 @@
 # nRouter — CrewAI Integration
 # Multi-agent workflows with guardrails on every agent call.
 #
+# NOTE: For building multi-agent workflows natively with zero framework overhead,
+# direct telemetry (client.last_response), and no OpenAI wrapper, see the native
+# SDK agent examples:
+#   - `sdks/python/demo/agent.py`: Autonomous agent with tools and memory.
+#   - `sdks/python/demo/13_multi_agent_workflow.py`: Role-based multi-agent collaboration.
+#
 # pip install crewai nroutersdk
 
 import os
