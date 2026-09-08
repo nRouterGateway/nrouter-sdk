@@ -27,16 +27,33 @@ The live mode defaults to `claude-haiku-4-5-20251001`. Override with:
 NROUTER_DEMO_MODEL=claude-sonnet-4-5-20250929 node demo/agent.js --live
 ```
 
+### Interactive Terminal Agent & Web UI
+
+For interactive multi-turn conversation and voice testing:
+
+```bash
+# Multi-turn conversational CLI agent (supports /voice on, /model <id>, /history, /clear)
+node demo/interactive-agent.mjs --live
+
+# Or launch directly with voice synthesis enabled:
+node demo/interactive-agent.mjs --live --voice
+
+# Browser UI (multi-turn chat, SSE streaming, microphone input, and audio playback)
+node demo/ui/server.js
+# Open http://127.0.0.1:4317
+```
+
 ## Available Demos & Suites
 
 ### 1. Interactive CLI & Web Demos
+- `interactive-agent.mjs`: Multi-turn conversational CLI agent with streaming token delivery, optional speech synthesis playback (`/voice on`), runtime model switching (`/model <id>`), latency and cost tracking per turn, and session summaries.
+- `ui/server.js`: Local conversational web UI running on `http://127.0.0.1:4317` with multi-turn message history, live SSE token streaming, browser microphone speech recognition (`SpeechRecognition`), audio replay for synthesized speech, and test suite runners.
 - `agent.js`: Interactive agent verifying model discovery, chat/messages, response metadata, and guardrails.
 - `aggressive-agent-test.js`: Stressed execution against cost targets or request limits.
 - `feature-spend-test.js`: Feature billing verification across embeddings, images, speech, transcription, and video.
 - `log-error-test.js`: Error path verification and logging.
 - `metric-reconciliation-test.js`: Token & cost metric reconciliation.
 - `performance-reconciliation-test.js`: Latency and throughput reconciliation.
-- `ui/server.js`: Local lightweight web UI running on `http://127.0.0.1:4317`.
 
 ### 2. Standalone Quickstarts & Frameworks
 - `quickstart.js`: Vanilla JavaScript quickstart.

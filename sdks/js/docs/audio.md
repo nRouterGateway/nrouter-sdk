@@ -190,6 +190,10 @@ A runnable version, with a per-call cost table and a session total that reports
 `TOTAL INCOMPLETE` the moment any leg comes back unpriced, is at
 [`demo/voice-agent/`](../demo/voice-agent/).
 
+For interactive testing and building conversational voice agents:
+- **Interactive Terminal Agent**: [`demo/interactive-agent.mjs`](../demo/interactive-agent.mjs) runs a conversational REPL in your terminal with streaming text, turn latency/cost tracking, and optional speech synthesis playback (`node demo/interactive-agent.mjs --live --voice`).
+- **Interactive Web UI**: [`demo/ui/server.js`](../demo/ui/server.js) serves a browser interface on `http://127.0.0.1:4317` with browser microphone input (`SpeechRecognition`), real-time SSE streaming, voice turn generation, and instant audio replay.
+
 Two things worth copying from it. Latency is the sum of the legs, and each leg
 reports its own on `meta.latencyMs` — milliseconds from the gateway's edge until
 that response's headers were ready, present on every response — so the STT model

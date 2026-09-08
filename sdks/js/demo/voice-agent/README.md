@@ -221,6 +221,16 @@ headers. Seven runs, no key, no network, about a second:
 The suite also runs as step 3 of `tests/demo-e2e-record.test.sh`, and in its
 `--mock-only` mode, which is the whole-repo gate that needs no key and no network.
 
+## Interactive Companions: Terminal Agent & Web UI
+
+If you want an interactive human-in-the-loop voice experience rather than an automated verification loop:
+
+- **Interactive CLI Agent**: [`demo/interactive-agent.mjs`](../interactive-agent.mjs)
+  Run `node demo/interactive-agent.mjs --live --voice` to chat in your terminal with streaming text, per-turn timing and cost breakdowns, and live speech audio playback. You can switch models at runtime (`/model <id>`), toggle voice playback (`/voice on|off`), inspect conversation history (`/history`), or clear context (`/clear`).
+
+- **Interactive Web UI**: [`demo/ui/server.js`](../ui/server.js)
+  Start the local server (`node demo/ui/server.js`) and open `http://127.0.0.1:4317`. It provides an interactive conversational UI with chat bubbles, real-time SSE streaming, browser microphone input (`SpeechRecognition`), and instant audio replay for synthesized speech turns.
+
 ## What this example does not do
 
 Stated plainly, because an example that quietly omits things teaches the omission:

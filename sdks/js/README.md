@@ -268,18 +268,18 @@ tests execute because they cannot strip TypeScript syntax from `.ts` test files.
 
 ## Examples And Live Diagnostics
 
-The repo includes JavaScript examples for manual SDK checks:
+The repo includes JavaScript examples and interactive tools for manual SDK checks:
 
 ```bash
 npm run build
 node demo/agent.js --live
-node demo/feature-spend-test.js
+node demo/interactive-agent.mjs --live --voice
 node demo/ui/server.js
 ```
 
-`demo/ui/server.js` starts a browser UI at `http://127.0.0.1:4317`. The browser
-does not receive the API key; the local Node server reads `NROUTER_API_KEY` and
-calls the built SDK package.
+`demo/interactive-agent.mjs` provides an interactive terminal REPL with multi-turn chat, streaming tokens, model switching, per-turn latency/cost tracking, and optional speech synthesis playback (`--voice`).
+
+`demo/ui/server.js` starts a conversational browser UI at `http://127.0.0.1:4317` with real-time SSE streaming, speech recognition via browser microphone, audio replay for voice synthesis, and one-click test suite execution. The browser does not receive the API key; the local Node server reads `NROUTER_API_KEY` and calls the built SDK package.
 
 See [`demo/README.md`](demo/README.md) for commands and
 [`docs/live-sdk-agent-report.md`](./docs/live-sdk-agent-report.md) for the latest
