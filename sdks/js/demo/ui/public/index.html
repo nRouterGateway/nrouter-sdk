@@ -21,9 +21,44 @@
         <span>Not checked yet</span>
       </section>
 
+      <!-- Interactive Conversational Agent (Voice & Chat) -->
+      <section class="chatContainer">
+        <div class="chatHeader">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h2 style="font-size: 16px;">💬 Interactive Voice & Agent Demo</h2>
+            <span style="font-size: 12px; color: var(--muted);">(Multi-turn • Live Voice & Streaming)</span>
+          </div>
+          <div class="chatStats">
+            <span class="statBadge cost" id="sessionCostBadge">💰 $0.000000</span>
+            <span class="statBadge" id="sessionTurnsBadge">🔄 0 turns</span>
+            <span class="statBadge" id="sessionTokensBadge">🔤 0 tokens</span>
+            <button id="clearChatBtn" type="button" style="min-height: 28px; padding: 2px 10px; font-size: 12px; background: #64748b; border-color: #475569;">Clear</button>
+          </div>
+        </div>
+
+        <div class="chatMessages" id="chatMessages">
+          <div class="chatBubble assistant">
+            <div>👋 <strong>nRouter Voice & Agent Ready.</strong> Type a message, use <strong>Send Voice</strong> to hear spoken responses, or click <strong>🎙️ Talk</strong> to speak directly into your microphone!</div>
+            <div class="chatBubbleMeta">
+              <span>Model: claude-haiku-4-5-20251001</span>
+              <span>Wire: /v1/messages</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="chatInputBar">
+          <button type="button" id="micBtn" class="micBtn" title="Speak through microphone">🎙️ Talk</button>
+          <input id="chatInput" type="text" placeholder="Type your message or question... (Press Enter to Send Voice)" />
+          <button type="button" id="sendVoiceBtn" style="background: #0e7090; border-color: #0891b2;" title="Run Speech-to-Text → Chat → Text-to-Speech loop">🔊 Send Voice</button>
+          <button type="button" id="sendStreamBtn" style="background: #0b63ce; border-color: #084c9e;" title="Stream tokens live via SSE">⚡ Stream</button>
+          <button type="button" id="sendChatBtn" style="background: #334155; border-color: #1e293b;" title="Standard buffered chat">💬 Send</button>
+        </div>
+      </section>
+
+      <!-- Advanced Configuration & Direct Wire Testers -->
       <section class="grid">
         <form class="panel" id="chatForm">
-          <h2>Agent Request</h2>
+          <h2>Direct Wire Configuration</h2>
           <label>
             Model
             <!-- nrouter-doc-wire: messages -->
@@ -31,30 +66,67 @@
           </label>
           <label>
             System prompt
-            <textarea id="systemPrompt" name="systemPrompt" rows="3">You are a concise SDK test agent.</textarea>
+            <textarea id="systemPrompt" name="systemPrompt" rows="2">You are a concise voice and chat assistant.</textarea>
           </label>
           <label>
-            User prompt
-            <textarea id="prompt" name="prompt" rows="5">Reply with exactly: SDK UI OK</textarea>
+            Direct prompt
+            <textarea id="prompt" name="prompt" rows="3">Reply with exactly: SDK UI OK</textarea>
           </label>
           <label>
             Max tokens
             <input id="maxTokens" name="maxTokens" type="number" min="1" max="4096" value="128" />
           </label>
           <div class="actions">
-            <button type="submit" data-endpoint="/api/chat">Run chat</button>
-            <button type="button" id="messagesBtn">Run messages</button>
-            <button type="button" id="guardrailBtn">Guardrail check</button>
+            <button type="submit" id="chatBtn" data-endpoint="/api/chat">Direct Chat</button>
+            <button type="button" id="streamBtn">Direct Stream</button>
+            <button type="button" id="messagesBtn">Direct Messages</button>
+            <button type="button" id="guardrailBtn">Guardrail Check</button>
           </div>
         </form>
 
         <section class="panel">
           <div class="panelHead">
-            <h2>Models</h2>
-            <button id="modelsBtn" type="button">List</button>
+            <h2>Available Models</h2>
+            <button id="modelsBtn" type="button">Refresh</button>
           </div>
           <div id="models" class="list muted">No models loaded</div>
         </section>
+      </section>
+
+      <!-- Voice Agent Section -->
+      <section class="panel voicePanel" style="margin-top: 16px;">
+        <div class="panelHead">
+          <h2>Voice Agent Demo (Three Billed Wires: STT → Chat → TTS)</h2>
+          <span class="muted" style="font-size: 13px;">Speech-to-Text • Chat LLM • Text-to-Speech</span>
+        </div>
+        <form id="voiceForm" style="display: grid; gap: 12px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+            <label>
+              Speech Model (TTS)
+              <input id="speechModel" value="tts-1" />
+            </label>
+            <label>
+              Voice
+              <input id="speechVoice" value="alloy" />
+            </label>
+            <label>
+              Transcribe Model (STT)
+              <input id="transcribeModel" value="gpt-4o-mini-transcribe" />
+            </label>
+          </div>
+          <label>
+            Caller Spoken Line
+            <textarea id="voicePrompt" rows="2">Hi, I'd like to check on my order. Can you tell me whether it has shipped yet?</textarea>
+          </label>
+          <div class="actions">
+            <button type="button" id="voiceTurnBtn" style="background: #0e7090; border-color: #0891b2;">Run Voice Turn (STT → Chat → TTS)</button>
+            <button type="button" id="voiceSuiteBtn" style="background: #475569; border-color: #334155;">Run Voice Certification (7 Tests)</button>
+          </div>
+          <div id="audioContainer" style="display: none; padding: 12px; border-radius: 6px; background: #f0fdf4; border: 1px solid #bbf7d0;">
+            <div style="font-weight: 600; margin-bottom: 6px; color: #166534;">Assistant Synthesized Audio:</div>
+            <audio id="voiceAudio" controls style="width: 100%;"></audio>
+          </div>
+        </form>
       </section>
 
       <section class="panel outputPanel">
