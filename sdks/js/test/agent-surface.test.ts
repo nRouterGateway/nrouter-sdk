@@ -185,8 +185,9 @@ test('PGSDK-101: parsed() returns the decoded object for a conforming reply', ()
 });
 
 test('PGSDK-101: parsed() REFUSES prose rather than throwing a bare SyntaxError', () => {
-  // The Anthropic wire drops `response_format` (OPENAI_ONLY_FIELDS), so a
-  // Claude model answers a schema request in prose. The failure must name that.
+  // A non-conforming 200 is a billed answer in the wrong shape, whatever wire
+  // served it. The failure must be typed and carry the request id, not a bare
+  // SyntaxError.
   const res = {
     body: { choices: [{ message: { role: 'assistant', content: 'Sure! Here you go:' } }] },
     meta: { requestId: 'req_1' },
@@ -202,6 +203,36 @@ test('PGSDK-101: parsed() REFUSES prose rather than throwing a bare SyntaxError'
   assert.ok(err, 'parsed() accepted prose as a structured response');
   assert.equal(err.kind, 'configuration');
   assert.match(String(err.message), /JSON/i);
+});
+
+// `parsed()` is wire-agnostic — it reads a decoded response and has no idea
+// which wire served it. It used to hand every caller an Anthropic-specific
+// diagnostic saying a `jsonSchema` request "is sent there with the schema
+// dropped, so the model was never constrained". That is now false in BOTH
+// directions: `refuseUnservableOnMessagesWire` refuses such a request before it
+// leaves, so nothing is sent with the schema dropped; and on an OpenAI-wire
+// model — where this failure actually lands — it sends the caller looking for
+// an Anthropic drop that never happened while the real cause (a model that did
+// not comply with a schema it WAS given) goes unnamed.
+test('parsed() does not blame a wire it cannot see for a non-conforming reply', () => {
+  const res = {
+    body: { choices: [{ message: { role: 'assistant', content: 'Sure! Here you go:' } }] },
+    meta: { requestId: 'req_2' },
+  };
+  const err = (() => {
+    try {
+      parsed(res);
+      return null;
+    } catch (e) {
+      return e as any;
+    }
+  })();
+  assert.ok(err, 'parsed() accepted prose as a structured response');
+  const message = String(err.message);
+  assert.doesNotMatch(message, /Anthropic/i, `parsed() blames Anthropic: ${message}`);
+  assert.doesNotMatch(message, /schema dropped/i, `parsed() claims a drop: ${message}`);
+  // It must still say what was received, which is the part that debugs.
+  assert.match(message, /Sure! Here you go/);
 });
 
 // --- PGSDK-105: the /mcp surface ------------------------------------------

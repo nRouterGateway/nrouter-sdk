@@ -463,6 +463,15 @@ export function refuseUnservableOnMessagesWire(body: Record<string, unknown>): v
     // caller had already declined and blocked a body this wire carries exactly
     // as asked.
     if (body[field] === undefined || body[field] === null || body[field] === false) continue;
+    // `response_format: { type: 'text' }` is the SAME declining written the
+    // other way, and it is the form the OpenAI SDK itself emits. It asks for
+    // free-form prose — which is exactly and only what this wire returns — so
+    // refusing it blocked a request Anthropic serves as asked, and did so with
+    // a message ("the answer would come back as free-form prose") naming the
+    // outcome the caller had just requested as the reason. Only a
+    // `response_format` asking for a CONSTRAINED shape (`json_object`,
+    // `json_schema`) is unservable here.
+    if (field === 'response_format' && asObject(body[field])?.['type'] === 'text') continue;
     throw configurationError(
       `this model answers on the Anthropic Messages wire and cannot carry ` +
         `${field}: ${why}. Remove ${field}, or call an OpenAI-wire model. ` +
@@ -663,8 +672,13 @@ export function toAnthropicMessagesRequest(
       if (serial) choice['disable_parallel_tool_use'] = true;
       out['tool_choice'] = choice;
     } else if (serial) {
-      // tool_choice: 'none' omits tools entirely, so there is nothing to
-      // serialise the calls of. Report it rather than losing it.
+      // Reached when the caller named a choice this wire cannot express — an
+      // unrecognised string, or a `{type:'function'}` object with no name — so
+      // `toolChoiceToAnthropic` returned undefined and the guard above refuses
+      // to default an EXPLICIT choice to `auto`. With no `tool_choice` object
+      // on the wire there is nothing to hang `disable_parallel_tool_use` on.
+      // (Not `tool_choice: 'none'`: that sets `toolsSuppressed` and is handled
+      // by the outer `else`, which reports both fields.)
       dropped.push('parallel_tool_calls');
     }
   } else {
@@ -889,7 +903,6 @@ function toolsToAnthropic(tools: unknown): Record<string, unknown>[] | undefined
   return out.length > 0 ? out : undefined;
 }
 
-/** OpenAI `tool_choice` → Anthropic `tool_choice`. */
 /**
  * Fold adjacent same-role turns into one, because this wire rejects them.
  *
@@ -934,6 +947,14 @@ function asBlocks(content: unknown): Record<string, unknown>[] {
   return [];
 }
 
+/**
+ * OpenAI `tool_choice` → Anthropic `tool_choice`.
+ *
+ * `undefined` means TWO different things and the caller must separate them:
+ * no choice was given, or a choice was given that this wire cannot express
+ * (`'none'`, which Anthropic encodes by omitting the tools, and any
+ * unrecognised value). Only the first may be defaulted.
+ */
 function toolChoiceToAnthropic(choice: unknown): Record<string, unknown> | undefined {
   if (choice === 'auto') return { type: 'auto' };
   if (choice === 'required') return { type: 'any' };
@@ -1007,16 +1028,20 @@ export function chatText(res: NRouterResponse<Record<string, unknown>>): string 
  * is actually done — asking for a schema and not getting decoding enforcement
  * is the half-measure that pushes the failure out here.
  *
- * ⚠️ The Anthropic arm of this used to read differently and is now WRONG:
- * `response_format` is on `OPENAI_ONLY_FIELDS` above, so a `jsonSchema` request
- * against a Claude model was once translated WITH THE SCHEMA DROPPED and this
- * function was the only thing between the caller and a `JSON.parse` of prose.
- * It is no longer sent that way — `refuseUnservableOnMessagesWire` raises a
+ * ⚠️ WIRE-AGNOSTIC, and the failure message must stay that way. This function
+ * reads a decoded response and cannot see which wire served it. It used to say
+ * so anyway: `response_format` is on `OPENAI_ONLY_FIELDS` above, so a
+ * `jsonSchema` request against a Claude model was once translated WITH THE
+ * SCHEMA DROPPED and this function was the only thing between the caller and a
+ * `JSON.parse` of prose — and the message explained that, to everybody. It is
+ * no longer sent that way: `refuseUnservableOnMessagesWire` raises a
  * configuration error BEFORE the request leaves, where the refusal costs
  * nothing, rather than after a billed round trip that answered in a shape
- * nobody asked for. This function still earns its place on the wires that DO
- * carry the schema: a fenced block, a `strict: false` request, and a
- * non-conforming 200 all still arrive here.
+ * nobody asked for. So the drop the message described no longer happens, and
+ * on the OpenAI wire — where this failure now lands — it never did. What
+ * arrives here is a model that did not comply with a schema it WAS given: a
+ * fenced block, a `strict: false` request, a non-conforming 200. Name that,
+ * never a wire.
  *
  * The refusal is a CONFIGURATION error, and that is deliberate. It is permanent
  * — the same request produces the same non-conforming answer — so a caller's
@@ -1051,11 +1076,20 @@ export function parsed<T = unknown>(res: NRouterResponse<Record<string, unknown>
   try {
     value = JSON.parse(candidate);
   } catch (cause) {
+    // NOT wire-specific, and it used to be. This function reads a decoded
+    // response and cannot see which wire served it, so the old message — "a
+    // `jsonSchema` request is sent there with the schema dropped" — was wrong
+    // in both directions: `refuseUnservableOnMessagesWire` now refuses that
+    // request before it leaves, so nothing is sent with the schema dropped;
+    // and on the OpenAI wire, where this failure actually lands, it sent the
+    // caller hunting an Anthropic drop that never happened while the real
+    // cause — a model that did not comply with a schema it WAS given — went
+    // unnamed. What is left is the part that debugs: the reply itself.
     throw configurationError(
       'the assistant reply is not valid JSON, so the structured response could ' +
-        'not be decoded. Note that Anthropic\'s Messages wire has no JSON-mode ' +
-        'switch: a `jsonSchema` request is sent there with the schema dropped, ' +
-        'so the model was never constrained. The first 120 characters were: ' +
+        'not be decoded. The model did not comply with the requested shape; ' +
+        'the reply is returned as-is by chatText(). The first 120 characters ' +
+        'were: ' +
         JSON.stringify(candidate.slice(0, 120)),
       { meta: res.meta, cause },
     );

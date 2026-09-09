@@ -216,3 +216,28 @@ test('explicitly-declined material fields are not refused', () => {
     response_format: null,
   });
 });
+
+// `response_format: { type: 'text' }` is the OTHER way an OpenAI-shaped caller
+// declines JSON mode, and it is the one the OpenAI SDK itself emits. It asks
+// for free-form prose, which is exactly and only what this wire returns, so
+// refusing it blocks a request Anthropic serves as asked — and the refusal
+// message ("the answer would come back as free-form prose") names the outcome
+// the caller requested as the reason for refusing them.
+test('response_format: { type: "text" } is a declined default, not a refusal', () => {
+  refuseUnservableOnMessagesWire({
+    model: 'claude-sonnet-4',
+    response_format: { type: 'text' },
+  });
+});
+
+// The declining is narrow: anything that ASKS for a constrained shape is still
+// refused, because this wire cannot constrain it.
+test('response_format asking for JSON is still refused', () => {
+  for (const value of [{ type: 'json_object' }, { type: 'json_schema', json_schema: {} }]) {
+    assert.throws(
+      () => refuseUnservableOnMessagesWire({ model: 'claude-sonnet-4', response_format: value }),
+      /response_format/,
+      `response_format ${JSON.stringify(value)} reached the provider silently`,
+    );
+  }
+});
