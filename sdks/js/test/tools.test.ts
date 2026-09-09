@@ -168,3 +168,24 @@ test('PGSDK-101: jsonSchema becomes response_format on the wire', () => {
     },
   });
 });
+
+test('PGSDK-105: mcp.call is reachable on a single-server deployment', () => {
+  // A COMPILE-TIME assertion, because the runtime already works: `rpc` builds
+  // `/../mcp` whenever `serverId` is falsy, so `mcp.call(undefined, …)` reaches
+  // the root mount today. What refused it was the TYPE — `serverId: string` —
+  // and a type that forbids the only shape a single-server deployment can
+  // express is the same defect as a missing route. `list` and `rpc` already
+  // take it as optional; `call` was the outlier.
+  const result = typecheck(
+    `import type { NRouterMCP, MCPCallResult } from '__SDK__';\n` +
+      `declare const mcp: NRouterMCP;\n` +
+      `export const out: Promise<MCPCallResult> = mcp.call(undefined, 'list_issues', { repo: 'x' });\n` +
+      `export const named: Promise<MCPCallResult> = mcp.call('github', 'list_issues');\n`,
+  );
+  assert.equal(
+    result.status,
+    0,
+    'mcp.call still requires a serverId, so a single MCP server mounted at the ' +
+      `root /mcp can be listed but never invoked:\n${result.output}`,
+  );
+});

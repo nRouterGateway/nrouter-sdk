@@ -455,7 +455,14 @@ export function refuseUnservableOnMessagesWire(body: Record<string, unknown>): v
     );
   }
   for (const [field, why] of MATERIAL_ON_MESSAGES_WIRE) {
-    if (body[field] === undefined) continue;
+    // Only a REQUEST is refused, never a declined default. `logprobs: false`,
+    // `seed: null` and `response_format: null` are what an OpenAI-shaped caller
+    // writes to say "I am NOT asking for this" — and the field is then absent
+    // from the answer whichever wire serves it, so there is nothing unservable
+    // about the request. Refusing `=== undefined` alone named a feature the
+    // caller had already declined and blocked a body this wire carries exactly
+    // as asked.
+    if (body[field] === undefined || body[field] === null || body[field] === false) continue;
     throw configurationError(
       `this model answers on the Anthropic Messages wire and cannot carry ` +
         `${field}: ${why}. Remove ${field}, or call an OpenAI-wire model. ` +
@@ -594,7 +601,7 @@ export function toAnthropicMessagesRequest(
   }
 
   if (systemChunks.length > 0) out['system'] = systemChunks.join('\n\n');
-  out['messages'] = messages;
+  out['messages'] = mergeAdjacentRoles(messages);
 
   const maxTokens = finite(openai['max_tokens']) ?? finite(openai['max_completion_tokens']);
   out['max_tokens'] =
@@ -622,7 +629,17 @@ export function toAnthropicMessagesRequest(
   if (openai['stream'] === true) out['stream'] = true;
 
   const tools = toolsToAnthropic(openai['tools']);
-  if (tools) {
+  // `tool_choice: 'none'` is a REFUSAL, and this wire has no arm for it.
+  // `toolChoiceToAnthropic` returns undefined for `'none'` because Anthropic
+  // expresses it by omitting the tools — but the body still carried `tools`
+  // with no `tool_choice`, and an Anthropic body shaped that way DEFAULTS TO
+  // `auto`. The caller's "offer these, do not call one this turn" therefore
+  // arrived as permission to call one, on a request they were billed for.
+  // Omitting the definitions is the faithful encoding, and the arm below
+  // reports both `tools` and `parallel_tool_calls` in `dropped` rather than
+  // letting either vanish.
+  const toolsSuppressed = tools !== undefined && openai['tool_choice'] === 'none';
+  if (tools && !toolsSuppressed) {
     out['tools'] = tools;
     // `parallel_tool_calls` is NOT an OpenAI-only field: Anthropic has the same
     // control, spelled `tool_choice.disable_parallel_tool_use`. It rides on the
@@ -651,6 +668,9 @@ export function toAnthropicMessagesRequest(
       dropped.push('parallel_tool_calls');
     }
   } else {
+    // Reached when there were no tools to translate, AND when `tool_choice:
+    // 'none'` suppressed them above. Either way the definitions the caller
+    // wrote are not on the wire, so they are reported.
     if (openai['tools'] !== undefined) dropped.push('tools');
     // No tools means the switch has nothing to act on — but it was still SET,
     // so it reaches the diagnostic instead of vanishing (PGSDK-108).
@@ -870,6 +890,50 @@ function toolsToAnthropic(tools: unknown): Record<string, unknown>[] | undefined
 }
 
 /** OpenAI `tool_choice` → Anthropic `tool_choice`. */
+/**
+ * Fold adjacent same-role turns into one, because this wire rejects them.
+ *
+ * The translation MANUFACTURES adjacency in two ordinary ways, neither of which
+ * the caller wrote:
+ *   * a `tool` result replays as a `user` turn carrying a `tool_result` block,
+ *     so an assistant turn that made two parallel calls is followed by two
+ *     `tool` messages and becomes two adjacent user turns;
+ *   * `buildMessages` appends a trailing user turn for `images` when the
+ *     conversation ends on a tool result (options.ts, PGSDK-111), landing a
+ *     second user turn directly behind the replayed one.
+ *
+ * Anthropic's own shape for the first case is exactly this: ALL the
+ * `tool_result` blocks answering one assistant turn ride in a single user
+ * message. So merging is not a workaround for a 400 — it is the encoding the
+ * wire asks for, and it also spares the second case a provider rejection for a
+ * body this SDK built.
+ *
+ * Content is normalised to a parts ARRAY before concatenating: a string and a
+ * block list cannot be added together, and a merged turn that lost the caller's
+ * text is a silent drop of the thing they are paying to send.
+ */
+function mergeAdjacentRoles(
+  messages: readonly Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [];
+  for (const turn of messages) {
+    const prev = out[out.length - 1];
+    if (prev !== undefined && prev['role'] === turn['role']) {
+      prev['content'] = [...asBlocks(prev['content']), ...asBlocks(turn['content'])];
+      continue;
+    }
+    out.push({ ...turn });
+  }
+  return out;
+}
+
+/** One turn's content as a block array, whatever shape it arrived in. */
+function asBlocks(content: unknown): Record<string, unknown>[] {
+  if (Array.isArray(content)) return content as Record<string, unknown>[];
+  if (typeof content === 'string' && content !== '') return [{ type: 'text', text: content }];
+  return [];
+}
+
 function toolChoiceToAnthropic(choice: unknown): Record<string, unknown> | undefined {
   if (choice === 'auto') return { type: 'auto' };
   if (choice === 'required') return { type: 'any' };
@@ -936,12 +1000,23 @@ export function chatText(res: NRouterResponse<Record<string, unknown>>): string 
 /**
  * The assistant turn decoded as JSON — the companion to `jsonSchema`.
  *
- * VALIDATION, not a convenience wrapper around `JSON.parse`, and the reason is
- * the wire split. `response_format` is on `OPENAI_ONLY_FIELDS` above: Anthropic's
- * Messages wire has no JSON-mode switch, so a `jsonSchema` request against a
- * Claude model is TRANSLATED WITH THE SCHEMA DROPPED and the model answers in
- * whatever shape it likes. On that wire this function is the only thing between
- * the caller and a `JSON.parse` of prose.
+ * SHAPE validation, not schema validation, and the distinction is the whole
+ * contract: this checks that the assistant answered with parseable JSON, NOT
+ * that the JSON conforms to the `jsonSchema` that was asked for. Conformance is
+ * the provider's job, and `buildChatBody` sets `strict: true` by default so it
+ * is actually done — asking for a schema and not getting decoding enforcement
+ * is the half-measure that pushes the failure out here.
+ *
+ * ⚠️ The Anthropic arm of this used to read differently and is now WRONG:
+ * `response_format` is on `OPENAI_ONLY_FIELDS` above, so a `jsonSchema` request
+ * against a Claude model was once translated WITH THE SCHEMA DROPPED and this
+ * function was the only thing between the caller and a `JSON.parse` of prose.
+ * It is no longer sent that way — `refuseUnservableOnMessagesWire` raises a
+ * configuration error BEFORE the request leaves, where the refusal costs
+ * nothing, rather than after a billed round trip that answered in a shape
+ * nobody asked for. This function still earns its place on the wires that DO
+ * carry the schema: a fenced block, a `strict: false` request, and a
+ * non-conforming 200 all still arrive here.
  *
  * The refusal is a CONFIGURATION error, and that is deliberate. It is permanent
  * — the same request produces the same non-conforming answer — so a caller's

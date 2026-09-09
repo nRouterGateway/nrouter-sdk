@@ -303,13 +303,17 @@ export type ChatToolChoice =
 /**
  * A JSON Schema the response must conform to (OpenAI `response_format`).
  *
- * ⚠️ NOT available on every wire. Anthropic's Messages wire has no JSON-mode
- * switch, so `response_format` is on this SDK's `OPENAI_ONLY_FIELDS` drop list
- * (chat.ts) and a Claude model is asked for the schema and answers however it
- * likes. That is exactly why `parsed<T>()` validates rather than trusting: on
- * the wires where the schema is enforced the check is free, and on the wire
- * where it is dropped the check is the only thing standing between the caller
- * and a `JSON.parse` of prose.
+ * ⚠️ NOT available on every wire, and the unavailability is a REFUSAL rather
+ * than a drop. Anthropic's Messages wire has no JSON-mode switch, so
+ * `response_format` is on this SDK's `OPENAI_ONLY_FIELDS` list (chat.ts) — and
+ * `refuseUnservableOnMessagesWire` raises a configuration error before the
+ * request leaves rather than sending it with the schema removed. Dropping it
+ * returned free-form prose that read like a success and was billed like one;
+ * refusing costs nothing. Pass `jsonSchema` to an OpenAI-wire model, or ask a
+ * Claude model for JSON in the prompt and read the answer with `parsed<T>()`.
+ *
+ * `parsed<T>()` checks that the reply IS JSON, not that it matches this schema:
+ * conformance is enforced by the provider, which is why `strict` defaults on.
  */
 export interface JsonSchemaSpec {
   name: string;

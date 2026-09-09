@@ -143,6 +143,9 @@ export async function runTools(
   // Re-deriving it from `prompt`/`systemPrompt` on every turn would resend the
   // opening question and discard the whole conversation.
   const messages: ChatMessage[] = seedMessages(call);
+  // Where THIS run's own turns begin. The maxSteps walk-back below must not
+  // reach behind it: everything at a lower index came from the caller.
+  const seeded = messages.length;
 
   let steps = 0;
   let stopReason: StopReason = 'maxSteps';
@@ -215,7 +218,15 @@ export async function runTools(
     // would have answered — so reading the tail returned raw tool output as
     // `result.text`, which the type documents as the assistant's answer. A
     // caller rendering it showed the user a JSON blob from a function.
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
+    // BOUNDED AT `seeded`, and that bound is the whole correctness of the walk.
+    // Skipping an empty candidate is right within the run — a step whose
+    // assistant turn was a bare tool call has `content: null`, and the step
+    // before it may well have spoken. It is wrong the moment the scan crosses
+    // into the SEED: a caller resuming a conversation passes their own
+    // assistant turns in `messages`, and returning one of those reports, as
+    // this run's answer, a sentence this run never produced and nobody was
+    // billed for. `''` is the honest value for "this bounded run said nothing".
+    for (let i = messages.length - 1; i >= seeded; i -= 1) {
       if (messages[i].role !== 'assistant') continue;
       const candidate = contentText(messages[i]);
       if (candidate) {

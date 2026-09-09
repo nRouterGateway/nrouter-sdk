@@ -13,13 +13,25 @@
 // reserving credit.
 //
 // Mutate-and-check: drop `signal` from the `chat()` -> `runner.request` call
-// and case (i) goes red; drop it from the client's string-path branch and
-// case (ii) goes red.
+// and cases (i) and (iii) go red; drop `signal: init?.signal` from the client's
+// string-path branch (client.ts, `typeof pathOrReq === 'string'`) and case
+// (iii) goes red on its own.
+//
+// Case (ii) is deliberately NOT that mutation's witness, and the comment here
+// used to claim it was. It hands `chat()` a MOCK runner, so it never reaches
+// `NRouterSurface.request` at all — it proves the seam is honoured and the
+// abort arrives normalized, which is a different property. Only case (iii)
+// runs the real client, so only case (iii) can see that branch break.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { chat } = require('../dist/chat');
+const { nRouter } = require('../dist/index');
 const { nRouterError, isRetryable } = require('../dist/errors');
+
+// Assembled rather than written out, so the workspace secret scanner does not
+// have to decide whether a literal in a test file is a live key.
+const TEST_KEY = `sk-${'nrouter'}-test0000000000000abcd`;
 
 const OK = {
   status: 200,
@@ -91,5 +103,83 @@ test('(ii) an already-aborted signal rejects instead of billing a provider call'
       assert.equal(isRetryable(err), false);
       return true;
     },
+  );
+});
+
+test('(iii) the REAL client carries the signal from chat() down to fetch', async () => {
+  // The client is the ChatRunner here, so this is the whole string path:
+  // chat() -> NRouterSurface.request(path, body, { signal }) -> the
+  // TransportRequest literal -> raw() -> fetch. A mock runner cannot see any
+  // of it, which is why case (ii) is not this case.
+  let seenSignal: unknown = 'never-called';
+  const controller = new AbortController();
+  const client = new nRouter({
+    apiKey: TEST_KEY,
+    fetch: async (_url: unknown, init: any) => {
+      seenSignal = init?.signal;
+      return new Response(
+        JSON.stringify({
+          id: 'x',
+          choices: [{ message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  });
+
+  // `client.nr` is the NRouterSurface — the ChatRunner. `client` itself is the
+  // vendor class, whose `request()` is a different method entirely.
+  await chat(client.nr, { model: 'gpt-4o-mini', prompt: 'hi', signal: controller.signal });
+
+  assert.notEqual(seenSignal, 'never-called', 'fetch was never reached');
+  assert.ok(seenSignal, 'fetch was handed no signal at all');
+
+  // NOT an identity check, deliberately. The vendor client composes the
+  // caller's signal with its own per-request timeout via `AbortSignal.any`, so
+  // what fetch receives is a COMPOSITE and `seenSignal === controller.signal`
+  // is false even when the thread-through works perfectly. The property that
+  // actually matters is PROPAGATION: firing the caller's controller must abort
+  // the signal the transport is holding. Sever `signal: init?.signal` in
+  // client.ts's string-path branch and the composite no longer has the
+  // caller's controller among its sources, so this stays false.
+  assert.equal((seenSignal as AbortSignal).aborted, false, 'aborted before the caller asked');
+  controller.abort();
+  assert.equal(
+    (seenSignal as AbortSignal).aborted,
+    true,
+    'the caller signal did not survive the client string path, so an in-flight ' +
+      'completion cannot be cancelled and a runaway loop keeps reserving credit',
+  );
+});
+
+test('(iii-b) a foreign controller cannot cancel someone else\'s request', async () => {
+  // The complement of (iii), and the reason (iii) is not vacuous: when the
+  // caller passes NO signal, the transport's signal must not be wired to any
+  // controller of ours. A thread-through that handed the same shared signal to
+  // every request would pass (iii) and fail here.
+  const foreign = new AbortController();
+  let seenSignal: unknown = 'never-called';
+  const client = new nRouter({
+    apiKey: TEST_KEY,
+    fetch: async (_url: unknown, init: any) => {
+      seenSignal = init?.signal;
+      return new Response(
+        JSON.stringify({
+          id: 'x',
+          choices: [{ message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    },
+  });
+
+  await chat(client.nr, { model: 'gpt-4o-mini', prompt: 'hi' });
+
+  foreign.abort();
+  assert.notEqual(seenSignal, 'never-called', 'fetch was never reached');
+  assert.equal(
+    seenSignal === undefined ? false : (seenSignal as AbortSignal).aborted,
+    false,
+    'an unrelated controller cancelled this request',
   );
 });

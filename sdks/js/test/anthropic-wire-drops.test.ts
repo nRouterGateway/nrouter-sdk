@@ -99,3 +99,120 @@ test('parallel_tool_calls without tools is reported in dropped', () => {
     'a tool-less parallel_tool_calls vanished without reaching the diagnostic',
   );
 });
+
+// --- tool_choice: 'none' -----------------------------------------------------
+//
+// `'none'` is documented (types.ts, ChatToolChoice) as "offers the tools without
+// permitting a call this turn", and it is how an author forces a final natural
+// language answer at the last step of a bounded loop. Anthropic has no `none`
+// arm on the version of the wire this SDK targets, so `toolChoiceToAnthropic`
+// returns undefined for it — and an Anthropic body carrying `tools` with NO
+// `tool_choice` defaults to `auto`. The caller's refusal became permission, on
+// a request they were billed for.
+test("tool_choice: 'none' does not become permission to call tools", () => {
+  const { body } = toAnthropicMessagesRequest({
+    model: 'claude-sonnet-4',
+    max_tokens: 16,
+    messages: [{ role: 'user', content: 'hi' }],
+    tools: [
+      {
+        type: 'function',
+        function: { name: 'get_weather', description: 'w', parameters: { type: 'object' } },
+      },
+    ],
+    tool_choice: 'none',
+  });
+  const choice: any = body['tool_choice'];
+  const permits = body['tools'] !== undefined && (choice === undefined || choice.type === 'auto' || choice.type === 'any');
+  assert.equal(
+    permits,
+    false,
+    "tool_choice 'none' left the model free to call a tool: " +
+      `tools=${JSON.stringify(body['tools'])} tool_choice=${JSON.stringify(choice)}`,
+  );
+});
+
+test("tool_choice: 'none' with parallel_tool_calls: false is still a refusal", () => {
+  const { body } = toAnthropicMessagesRequest({
+    model: 'claude-sonnet-4',
+    max_tokens: 16,
+    messages: [{ role: 'user', content: 'hi' }],
+    tools: [
+      {
+        type: 'function',
+        function: { name: 'get_weather', description: 'w', parameters: { type: 'object' } },
+      },
+    ],
+    tool_choice: 'none',
+    parallel_tool_calls: false,
+  });
+  assert.notEqual((body['tool_choice'] as any)?.type, 'auto');
+});
+
+// --- role alternation --------------------------------------------------------
+//
+// Anthropic's Messages wire rejects adjacent same-role turns. This SDK
+// MANUFACTURES them in two ordinary ways: a `tool` result replays as a `user`
+// turn, so two parallel tool results become two adjacent user turns, and
+// `buildMessages` appends a trailing user turn for `images` when the
+// conversation ends on a tool result (PGSDK-111). Both are a 400 the caller did
+// not write.
+test('adjacent tool results become ONE user turn, not two', () => {
+  const { body } = toAnthropicMessagesRequest({
+    model: 'claude-sonnet-4',
+    max_tokens: 16,
+    messages: [
+      { role: 'user', content: 'weather in two cities?' },
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'call_a', type: 'function', function: { name: 'w', arguments: '{"c":"NY"}' } },
+          { id: 'call_b', type: 'function', function: { name: 'w', arguments: '{"c":"LA"}' } },
+        ],
+      },
+      { role: 'tool', tool_call_id: 'call_a', content: '21' },
+      { role: 'tool', tool_call_id: 'call_b', content: '28' },
+    ],
+  });
+  const roles = (body['messages'] as any[]).map((m) => m.role);
+  const adjacent = roles.filter((r, i) => i > 0 && r === roles[i - 1]);
+  assert.deepEqual(adjacent, [], `adjacent same-role turns on the wire: ${roles.join(',')}`);
+  const last: any = (body['messages'] as any[])[roles.length - 1];
+  assert.equal(last.content.length, 2, 'both tool_result blocks must ride one user turn');
+});
+
+test('a trailing image turn after a tool result does not double the user role', () => {
+  const { body } = toAnthropicMessagesRequest({
+    model: 'claude-sonnet-4',
+    max_tokens: 16,
+    messages: [
+      { role: 'user', content: 'look' },
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: 'call_a', type: 'function', function: { name: 'w', arguments: '{}' } }],
+      },
+      { role: 'tool', tool_call_id: 'call_a', content: 'done' },
+      { role: 'user', content: [{ type: 'text', text: 'and this photo' }] },
+    ],
+  });
+  const roles = (body['messages'] as any[]).map((m) => m.role);
+  const adjacent = roles.filter((r, i) => i > 0 && r === roles[i - 1]);
+  assert.deepEqual(adjacent, [], `adjacent same-role turns on the wire: ${roles.join(',')}`);
+});
+
+// --- the refusal must fire on a REQUEST, never on a default ------------------
+//
+// `logprobs: false` and `seed: null` are the values an OpenAI-shaped caller
+// writes to say "I am NOT asking for this". Refusing them names a feature the
+// caller declined and blocks a request the wire can serve exactly as asked.
+test('explicitly-declined material fields are not refused', () => {
+  refuseUnservableOnMessagesWire({
+    model: 'claude-sonnet-4',
+    logprobs: false,
+    seed: null,
+    top_logprobs: null,
+    response_format: null,
+  });
+});

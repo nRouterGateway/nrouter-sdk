@@ -78,9 +78,22 @@ export class NRouterMCP {
     return Array.isArray(result?.tools) ? result.tools : [];
   }
 
-  /** Invoke one tool on one server. */
+  /**
+   * Invoke one tool. Pass `undefined` as `serverId` when only one is configured.
+   *
+   * `serverId` accepts `undefined` for the same reason `list` and `rpc` do: a
+   * gateway fronting a SINGLE MCP server mounts it at the root `/mcp`, and
+   * there is no id to name. Declared as a required `string`, this method was
+   * the one part of the surface that deployment could not use — it could list
+   * a server's tools and never invoke one — and the workaround was to invent an
+   * id, which does not fail loudly: it resolves to `/../mcp/<invention>`.
+   *
+   * It stays the FIRST parameter, matching `call(serverId, name, args)` at
+   * every other call site rather than adding a second argument order for one
+   * deployment shape.
+   */
   async call(
-    serverId: string,
+    serverId: string | undefined,
     name: string,
     args: Record<string, unknown> = {},
   ): Promise<MCPCallResult> {

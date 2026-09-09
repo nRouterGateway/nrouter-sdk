@@ -94,6 +94,13 @@ test('PGSDK-100: maxSteps BOUNDS a model that loops forever', async () => {
   assert.equal(result.steps, 3);
   assert.equal(result.stopReason, 'maxSteps');
   assert.equal(runner.sent.length, 3, 'the loop made more provider calls than maxSteps allowed');
+  // `result.text` is the documented ASSISTANT answer, and asserting only the
+  // counters above let a real leak pass silently: the last turn of a
+  // maxSteps halt is the `tool` RESULT, so reading the tail returned the tool's
+  // own JSON return value — `{"tempC":21}` — as the model's speech. Every
+  // assistant turn this fixture produces is a bare tool call, so the run
+  // genuinely produced no assistant text.
+  assert.equal(result.text, '', `result.text leaked a non-assistant value: ${JSON.stringify(result.text)}`);
 });
 
 test('PGSDK-100: maxSteps below 1 is REFUSED, never clamped', async () => {
@@ -246,4 +253,30 @@ test('PGSDK-105: a JSON-RPC error envelope becomes a typed nRouter error', async
   ]);
   const mcp = new NRouterMCP(runner);
   await assert.rejects(() => mcp.call('github', 'nope', {}), /Method not found/);
+});
+
+// A single-server deployment mounts one MCP server at the ROOT `/mcp`, and
+// `mcp.list()` already reaches it — `serverId` is optional there and on
+// `mcp.rpc`. `mcp.call` declared it REQUIRED, so the one deployment shape that
+// cannot name a server was the one shape that could list tools and never
+// invoke one. A caller forced to invent an id does not get a 404 they can
+// read: they get `/../mcp/<whatever-they-typed>`.
+test('PGSDK-105: mcp.call reaches the ROOT-mounted /mcp when no server is named', async () => {
+  const runner = scriptedRunner([
+    { jsonrpc: '2.0', id: 1, result: { content: [{ type: 'text', text: 'ok' }] } },
+  ]);
+  const seen: string[] = [];
+  const mcp = new NRouterMCP({
+    request(path: string, body: unknown) {
+      seen.push(path);
+      return runner.request(path, body);
+    },
+  });
+  const out = await mcp.call(undefined, 'list_issues', { repo: 'x' });
+  assert.equal(seen[0], '/../mcp');
+  assert.deepEqual(out, { content: [{ type: 'text', text: 'ok' }] });
+  assert.deepEqual((runner.sent[0] as any).params, {
+    name: 'list_issues',
+    arguments: { repo: 'x' },
+  });
 });
