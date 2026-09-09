@@ -676,6 +676,10 @@ export interface BackoffOptions {
  *
  * The exponential arm is the opposite case — our own guess — so there jitter
  * shortens and `maxDelayMs` bounds.
+ *
+ * The ONE bound the Retry-After arm keeps is `MAX_RETRY_AFTER_SECONDS`, which
+ * is not a ceiling on the server's authority but on JavaScript's timer: see
+ * the note at the clamp itself.
  * Clamps attempt to 30 to prevent 2^N numeric overflow.
  * Jitter factor distributes delays to prevent thundering herd.
  */
@@ -686,7 +690,18 @@ export function computeJitteredBackoff(options: BackoffOptions): number {
   const jitterFactor = Math.max(0, Math.min(options.jitterFactor ?? 0.5, 1.0));
 
   if (typeof options.retryAfterSeconds === 'number' && Number.isFinite(options.retryAfterSeconds) && options.retryAfterSeconds > 0) {
-    const retryMs = options.retryAfterSeconds * 1000;
+    // `maxDelayMs` does not bound this arm — but `MAX_RETRY_AFTER_SECONDS`
+    // must, and for a reason that has nothing to do with our guesswork.
+    // `setTimeout` holds its delay in a 32-bit signed int, so a delay above
+    // 2147483647 ms fires on the next tick instead: an UNBOUNDED floor
+    // inverts into an immediate retry against the limit that just refused
+    // us — the exact failure the floor exists to prevent. A finite input can
+    // reach that state two ways: `Number.MAX_VALUE * 1000` is `Infinity`, and
+    // anything past ~24.8 days is a finite overflow. This is the same ceiling
+    // `parseRetryAfter` already applies to a header, so no value the gateway
+    // can send is shortened by it.
+    const boundedSeconds = Math.min(options.retryAfterSeconds, MAX_RETRY_AFTER_SECONDS);
+    const retryMs = boundedSeconds * 1000;
     // Upward only: [1.0, 1.0 + jitterFactor).
     const jitterMultiplier = 1 + Math.random() * jitterFactor;
     return Math.max(0, Math.round(retryMs * jitterMultiplier));

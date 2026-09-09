@@ -30,6 +30,7 @@ const {
   computeJitteredBackoff,
   ERROR_CLASS_BY_CODE,
   ERROR_STATUS_BY_CODE,
+  MAX_RETRY_AFTER_SECONDS,
 } = errors;
 
 /** spec/nrouter-sdk-spec.json — the Rule #14 source of truth, four levels up. */
@@ -391,6 +392,31 @@ test('a Retry-After is never shortened by jitter or by maxDelayMs', () => {
     assert.ok(
       delay <= 3600 * 1000 * 1.5,
       `jitter must stay bounded above the floor, got ${delay}ms`,
+    );
+  }
+});
+
+test('an absurd Retry-After still yields a delay a real timer can hold', () => {
+  // Removing maxDelayMs from the Retry-After arm made the floor unbounded, and
+  // an unbounded floor inverts itself: `setTimeout` takes a 32-bit signed
+  // delay, so anything above 2^31-1 ms — `Infinity` included — is silently
+  // reduced to 1ms and the "server-defined floor" becomes an immediate retry
+  // against the limit that just refused us. Measured: `Number.MAX_VALUE * 1000`
+  // is `Infinity`, and Node logs TimeoutOverflowWarning then fires at 1ms.
+  const TIMER_MAX_MS = 2147483647;
+  const floorMs = MAX_RETRY_AFTER_SECONDS * 1000;
+  for (const seconds of [Number.MAX_VALUE, 1e9, TIMER_MAX_MS / 1000 + 1]) {
+    const delay = computeJitteredBackoff({ attempt: 0, retryAfterSeconds: seconds, jitterFactor: 0.5 });
+    assert.ok(Number.isFinite(delay), `retryAfterSeconds=${seconds} produced a non-finite delay ${delay}`);
+    assert.ok(
+      delay <= TIMER_MAX_MS,
+      `retryAfterSeconds=${seconds} produced ${delay}ms, which setTimeout reduces to 1ms`,
+    );
+    // The bound is a CEILING on an unreasonable input, never a shortening
+    // below the 24h ceiling parseRetryAfter itself already applies.
+    assert.ok(
+      delay >= floorMs,
+      `retryAfterSeconds=${seconds} produced ${delay}ms, below our own ${floorMs}ms cap`,
     );
   }
 });
