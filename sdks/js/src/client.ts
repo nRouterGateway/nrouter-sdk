@@ -715,8 +715,23 @@ export class nRouter extends OpenAI {
     }
     // PGSDK-118 — fail at CONSTRUCTION, where the caller wrote the bad value,
     // rather than per request where the header just would not appear.
-    if (options.traceId) assertTraceValue('traceId', options.traceId);
-    if (options.sessionId) assertTraceValue('sessionId', options.sessionId);
+    //
+    // SNAPSHOT the validated values. The request path used to re-read
+    // `options.traceId` on every call, so the validation above held only until
+    // the caller touched its own object — and `options` is the caller's, not
+    // ours. MEASURED: mutating `options.traceId` to a CR/LF value after
+    // construction threw from inside `Headers.set`, which the vendor wraps as
+    // a RETRYABLE "Connection error.", so a permanent mistake in the caller's
+    // own input arrived dressed as a transient network fault — the exact
+    // anti-pattern the `apiKey` setter a few lines below exists to prevent.
+    //
+    // Unlike `apiKey` these two are NOT late-bound on purpose: there is no
+    // setter, no field, and no rotation story for them, so the value that was
+    // validated is the value that goes on the wire.
+    const traceId = options.traceId ? assertTraceValue('traceId', options.traceId) : undefined;
+    const sessionId = options.sessionId
+      ? assertTraceValue('sessionId', options.sessionId)
+      : undefined;
 
     // MEASURED against openai 7.8.0, with OPENAI_CUSTOM_HEADERS and
     // OPENAI_ORG_ID set in the environment: `nr.chat()` sent
@@ -797,13 +812,14 @@ export class nRouter extends OpenAI {
       headers.set('Authorization', `Bearer ${current}`);
       headers.delete('OpenAI-Organization');
       headers.delete('OpenAI-Project');
-      // Both were validated at CONSTRUCTION (see the `assertTraceValue` calls
-      // in the constructor), so by here they are known header-safe.
-      if (options.traceId && !headers.has('x-nr-trace-id')) {
-        headers.set('x-nr-trace-id', options.traceId);
+      // The CONSTRUCTOR-VALIDATED snapshots, never `options.*`. Re-reading the
+      // caller's object here made that "known header-safe" claim false the
+      // moment the caller mutated its own variable; see the snapshot above.
+      if (traceId && !headers.has('x-nr-trace-id')) {
+        headers.set('x-nr-trace-id', traceId);
       }
-      if (options.sessionId && !headers.has('x-nr-session-id')) {
-        headers.set('x-nr-session-id', options.sessionId);
+      if (sessionId && !headers.has('x-nr-session-id')) {
+        headers.set('x-nr-session-id', sessionId);
       }
       if (!headers.has('x-nr-client-language')) {
         headers.set('x-nr-client-language', 'js');

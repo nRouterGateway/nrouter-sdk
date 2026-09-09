@@ -1197,3 +1197,51 @@ test('traceId and sessionId are forwarded in pinnedFetch', async () => {
   assert.equal(seenHeaders?.get('x-nr-client-language'), 'js');
 });
 
+// PGSDK-118, the other half. The constructor validates `traceId`/`sessionId`
+// and the request path then asserted they were "known header-safe" — but it
+// RE-READ the caller's own `options` object on every call, so the invariant
+// was only true until the caller touched its own variable. MEASURED before the
+// fix: mutating `options.traceId` to a CR/LF value after construction threw
+// from inside `Headers.set`, the vendor wrapped it as `Connection error.`, and
+// `isRetryable` answered TRUE — a permanent mistake in the caller's own input
+// dressed as a transient network fault, which is precisely the anti-pattern
+// this client fixes for `apiKey` a few lines above.
+//
+// The fix is a SNAPSHOT, not another validation pass: the two values are
+// per-client configuration with no setter and no rotation story (unlike
+// `apiKey`, which is late-bound deliberately), so the value that was validated
+// is the value that goes on the wire.
+test('trace context is snapshotted at construction, not re-read from caller-owned options', async () => {
+  let seenHeaders: Headers | undefined;
+  const options: any = {
+    apiKey: TEST_KEY,
+    traceId: 'tr_snapshot',
+    sessionId: 'sess_snapshot',
+    fetch: async (_url: unknown, init: any) => {
+      seenHeaders = new Headers(init.headers);
+      return new Response(JSON.stringify({ choices: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  };
+  const client = new nRouter(options);
+
+  // The caller mutates ITS OWN object after construction — legal, and nothing
+  // in the API says it re-configures a live client.
+  options.traceId = 'tr_bad\r\nX-Injected: 1';
+  options.sessionId = 'sess_bad\ninjected';
+
+  await client.nr.chat({ model: 'm', prompt: 'hi' });
+  assert.equal(
+    seenHeaders?.get('x-nr-trace-id'),
+    'tr_snapshot',
+    'the validated construction-time traceId is what goes on the wire',
+  );
+  assert.equal(
+    seenHeaders?.get('x-nr-session-id'),
+    'sess_snapshot',
+    'the validated construction-time sessionId is what goes on the wire',
+  );
+});
+

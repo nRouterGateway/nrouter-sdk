@@ -88,6 +88,72 @@ test('routing.md states the openai/codex-only constraint', () => {
   );
 });
 
+/**
+ * PGSDK-123 follow-up. The paragraph that introduces the route table
+ * generalised about the table itself: it claimed all FOUR text rows list
+ * several providers each. `/v1/completions` lists OpenAI alone — the gateway's
+ * `LEGACY_COMPLETIONS_PROVIDERS` is `["openai", "codex"]`, one provider family.
+ * On a public doc that reads as "every text wire has somewhere to fail over
+ * to", which is exactly the wrong inference for a legacy-completions chain:
+ * every non-OpenAI entry in it is skipped and the request fails while the chain
+ * looks configured.
+ *
+ * So this derives the count FROM THE TABLE rather than pinning a sentence.
+ * Widen the `/v1/completions` row to a second provider and the derived count
+ * moves, and the prose has to move with it or this fails.
+ */
+const TEXT_ROUTES = [
+  '/v1/chat/completions',
+  '/v1/responses',
+  '/v1/messages',
+  '/v1/completions',
+];
+
+const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four'];
+
+const providersFor = (routing: string, route: string): string[] => {
+  const row = routing.split('\n').find((l: string) => l.startsWith(`| \`${route}\` |`));
+  assert.ok(row, `routing.md has no route-table row for ${route}`);
+  return String(row)
+    .split('|')[2]
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean);
+};
+
+test('the prose counts the multi-provider TEXT rows the way the table does', () => {
+  const routing = docs('routing.md');
+  const multi = TEXT_ROUTES.filter((r) => providersFor(routing, r).length > 1);
+  const single = TEXT_ROUTES.filter((r) => providersFor(routing, r).length === 1);
+
+  assert.equal(
+    multi.length + single.length,
+    TEXT_ROUTES.length,
+    'every text route must have a parseable provider cell',
+  );
+
+  assert.match(
+    routing,
+    new RegExp(`${NUMBER_WORDS[multi.length]} of the four text rows`, 'i'),
+    `the table gives ${multi.length} text row(s) naming several providers; ` +
+      `${single.join(', ') || 'none'} name(s) exactly one. The prose must say ` +
+      `"${NUMBER_WORDS[multi.length]} of the four text rows", not a different count`,
+  );
+
+  for (const route of single) {
+    // Same LINE, deliberately. Allowing the match to run onto the next line
+    // lets the table itself satisfy this: the `/v1/completions` row is
+    // immediately followed by `| /v1/messages/count_tokens | **Anthropic
+    // only** |`, so a two-line window passes with no prose written at all.
+    assert.match(
+      routing,
+      new RegExp(`\`${route}\`[^\\n]*(only|alone)`, 'i'),
+      `${route} is served by ONE provider family, and the prose never says so — ` +
+        'a reader builds a cross-provider fallback chain for it that can never fire',
+    );
+  }
+});
+
 for (const name of ['audio.md', 'images.md', 'video.md']) {
   test(`${name} carries a provider-constraint line`, () => {
     const body = docs(name);
