@@ -401,66 +401,41 @@ async function* readFrames(
     throw new nRouterError(
       'the stream ended without its [DONE] sentinel; the answer is truncated and ' +
         'the request was billed. Retrying issues a NEW billed request.',
-      {
-        status,
-        requestId: meta?.requestId ?? null,
-        meta,
-      },
+      { status, meta },
     );
   } catch (err) {
     // If the request was explicitly cancelled by the caller via AbortSignal:
     // A cancelled request must never be resent — it was billed (gate 8).
     // An abort takes precedence so no retry layer mistakes a cancellation for
     // a transient failure or attempts to auto-retry.
-    if (signal?.aborted) {
-      const reason = signal.reason;
-      let abortErr: Error;
-      if (isAbortError(reason)) {
-        abortErr = reason as Error;
-      } else {
-        // Fresh Error rather than mutating caller-owned reason (which may be a DOMException
-        // with read-only name or a shared object across streams).
-        const message =
-          reason instanceof Error
-            ? reason.message
-            : typeof reason === 'string' && reason
-              ? reason
-              : 'the request was aborted';
-        abortErr = new Error(message);
-        abortErr.name = 'AbortError';
-        if (reason instanceof Error) {
-          (abortErr as { cause?: unknown }).cause = reason;
-        } else if (err && err !== reason) {
-          (abortErr as { cause?: unknown }).cause = err;
-        }
+    if (signal?.aborted || isAbortError(err)) {
+      const reason = signal?.aborted ? signal.reason : err;
+      const msg =
+        reason instanceof Error
+          ? reason.message
+          : typeof reason === 'string' && reason
+            ? reason
+            : 'the request was aborted';
+      const abortErr = new Error(msg);
+      abortErr.name = 'AbortError';
+      let cause: unknown;
+      if (reason instanceof Error && !isAbortError(reason)) {
+        cause = reason;
+      } else if (err && err !== reason) {
+        cause = err;
+      } else if (reason instanceof Error) {
+        cause = reason;
       }
-      if (!(abortErr as { cause?: unknown }).cause && err && err !== abortErr && err !== reason) {
-        try {
-          Object.defineProperty(abortErr, 'cause', { value: err, writable: true, configurable: true });
-        } catch {
-          (abortErr as { cause?: unknown }).cause = err;
-        }
-      }
-      // If an nRouterError was already in flight (e.g. guardrail, quota, or stream truncation):
-      // preserve its classification and metadata while ensuring it is marked non-retryable via cause.
-      if (err instanceof nRouterError) {
-        err.cause = abortErr;
-        state.failure = err;
-        throw err;
+      if (cause instanceof Error) {
+        (abortErr as { cause?: unknown }).cause = cause;
       }
       state.failure = abortErr;
       throw abortErr;
     }
 
-    // An abort and an nRouterError are re-thrown UNWRAPPED — the first so
-    // `isAbortError` still recognises it and no retry layer treats it as
-    // transient, the second because it is already classified.
+    // An nRouterError is re-thrown UNWRAPPED because it is already classified.
     if (err instanceof nRouterError) {
       state.failure = err;
-      throw err;
-    }
-    if (isAbortError(err)) {
-      state.failure = err instanceof Error ? err : new Error(String(err));
       throw err;
     }
 

@@ -492,17 +492,43 @@ test('a socket failure caused by abort is normalized to an AbortError (PGSDK-112
   );
 });
 
-test('an nRouterError takes precedence over signal.aborted without being masked (PGSDK-112)', async () => {
-  const controller = new AbortController();
+test('a stream cut off mid-answer preserves requestId and meta on the truncation error (PGSDK-112)', async () => {
   const runner = {
     open: async () => ({
       status: 200,
-      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-123' },
+      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-trunc-456' },
+      body: (async function* () {
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"part"}}}\n\n');
+        // connection closes without [DONE]
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' });
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof nRouterError);
+      assert.equal((err as nRouterError).kind, 'other');
+      assert.equal((err as nRouterError).requestId, 'req-trunc-456');
+      assert.equal(isRetryable(err), false, 'retrying issues a new billed request, so it must not auto-retry');
+      return true;
+    },
+  );
+});
+
+test('an abort error preserves the original custom reason as cause without mutating caller reason (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const customReason = new Error('caller cancelled');
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
       body: (async function* () {
         yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
-        // Throw an nRouterError (e.g. guardrail, quota, or stream truncation)
-        controller.abort();
-        throw new nRouterError('insufficient credits', { status: 402, requestId: 'req-123' });
+        controller.abort(customReason);
+        throw new Error('socket drop');
       })(),
     }),
   };
@@ -512,9 +538,10 @@ test('an nRouterError takes precedence over signal.aborted without being masked 
       for await (const _ of res.chunks) { /* drain */ }
     },
     (err: unknown) => {
-      assert.ok(err instanceof nRouterError, 'typed nRouterError must not be converted to AbortError');
-      assert.equal((err as nRouterError).status, 402, 'status preserved');
-      assert.equal((err as nRouterError).requestId, 'req-123', 'requestId preserved');
+      assert.equal(isAbortError(err), true, 'must be recognised as AbortError');
+      assert.equal(isRetryable(err), false, 'an abort is never retryable');
+      assert.equal(customReason.name, 'Error', 'caller reason must not be mutated');
+      assert.equal((err as Error & { cause?: unknown }).cause, customReason, 'custom reason attached as cause');
       return true;
     },
   );
