@@ -78,15 +78,32 @@ jobs:
         # pub.dev authenticates via OIDC (id-token: write is granted at the job
         # level below), so there is no stored secret here to leak.
         run: |
-          # Until automated publishing is enabled for `nrouter` at
-          # https://pub.dev/packages/nrouter/admin, the OIDC exchange has no
-          # trust to match and pub.dev refuses. Say so plainly instead of
-          # failing the run: dart 3.1.1 is already published, and a red lane
-          # here would hide the real signal on every future commit.
-          if [ -z "${PUB_TOKEN_URL:-}" ] && ! dart pub token list 2>/dev/null | grep -q pub.dev; then
-            echo "::warning::pub.dev automated publishing is not enabled; skipping." \
-                 "Enable it at https://pub.dev/packages/nrouter/admin (repo" \
-                 "nRouterGateway/nrouter-sdk) to publish from CI."
+          # OIDC trusted publishing is signalled by ACTIONS_ID_TOKEN_REQUEST_URL,
+          # which GitHub injects when the job has id-token: write. It is NOT
+          # visible to `dart pub token list` (that lists static tokens only), so
+          # checking for one of those would skip unconditionally and make this
+          # step dead code.
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "::error::id-token: write is not granted; OIDC cannot be used"; exit 1
+          fi
+
+          # Having a token says nothing about whether pub.dev TRUSTS this repo:
+          # that is configured per-package. Attempt the publish and classify the
+          # failure, so this lane turns green by itself the moment automated
+          # publishing is enabled -- no second commit needed.
+          if dart pub publish --force 2>publish.log; then
+            echo "published"; exit 0
+          fi
+          cat publish.log
+          if grep -qiE 'trusted publish|not authorized|no.*permission|OIDC|audience' publish.log; then
+            echo "::warning::pub.dev has no trusted-publisher entry for this repo yet." \
+                 "Enable it at https://pub.dev/packages/nrouter/admin ->" \
+                 "Automated publishing -> GitHub Actions, repository" \
+                 "nRouterGateway/nrouter-sdk. Skipping rather than failing:" \
+                 "dart 3.1.1 is already published, so a red lane here would" \
+                 "mask the real signal on every future commit."
             exit 0
           fi
-          dart pub publish --force
+          # Any other failure is a real one and must not be swallowed.
+          echo "::error::dart publish failed for a reason unrelated to trusted publishing"
+          exit 1
