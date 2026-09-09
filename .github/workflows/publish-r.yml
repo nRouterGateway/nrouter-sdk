@@ -25,7 +25,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: r-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
@@ -64,7 +64,4 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "R package built and checked. Ready for R-universe automated indexing and CRAN submission."
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git fetch origin release-r || true
-          git push origin HEAD:refs/heads/release-r
+          git push origin HEAD:refs/heads/release-r --force
