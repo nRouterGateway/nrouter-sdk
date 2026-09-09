@@ -42,6 +42,13 @@ export {
   type ChatMessage,
   type ChatContentPart,
   type ChatRole,
+  // Tool calling and structured output. TYPES ONLY, so none of these adds a
+  // runtime key to dist/index.js and none belongs in src/index.mjs — the same
+  // rule the multimodal type block below records.
+  type ToolCall,
+  type ChatTool,
+  type ChatToolChoice,
+  type JsonSchemaSpec,
 } from './types';
 
 export {
@@ -52,8 +59,29 @@ export {
   parseBudgetWarning,
   isCacheHit,
   isCacheMiss,
+  // Cost across the many calls of ONE run. `ResponseMeta` is per-call, and the
+  // hand-rolled accumulator is `sum += cost ?? 0`, which reports an unpriced
+  // step as free (Rule #28).
+  CostAccumulator,
+  type CostSummary,
   type BudgetWarningInfo,
 } from './meta';
+
+// The bounded tool loop: the step cap, the stop condition and the tool-result
+// append, owned once instead of hand-rolled per author.
+export {
+  runTools,
+  DEFAULT_MAX_STEPS,
+  type AgentTool,
+  type RunToolsOptions,
+  type RunToolsResult,
+  type RunState,
+  type StopCondition,
+  type StopReason,
+} from './agent';
+
+// The gateway's mounted /mcp and /mcp/{server_id} routes.
+export { NRouterMCP, type MCPTool, type MCPCallResult, type MCPResponse } from './mcp';
 export { jsonRequest } from './json';
 
 // Typed errors. Catch `nRouterError` for all of them, a subclass for one.
@@ -167,6 +195,9 @@ export {
 export {
   chatText,
   chatTextDiagnostic,
+  // The companion to `jsonSchema`: validates rather than trusting, because the
+  // Anthropic wire drops `response_format` and the model was never constrained.
+  parsed,
   compareError,
   COMPARE_ERROR_KEY,
   type ChatRunner,

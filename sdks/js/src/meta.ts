@@ -235,6 +235,96 @@ export function isPriced(meta: ResponseMeta): boolean {
   return meta.costStatus === 'exact' && meta.cost !== null;
 }
 
+/** What one run cost, and how much of that figure is actually known. */
+export interface CostSummary {
+  /** Sum of the EXACTLY priced steps, in USD. Never includes an unpriced one. */
+  total: number;
+  /** How many steps carried an exact price. */
+  priced: number;
+  /** How many did not. A non-zero count means `total` is a FLOOR, not the cost. */
+  unpriced: number;
+  /** Steps observed in total. */
+  steps: number;
+  /** True only when every step was priced — i.e. `total` is the whole cost. */
+  complete: boolean;
+}
+
+/**
+ * Accumulate cost and tokens across the many calls of one agent run.
+ *
+ * `ResponseMeta` is strictly per-call, so anything spanning several calls — a
+ * tool loop, a compare fan-out, a retry ladder the caller drove — made the
+ * author write their own accumulator. The naive one is `sum += meta.cost ?? 0`,
+ * and that single `?? 0` is the defect this class exists to remove: it folds an
+ * UNPRICED step to free and reports a confident total that is silently short.
+ * No enabled model is free (Rule #28), so a null cost means "we could not
+ * price this", never "this cost nothing".
+ *
+ * The rule here is therefore: an unpriced step is COUNTED, never summed, and
+ * `complete` is the honest flag a caller checks before showing the number to
+ * anyone. `total` on an incomplete run is a lower bound and nothing more.
+ *
+ * Pricing is decided by `isPriced`, not by `cost !== null`, so a cost paired
+ * with `costStatus: 'unpriced'` — the two headers contradicting each other — is
+ * counted unpriced here exactly as it is refused there. One reader, one answer.
+ */
+export class CostAccumulator {
+  private totalUsd = 0;
+  private pricedSteps = 0;
+  private unpricedSteps = 0;
+  private inputTokensTotal = 0;
+  private outputTokensTotal = 0;
+
+  /** Fold one response's metadata in. Returns `this` so calls can chain. */
+  add(meta: Pick<ResponseMeta, 'cost' | 'costStatus'> & Partial<ResponseMeta>): this {
+    if (isPriced(meta as ResponseMeta)) {
+      this.totalUsd += meta.cost as number;
+      this.pricedSteps += 1;
+    } else {
+      this.unpricedSteps += 1;
+    }
+    // Token counts are independent of price: a step can be metered and
+    // unpriceable at once, and dropping its tokens would understate usage for a
+    // reason that has nothing to do with usage.
+    if (typeof meta.inputTokens === 'number') this.inputTokensTotal += meta.inputTokens;
+    if (typeof meta.outputTokens === 'number') this.outputTokensTotal += meta.outputTokens;
+    return this;
+  }
+
+  get total(): number {
+    return this.totalUsd;
+  }
+  get priced(): number {
+    return this.pricedSteps;
+  }
+  get unpriced(): number {
+    return this.unpricedSteps;
+  }
+  get steps(): number {
+    return this.pricedSteps + this.unpricedSteps;
+  }
+  get complete(): boolean {
+    return this.unpricedSteps === 0;
+  }
+  get inputTokens(): number {
+    return this.inputTokensTotal;
+  }
+  get outputTokens(): number {
+    return this.outputTokensTotal;
+  }
+
+  /** A plain, frozen snapshot — safe to log, return or serialise. */
+  summary(): CostSummary {
+    return Object.freeze({
+      total: this.totalUsd,
+      priced: this.pricedSteps,
+      unpriced: this.unpricedSteps,
+      steps: this.steps,
+      complete: this.complete,
+    });
+  }
+}
+
 export interface BudgetWarningInfo {
   scope: string;
   spend: number;
