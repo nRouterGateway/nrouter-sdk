@@ -135,3 +135,19 @@ jobs:
           # Any other failure is a real one and must not be swallowed.
           echo "::error::dart publish failed for a reason unrelated to trusted publishing"
           exit 1
+
+      - name: Verify pub.dev serves it
+        if: steps.check.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          # "Successfully uploaded" is not "resolvable": pub.dev warns the new
+          # version can take up to 10 minutes to appear. Verify at the
+          # destination, the same as rust and kotlin.
+          for _ in $(seq 1 40); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' \
+              "https://pub.dev/api/packages/nrouter/versions/$VERSION")"
+            [ "$code" = "200" ] && { echo "pub.dev serves nrouter $VERSION"; exit 0; }
+            sleep 30
+          done
+          echo "::error::pub.dev did not serve $VERSION within 20 minutes"; exit 1

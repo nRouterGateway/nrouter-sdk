@@ -12,6 +12,8 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import yaml
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python 3.10 CI
@@ -156,6 +158,38 @@ def test_sdk_version_6_registry_publishes_refuse_an_ambiguous_existence_check() 
     # means the upload was accepted, not that the index serves it.
     rust = (ROOT / ".github/workflows/publish-rust.yml").read_text()
     assert "Verify crates.io serves it" in rust
+    dart = (ROOT / ".github/workflows/publish-dart.yml").read_text()
+    assert "Verify pub.dev serves it" in dart
+
+
+def test_sdk_version_7_tag_driven_sdks_are_tagged_by_the_release_workflow() -> None:
+    """Swift and Go publish from a git tag, so the tag IS the release.
+
+    The tag the release workflow pushes must match the pattern the publishing
+    workflow triggers on, or the release ships with no lane having checked it.
+    That already happened: 3.1.1 pushed `v3.1.1`, publish-swift.yml listens for
+    a BARE `[0-9]+.[0-9]+.[0-9]+`, and Swift's lane never ran for that release.
+    """
+    tagger = (ROOT / ".github/workflows/release-tags.yml").read_text()
+    swift = yaml.safe_load((ROOT / ".github/workflows/publish-swift.yml").read_text())
+    go = yaml.safe_load((ROOT / ".github/workflows/publish-go.yml").read_text())
+
+    # `on` parses as the boolean True in YAML 1.1, which is why this is d[True].
+    swift_patterns = swift[True]["push"]["tags"]
+    go_patterns = go[True]["push"]["tags"]
+
+    # Swift takes a bare version; a `v` prefix matches none of its patterns.
+    assert any(p.startswith("[0-9]") for p in swift_patterns), swift_patterns
+    assert '"$VERSION" "sdks/go/v$VERSION"' in tagger, (
+        "the tagger must push a bare version for Swift and sdks/go/v* for Go"
+    )
+    assert any(p.startswith("sdks/go/v") for p in go_patterns), go_patterns
+
+    # A tag is a permanent release for these two -- proxy.golang.org caches a
+    # module version forever -- so the tagger must never move one.
+    assert "--force" not in tagger, "a release tag must never be moved"
+    assert "git rev-parse -q --verify" in tagger, "the tagger must skip existing tags"
+    assert "check_conformance.py" in tagger, "tagging must not precede the gates"
 
 
 def test_sdk_version_4_publishable_sdks_carry_registry_metadata() -> None:

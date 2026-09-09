@@ -1,0 +1,109 @@
+# Tag-driven SDKs do not publish themselves.
+#
+# Swift and Go have no registry upload: their "publish" IS a git tag, resolved
+# by SwiftPM and proxy.golang.org straight from this repo. So while npm, PyPI,
+# Maven, crates.io and pub.dev all ship on merge, those two shipped only when a
+# human remembered to tag — and a step that depends on remembering is a step
+# that eventually does not happen.
+#
+# It already has. The coordinated 3.1.1 release pushed `v3.1.1` and
+# `sdks/go/v3.1.1`, but NOT the bare `3.1.1` that publish-swift.yml triggers on
+# (`[0-9]+.[0-9]+.[0-9]+`), so Swift's release lane never ran for 3.1.1 and that
+# release shipped unverified. The tag pattern and the tag pushed disagreed, and
+# nothing was watching.
+#
+# This closes that by deriving both tags from the one canonical version.
+name: release-tags
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # The coordinated version lives in the spec, so a release can only happen
+      # when the spec changes. Watching the SDK manifests too would fire this on
+      # every source edit.
+      - 'spec/nrouter-sdk-spec.json'
+      - '.github/workflows/release-tags.yml'
+  # A version bump that landed before this workflow existed still needs its
+  # tags, and a tag push that failed needs a retry that is not "edit the spec".
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-tags
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Tags are the product here, so they must be present to compare
+          # against. A shallow clone reports every tag as absent and would
+          # re-push tags that already exist.
+          fetch-depth: 0
+
+      - name: Resolve the coordinated version
+        id: v
+        run: |
+          VERSION="$(python3 -c 'import json;print(json.load(open("spec/nrouter-sdk-spec.json"))["version"])')"
+          case "$VERSION" in
+            '') echo "::error::spec carries no version"; exit 1 ;;
+            *[!0-9.]*) echo "::error::'$VERSION' is not a release version; refusing to tag"; exit 1 ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "coordinated version: $VERSION"
+
+      - name: Refuse to tag a tree the SDKs disagree with
+        run: |
+          # A tag IS the release for Swift and Go, and a tag is not retractable
+          # in any way a consumer will notice: proxy.golang.org caches a module
+          # version permanently. So the version parity gate runs BEFORE tagging,
+          # not after.
+          python3 -m pip install --quiet --upgrade pip
+          python3 conformance/check_conformance.py
+          python3 scripts/check_sdk_parity.py
+
+      - name: Create the tags that are missing
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Swift: BARE semver, matching publish-swift.yml's
+          # `[0-9]+.[0-9]+.[0-9]+`. Go: `sdks/go/v*`, matching publish-go.yml.
+          # These two strings are the contract with those two triggers; changing
+          # one without the other yields a tag that fires nothing, which is the
+          # exact defect that let 3.1.1 ship unverified.
+          created=0
+          for tag in "$VERSION" "sdks/go/v$VERSION"; do
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "::notice::$tag already exists; leaving it alone."
+              continue
+            fi
+            # Never force. An existing tag is a published release for these two
+            # ecosystems, and moving it changes what a pinned consumer resolves.
+            git tag -a "$tag" -m "nRouter SDK $VERSION"
+            git push origin "refs/tags/$tag"
+            echo "::notice::pushed $tag"
+            created=$((created + 1))
+          done
+          [ "$created" -gt 0 ] || echo "::notice::every release tag for $VERSION was already present."
+
+      - name: Verify the tags resolve
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          # Pushing a tag is not the same as a registry serving it. Go's proxy
+          # is the one that can be checked immediately and is also the one that
+          # caches permanently, so a wrong module path is worth catching now.
+          git fetch --tags --quiet
+          for tag in "$VERSION" "sdks/go/v$VERSION"; do
+            git rev-parse -q --verify "refs/tags/$tag" >/dev/null \
+              || { echo "::error::$tag was not created"; exit 1; }
+          done
+          echo "both release tags exist for $VERSION"
