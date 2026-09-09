@@ -43,6 +43,10 @@ if (!API_KEY) {
 }
 
 const BASE_URL = process.env.NROUTER_BASE_URL || 'https://api.nrouter.ai/v1';
+// nrouter-doc-wire: messages
+// `nr.stream()` picks the wire per model: usesMessagesWire() in sdks/js/src/chat.ts
+// matches `claude` and sends this default to /v1/messages, which is the only wire
+// the gateway serves Anthropic on. Overriding NROUTER_MODEL re-selects the wire.
 let activeModel = process.env.NROUTER_MODEL || 'claude-haiku-4-5-20251001';
 
 const client = new nRouter({
