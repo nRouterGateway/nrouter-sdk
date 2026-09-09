@@ -485,6 +485,64 @@ test('a socket failure caused by abort is normalized to an AbortError (PGSDK-112
     (err: unknown) => {
       assert.equal(isAbortError(err), true, 'socket hang up on aborted signal must be recognized as abort');
       assert.equal(isRetryable(err), false, 'an aborted request is never retryable');
+      assert.ok(err instanceof Error);
+      assert.equal((err as Error & { cause?: unknown }).cause instanceof Error, true, 'cause preserved');
+      return true;
+    },
+  );
+});
+
+test('an nRouterError takes precedence over signal.aborted without being masked (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-123' },
+      body: (async function* () {
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
+        // Throw an nRouterError (e.g. guardrail, quota, or stream truncation)
+        controller.abort();
+        throw new nRouterError('insufficient credits', { status: 402, requestId: 'req-123' });
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof nRouterError, 'typed nRouterError must not be converted to AbortError');
+      assert.equal((err as nRouterError).status, 402, 'status preserved');
+      assert.equal((err as nRouterError).requestId, 'req-123', 'requestId preserved');
+      return true;
+    },
+  );
+});
+
+test('a custom non-abort-shaped Error abort reason is normalized to isAbortError (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const customReason = new Error('too slow');
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
+        controller.abort(customReason);
+        throw new Error('connection dropped');
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true, 'custom Error reason must be recognized by isAbortError');
+      assert.equal(isRetryable(err), false, 'custom Error abort is never retryable');
+      assert.equal((err as Error).message, 'too slow');
       return true;
     },
   );

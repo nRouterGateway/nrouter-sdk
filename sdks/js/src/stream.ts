@@ -405,40 +405,54 @@ async function* readFrames(
       { status, meta },
     );
   } catch (err) {
-    // An abort is recorded like any other terminal condition so a later
-    // `text()` cannot return the partial answer as if it were whole — but it
-    // is re-thrown unwrapped, so `isAbortError` still recognises it and no
-    // retry layer mistakes it for a transient failure.
     // An abort and an nRouterError are re-thrown UNWRAPPED — the first so
     // `isAbortError` still recognises it and no retry layer treats it as
     // transient, the second because it is already classified.
-    //
+    if (err instanceof nRouterError) {
+      state.failure = err;
+      throw err;
+    }
+    if (isAbortError(err)) {
+      state.failure = err instanceof Error ? err : new Error(String(err));
+      throw err;
+    }
+
     // Anything else is a raw socket or runtime failure escaping out of the
-    // body iterator, and rethrowing it meant nr.stream() left the advertised
-    // nRouterError hierarchy entirely: `isRetryable` answered false and the
-    // status and request id were lost, for a request that DID reach the
-    // gateway.
+    // body iterator.
+    //
     // `signal.aborted`, not just the error's NAME. `AbortController.abort()`
     // with no argument produces an AbortError, but `abort(new Error('user
     // cancelled'))` propagates that reason verbatim — a generic Error, which
     // the name check missed. It was then wrapped as a transport failure and
     // reported RETRYABLE, so a generic retry loop could resend a billed
     // request the caller had explicitly cancelled (gate 8). The signal is the
+    // authority on whether a cancellation happened; the name is only a hint.
     if (signal?.aborted) {
-      const abortErr = isAbortLike(err)
-        ? (err as Error)
-        : isAbortLike(signal.reason)
-          ? (signal.reason as Error)
-          : signal.reason instanceof Error
-            ? signal.reason
-            : Object.assign(new Error('the request was aborted'), { name: 'AbortError', cause: err });
+      const reason = signal.reason;
+      let abortErr: Error;
+      if (isAbortError(reason)) {
+        abortErr = reason as Error;
+      } else if (reason instanceof Error) {
+        abortErr = Object.assign(reason, {
+          name: reason.name === 'Error' ? 'AbortError' : reason.name,
+        });
+      } else {
+        abortErr = Object.assign(
+          new Error(typeof reason === 'string' && reason ? reason : 'the request was aborted'),
+          { name: 'AbortError' },
+        );
+      }
+      if (!(abortErr as { cause?: unknown }).cause && err && err !== abortErr) {
+        try {
+          Object.defineProperty(abortErr, 'cause', { value: err, writable: true, configurable: true });
+        } catch {
+          (abortErr as { cause?: unknown }).cause = err;
+        }
+      }
       state.failure = abortErr;
       throw abortErr;
     }
-    if (err instanceof nRouterError || isAbortError(err)) {
-      state.failure = err instanceof Error ? err : new Error(String(err));
-      throw err;
-    }
+
     const wrapped = transportError(
       `the stream failed while being read (${err instanceof Error ? err.message : String(err)})`,
       { status, meta, cause: err },
