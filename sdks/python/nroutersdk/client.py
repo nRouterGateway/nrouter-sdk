@@ -1123,11 +1123,14 @@ class nRouter(_OpenAI):
 
     def capabilities(self) -> dict:
         """Fetch gateway capabilities and served endpoints."""
-        return self.nrouter_models.capabilities()
+        # The delegate is deliberately -> Any: it serves both the sync and async
+        # clients and returns a coroutine for the latter. This wrapper is the
+        # sync half, so the concrete type is known here and nowhere above.
+        return cast(dict, self.nrouter_models.capabilities())
 
     def providers(self) -> list[str]:
         """List the distinct upstream providers available through this gateway."""
-        return self.nrouter_models.providers()
+        return cast("list[str]", self.nrouter_models.providers())
 
 
 # ---------------------------------------------------------------------------
@@ -1307,11 +1310,13 @@ class AsyncnRouter(_AsyncOpenAI):
 
     async def capabilities(self) -> dict:
         """Fetch gateway capabilities and served endpoints."""
-        return await self.nrouter_models.capabilities()
+        # See the sync twin: the delegate is -> Any because it serves both
+        # clients; awaiting it here is what fixes the type.
+        return cast(dict, await self.nrouter_models.capabilities())
 
     async def providers(self) -> list[str]:
         """List the distinct upstream providers available through this gateway."""
-        return await self.nrouter_models.providers()
+        return cast("list[str]", await self.nrouter_models.providers())
 
 
 def parse_sse(raw: str) -> list[dict[str, str]]:

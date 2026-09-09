@@ -135,6 +135,25 @@ def test_sdk_version_5_kotlin_release_cannot_skip_signing_or_staging() -> None:
     assert "useInMemoryPgpKeys" in build, "a keyring import outlives the step"
 
 
+def test_sdk_version_6_registry_publishes_refuse_an_ambiguous_existence_check() -> None:
+    """crates.io and Central both spend a version permanently on acceptance.
+
+    So "does this version already exist?" has three answers, not two, and the
+    third — anything that is neither 200 nor 404 — must stop the run.  Treating
+    an error page as "not published" is what republishes a live coordinate.
+    """
+    for wf in ("publish-rust", "publish-kotlin"):
+        workflow = (ROOT / f".github/workflows/{wf}.yml").read_text()
+        assert "cannot tell whether" in workflow, f"{wf} guesses on an ambiguous status"
+        assert "is not a release version" in workflow, f"{wf} accepts a junk version"
+        assert "github.ref == 'refs/heads/main'" in workflow, f"{wf} may release off main"
+
+    # Publishing must be verified at the registry: `cargo publish` exiting 0
+    # means the upload was accepted, not that the index serves it.
+    rust = (ROOT / ".github/workflows/publish-rust.yml").read_text()
+    assert "Verify crates.io serves it" in rust
+
+
 def test_sdk_version_4_publishable_sdks_carry_registry_metadata() -> None:
     """A publishable SDK must be publishable for real, not merely unblocked.
 

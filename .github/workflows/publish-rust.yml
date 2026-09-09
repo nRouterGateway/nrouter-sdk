@@ -59,7 +59,53 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 conformance/check_conformance.py
 
-      - name: Verify source-only publication guard
+      - name: Build check
+        run: cargo check --all-targets
+
+      # ---- release ------------------------------------------------------
+      # Only on a push to main, so a pull request never sees the token.
+
+      - name: Already on crates.io?
+        id: check
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          grep -Fx 'publish = false' Cargo.toml
-          cargo check --all-targets
+          VERSION="$(cargo metadata --no-deps --format-version 1 |
+            python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')"
+          case "$VERSION" in
+            '') echo "::error::could not read the crate version"; exit 1 ;;
+            *[!0-9.]*) echo "::error::version '$VERSION' is not a release version"; exit 1 ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # crates.io is immutable: a version is spent the moment it is accepted,
+          # so an ambiguous answer must stop rather than risk a second upload.
+          code="$(curl -s -o body.json -w '%{http_code}' \
+            -H 'User-Agent: nrouter-sdk-ci' "https://crates.io/api/v1/crates/nrouter/$VERSION")"
+          case "$code" in
+            200) echo "publish=false" >> "$GITHUB_OUTPUT"
+                 echo "::notice::nrouter $VERSION is already on crates.io; nothing to do." ;;
+            404) echo "publish=true"  >> "$GITHUB_OUTPUT" ;;
+            *)   echo "::error::crates.io answered $code; cannot tell whether $VERSION exists"; exit 1 ;;
+          esac
+
+      - name: Publish to crates.io
+        if: steps.check.outputs.publish == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          [ -n "$CARGO_REGISTRY_TOKEN" ] || { echo "::error::CARGO_REGISTRY_TOKEN is unset"; exit 1; }
+          cargo publish
+
+      - name: Verify crates.io serves it
+        if: steps.check.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          # Verify at the destination. `cargo publish` returning 0 means the
+          # upload was accepted, not that the index has it.
+          for _ in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' \
+              -H 'User-Agent: nrouter-sdk-ci' "https://crates.io/api/v1/crates/nrouter/$VERSION")"
+            [ "$code" = "200" ] && { echo "crates.io serves nrouter $VERSION"; exit 0; }
+            sleep 10
+          done
+          echo "::error::crates.io did not serve $VERSION within 5 minutes"; exit 1

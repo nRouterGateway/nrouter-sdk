@@ -1,7 +1,19 @@
+//go:build ignore
+
 // nRouter — Go
 // OpenAI Go SDK + guardrails (automatic) + cost tracking via headers.
 //
 // go get github.com/openai/openai-go
+//
+// `go:build ignore` is load-bearing. This file demonstrates pointing the
+// THIRD-PARTY OpenAI SDK at nRouter, so it is the only file here that imports
+// something outside the standard library. The published module has no go.sum
+// and no dependencies, which is a feature: adding openai-go to go.mod to make
+// this one example compile would force it on every consumer of the SDK.
+// Excluded, it costs `go vet ./...` nothing; included, it broke every CI run.
+//
+// The trade-off is that CI does not compile this file, so run it by hand after
+// editing:  go run demo/quickstart.go
 
 package main
 

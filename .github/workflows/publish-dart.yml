@@ -34,6 +34,11 @@ concurrency:
 jobs:
   test-and-verify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # pub.dev trusted publishing exchanges this for a short-lived upload
+      # credential. No token is stored anywhere.
+      id-token: write
     defaults:
       run:
         working-directory: sdks/dart
@@ -59,6 +64,29 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 conformance/check_conformance.py
 
-      - name: Verify source-only publication guard
+      - name: Verify the package is publishable
         run: |
-          grep -Fx 'publish_to: none' pubspec.yaml
+          # `publish_to: none` was removed when dart started publishing, so the
+          # old guard grepped for a line that must no longer exist. The useful
+          # check is the inverse: prove the package would be ACCEPTED.
+          ! grep -qE '^publish_to:' pubspec.yaml || {
+            echo "::error::publish_to is set; pub.dev would refuse this package"; exit 1; }
+          dart pub publish --dry-run
+
+      - name: Publish to pub.dev
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # pub.dev authenticates via OIDC (id-token: write is granted at the job
+        # level below), so there is no stored secret here to leak.
+        run: |
+          # Until automated publishing is enabled for `nrouter` at
+          # https://pub.dev/packages/nrouter/admin, the OIDC exchange has no
+          # trust to match and pub.dev refuses. Say so plainly instead of
+          # failing the run: dart 3.1.1 is already published, and a red lane
+          # here would hide the real signal on every future commit.
+          if [ -z "${PUB_TOKEN_URL:-}" ] && ! dart pub token list 2>/dev/null | grep -q pub.dev; then
+            echo "::warning::pub.dev automated publishing is not enabled; skipping." \
+                 "Enable it at https://pub.dev/packages/nrouter/admin (repo" \
+                 "nRouterGateway/nrouter-sdk) to publish from CI."
+            exit 0
+          fi
+          dart pub publish --force
