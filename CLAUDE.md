@@ -7,10 +7,8 @@ is world-readable. Treat every file as published.
 ## ⛔ SUPPORT SCOPE: npm, PyPI and Maven — owner decision 2026-08-29, reviewed monthly
 
 **Ten SDKs exist here; THREE are supported.** Work that ships as a supported
-package goes to `sdks/{js,python,java}`. Kotlin, Android, Rust, Dart and R are
-registry-distributed public previews; Swift and Go use immutable source tags.
-Distribution does not add a support commitment. All ten use one coordinated
-release version and remain subject to the same conformance gate.
+package goes to `sdks/{js,python,java}`. Distribution does not add a support
+commitment, and every SDK stays subject to the same conformance gate.
 
 | supported | registry | package |
 |---|---|---|
@@ -18,9 +16,28 @@ release version and remain subject to the same conformance gate.
 | `sdks/python` | PyPI | `nrouter-sdk` |
 | `sdks/java` | Maven Central | `ai.nrouter:nrouter-sdk` |
 
-Public preview distribution: `sdks/r` is available from
-`https://nrouterai.r-universe.dev/nrouter` as package `nrouter`. Preview publication is
-not a support commitment.
+**The other seven are in three different distribution states, not one.**
+
+- **Tag-distributed** — `sdks/go` via `proxy.golang.org` on the `sdks/go/vN.N.N`
+  tag; `sdks/swift` via SPM on the repo tag.
+- **Preview registry** — `sdks/r` at `https://nrouterai.r-universe.dev/nrouter`
+  as package `nrouter`, built from the `release-r` branch that `publish-r.yml`
+  pushes. Preview publication is not a support commitment.
+- **Source-only** — `sdks/{rust,dart,kotlin,android}` are not published from
+  this repo. `tests/test_release_versions.py::test_sdk_version_3_source_only_workflows_cannot_publish`
+  enforces it: `publish = false` in `sdks/rust/Cargo.toml`, `publish_to: none`
+  in `sdks/dart/pubspec.yaml`, and kotlin/android workflows carrying
+  `publishToMavenLocal` and no release credentials.
+
+⚠️ **crates.io, pub.dev and Maven Central still serve older 2.x builds of those
+four.** Those artifacts predate the source-only guard and do not implement the
+current `spec/nrouter-sdk-spec.json` contract. Use `sdks/{js,python,java}` for a
+supported package; treat a 2.x `nrouter` crate or pub package as out of date.
+
+**A `publish-*` filename is not evidence a workflow publishes** — `publish-rust.yml`
+and `publish-dart.yml` run verification only, and `publish-kotlin.yml` /
+`publish-android.yml` declare `name: verify-kotlin` / `verify-android`. Grep the
+job for the actual publish command before believing it.
 
 Derive the live versions; never quote one from prose:
 
@@ -36,10 +53,13 @@ to land in all ten — a spec edit that leaves seven behind turns a green gate
 into a lie the day one of them is supported. Source tags do not broaden the
 support commitment.
 
-⚠️ Every registry remains immutable, but the ten SDKs use ONE release version.
-`spec/nrouter-sdk-spec.json` is canonical and the conformance gate checks every
-manifest, lockfile and Swift/Go version marker. A breaking change in any SDK
-therefore advances the coordinated major version for all ten.
+⚠️ **The ten SDKs carry ONE release version IN SOURCE; what each registry serves
+is a separate question.** `spec/nrouter-sdk-spec.json` is canonical and the
+conformance gate checks every manifest, lockfile and Swift/Go version marker, so
+a breaking change advances the coordinated version for all ten in this tree. It
+does not follow that every registry holds that version — the source-only four do
+not publish at all, and every registry is immutable, so a published artifact is
+never corrected in place. Read the version from the registry, never from source.
 
 Independent repo, own remote, nested in `nrouter-brain`, gitignored by it.
 **Edit in place; commit and push here.** Rule #20: `git pull --ff-only` → edit →
