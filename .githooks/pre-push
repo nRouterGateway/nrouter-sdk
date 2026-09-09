@@ -3,6 +3,7 @@ set -e
 
 # Only run if sdks/r is modified in the commits being pushed
 z40=0000000000000000000000000000000000000000
+empty_tree=$(git hash-object -t tree /dev/null)
 
 while read local_ref local_oid remote_ref remote_oid
 do
@@ -13,7 +14,7 @@ do
 
   if [ "$remote_oid" = "$z40" ]; then
     # New branch, check against empty tree
-    range="$local_oid"
+    range="$empty_tree..$local_oid"
   else
     # Update to existing branch, check commits between remote and local
     range="$remote_oid..$local_oid"
@@ -21,7 +22,7 @@ do
 
   if git diff --name-only "$range" -- | grep -q "^sdks/r/"; then
     echo "Changes detected in sdks/r/. Running tests before push..."
-    if ! bash scripts/test-all.sh; then
+    if ! bash scripts/test-all.sh < /dev/null; then
       echo "Tests failed. Push aborted."
       exit 1
     fi
