@@ -360,12 +360,17 @@ function defineHidden(target: unknown, key: string, value: unknown): void {
 
 function cloneNRouterError(err: nRouterError, cause: unknown): nRouterError {
   const cloned = Object.create(Object.getPrototypeOf(err));
-  const descs = Object.getOwnPropertyDescriptors(err);
+  const descs = Object.getOwnPropertyDescriptors(err) as Record<string, PropertyDescriptor | undefined>;
   delete descs.cause;
-  Object.defineProperties(cloned, descs);
-  cloned.message = err.message;
-  cloned.name = err.name;
-  cloned.stack = err.stack;
+  delete descs.message;
+  delete descs.name;
+  delete descs.stack;
+  Object.defineProperties(cloned, descs as PropertyDescriptorMap);
+  defineHidden(cloned, 'message', err.message);
+  defineHidden(cloned, 'name', err.name);
+  if (err.stack !== undefined) {
+    defineHidden(cloned, 'stack', err.stack);
+  }
   defineHidden(cloned, 'cause', cause);
   return cloned;
 }
@@ -396,7 +401,7 @@ function sanitizeReasonValue(val: unknown, depth = 0, seen = new Set<unknown>())
       .filter((item) => item !== undefined);
   }
   if (typeof val === 'object' && val !== null) {
-    return sanitizeStructuredReason(val as Record<string, unknown>, depth + 1, seen);
+    return sanitizeStructuredReason(val as Record<string, unknown>, depth, seen);
   }
   return undefined;
 }
@@ -569,59 +574,56 @@ async function* readFrames(
       throw err;
     }
 
-    // If the request was cancelled by the caller via AbortSignal or an AbortError:
+    // If the request was cancelled by the caller via AbortSignal:
     // A cancelled request must never be resent — it was billed (gate 8).
     // An abort takes precedence over any transport failure so retry layers never
     // mistake a cancellation for a transient retryable error.
-    if (signal?.aborted || isAbortError(err)) {
+    if (signal?.aborted) {
+      const reason = signal.reason;
       const hasCustomReason =
-        signal?.aborted &&
-        signal.reason !== undefined &&
-        !isDefaultAbort(signal.reason);
+        reason !== undefined && !isDefaultAbort(reason);
 
-      const reason = signal?.aborted ? signal.reason : err;
-
-      const ctorName =
-        typeof (reason as { constructor?: { name?: unknown } })?.constructor?.name === 'string' &&
-        (reason as { constructor: { name: string } }).constructor.name !== 'Object'
-          ? (reason as { constructor: { name: string } }).constructor.name
-          : typeof (err as { constructor?: { name?: unknown } })?.constructor?.name === 'string' &&
-            (err as { constructor: { name: string } }).constructor.name !== 'Object'
-            ? (err as { constructor: { name: string } }).constructor.name
-            : undefined;
-
-      const errorName =
+      let errorName = 'AbortError';
+      if (
         typeof (reason as { name?: unknown })?.name === 'string' &&
         ABORT_NAMES.has((reason as { name: string }).name)
-          ? (reason as { name: string }).name
-          : typeof (err as { name?: unknown })?.name === 'string' &&
-            ABORT_NAMES.has((err as { name: string }).name)
-            ? (err as { name: string }).name
-            : typeof ctorName === 'string' && ABORT_NAMES.has(ctorName)
-              ? ctorName
-              : signal?.aborted
-                ? 'AbortError'
-                : reason instanceof Error
-                  ? reason.name
-                  : 'AbortError';
+      ) {
+        errorName = (reason as { name: string }).name;
+      } else if (
+        typeof (err as { name?: unknown })?.name === 'string' &&
+        ABORT_NAMES.has((err as { name: string }).name)
+      ) {
+        errorName = (err as { name: string }).name;
+      } else {
+        const ctorName =
+          typeof (reason as { constructor?: { name?: unknown } })?.constructor?.name === 'string' &&
+          (reason as { constructor: { name: string } }).constructor.name !== 'Object'
+            ? (reason as { constructor: { name: string } }).constructor.name
+            : typeof (err as { constructor?: { name?: unknown } })?.constructor?.name === 'string' &&
+              (err as { constructor: { name: string } }).constructor.name !== 'Object'
+              ? (err as { constructor: { name: string } }).constructor.name
+              : undefined;
+        if (typeof ctorName === 'string' && ABORT_NAMES.has(ctorName)) {
+          errorName = ctorName;
+        }
+      }
 
-      const rawMsg =
-        hasCustomReason
-          ? reason instanceof Error
-            ? reason.message
-            : typeof reason === 'string'
-              ? reason
-              : typeof reason === 'object' &&
-                  reason !== null &&
-                  'message' in reason &&
-                  typeof (reason as { message: unknown }).message === 'string'
-                ? (reason as { message: string }).message
-                : 'the request was aborted'
-          : typeof (reason as { message?: unknown })?.message === 'string' &&
-              (reason as { message: string }).message &&
-              !isDefaultAbort(reason)
-            ? (reason as { message: string }).message
-            : 'the request was aborted';
+      let rawMsg = 'the request was aborted';
+      if (hasCustomReason) {
+        if (typeof reason === 'string') {
+          rawMsg = reason;
+        } else if (reason instanceof Error && reason.message) {
+          rawMsg = reason.message;
+        } else if (
+          typeof reason === 'object' &&
+          reason !== null &&
+          'message' in reason &&
+          typeof (reason as { message: unknown }).message === 'string' &&
+          (reason as { message: string }).message
+        ) {
+          rawMsg = (reason as { message: string }).message;
+        }
+      }
 
       const trimmedMsg = typeof rawMsg === 'string' ? rawMsg.trim() : '';
       const msg = trimmedMsg.length > 0 ? redactKeys(rawMsg) : 'the request was aborted';
@@ -635,7 +637,7 @@ async function* readFrames(
       let causeVal: unknown;
       if (hasCustomReason) {
         causeVal = sanitizeReasonValue(reason);
-        if (err !== undefined && err !== signal?.reason) {
+        if (err !== undefined && err !== signal.reason) {
           const safeErr = sanitizeCause(err);
           if (typeof causeVal === 'object' && causeVal !== null) {
             if (!(causeVal as { cause?: unknown }).cause) {
@@ -653,7 +655,58 @@ async function* readFrames(
       }
 
       attachMeta(abortErr, status, meta);
+      state.failure = abortErr;
+      throw abortErr;
+    }
 
+    // If the transport/fetch threw an AbortError directly:
+    if (isAbortError(err)) {
+      const ctorName =
+        typeof (err as { constructor?: { name?: unknown } })?.constructor?.name === 'string' &&
+        (err as { constructor: { name: string } }).constructor.name !== 'Object'
+          ? (err as { constructor: { name: string } }).constructor.name
+          : undefined;
+
+      let errorName = 'AbortError';
+      if (
+        typeof (err as { name?: unknown })?.name === 'string' &&
+        ABORT_NAMES.has((err as { name: string }).name)
+      ) {
+        errorName = (err as { name: string }).name;
+      } else if (typeof ctorName === 'string' && ABORT_NAMES.has(ctorName)) {
+        errorName = ctorName;
+      } else if (err instanceof Error && err.name) {
+        errorName = err.name;
+      }
+
+      let rawMsg = 'the request was aborted';
+      if (typeof err === 'string' && err && !isDefaultAbort(err)) {
+        rawMsg = err;
+      } else if (err instanceof Error && err.message && !isDefaultAbort(err)) {
+        rawMsg = err.message;
+      } else if (
+        typeof err === 'object' &&
+        err !== null &&
+        'message' in err &&
+        typeof (err as { message: unknown }).message === 'string' &&
+        (err as { message: string }).message &&
+        !isDefaultAbort(err)
+      ) {
+        rawMsg = (err as { message: string }).message;
+      }
+
+      const trimmedMsg = typeof rawMsg === 'string' ? rawMsg.trim() : '';
+      const msg = trimmedMsg.length > 0 ? redactKeys(rawMsg) : 'the request was aborted';
+
+      const abortErr = new Error(msg);
+      abortErr.name = errorName;
+
+      const causeVal = sanitizeReasonValue(err);
+      if (causeVal !== undefined) {
+        defineHidden(abortErr, 'cause', causeVal);
+      }
+
+      attachMeta(abortErr, status, meta);
       state.failure = abortErr;
       throw abortErr;
     }

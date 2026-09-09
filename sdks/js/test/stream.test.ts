@@ -1114,12 +1114,22 @@ test('cloneNRouterError preserves non-enumerable requestId, status, and meta on 
       status: 200,
       headers: {
         'content-type': 'text/event-stream',
-        'x-nr-request-id': 'req-clone-1234',
-        'x-nr-model': 'gpt-4o',
+        'x-nr-request-id': 'req-runner-header-ignore',
+        'x-nr-model': 'runner-model-ignore',
       },
       body: (async function* () {
         controller.abort(new Error('client canceled mid-flight'));
-        const err = new nRouterServiceError('gateway error');
+        const err = new nRouterServiceError('gateway error', {
+          requestId: 'req-clone-1234',
+          status: 503,
+          meta: { model: 'gpt-4o', provider: 'azure' },
+        });
+        Object.defineProperty(err, 'customNonEnum', {
+          value: 'preserved-custom-marker',
+          writable: true,
+          enumerable: false,
+          configurable: true,
+        });
         throw err;
       })(),
     }),
@@ -1131,10 +1141,74 @@ test('cloneNRouterError preserves non-enumerable requestId, status, and meta on 
     },
     (err: unknown) => {
       assert.ok(err instanceof nRouterServiceError);
-      assert.equal((err as nRouterServiceError).requestId, 'req-clone-1234', 'requestId preserved on clone');
-      assert.equal((err as nRouterServiceError).status, 200, 'status preserved on clone');
-      assert.equal((err as nRouterServiceError).meta?.model, 'gpt-4o', 'meta preserved on clone');
+      assert.equal((err as nRouterServiceError).requestId, 'req-clone-1234', 'requestId preserved on clone from err');
+      assert.equal((err as nRouterServiceError).status, 503, 'status preserved on clone from err');
+      assert.equal((err as nRouterServiceError).meta?.model, 'gpt-4o', 'meta preserved on clone from err');
+      assert.equal((err as any).customNonEnum, 'preserved-custom-marker', 'custom non-enumerable property preserved on clone');
       assert.equal(isRetryable(err), false);
+      return true;
+    },
+  );
+});
+
+test('sanitizeStructuredReason preserves nested objects up to depth limit without premature doubling (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  // Nesting 5 levels deep: obj.l1.l2.l3.l4.deepProperty
+  const nestedReason = {
+    l1: {
+      l2: {
+        l3: {
+          l4: {
+            deepProperty: 'deepVal',
+          },
+        },
+      },
+    },
+  };
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        controller.abort(nestedReason);
+        throw controller.signal.reason;
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      const cause = (err as Error & { cause?: any }).cause;
+      assert.ok(cause?.l1?.l2?.l3?.l4?.deepProperty, 'level 4 nested object preserved');
+      assert.equal(cause.l1.l2.l3.l4.deepProperty, 'deepVal');
+      return true;
+    },
+  );
+});
+
+test('un-aborted stream failures with non-Error throws are wrapped as transportError not AbortError (PGSDK-112)', async () => {
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        throw 'raw socket dropped string';
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' });
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), false, 'non-abort string throw must not be classified as AbortError');
+      assert.ok(err instanceof nRouterError, 'wrapped in nRouterError');
+      assert.ok((err as Error).message.includes('raw socket dropped string'));
       return true;
     },
   );
