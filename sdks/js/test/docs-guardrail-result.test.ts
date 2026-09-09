@@ -71,8 +71,18 @@ test('guardrails.md calls out monitor and none as NON-protection', () => {
 
 test('the sibling modality docs still carry the same token (the shape being mirrored)', () => {
   // If audio.md ever loses this, the mirror above is copying a dead pattern.
+  //
+  // Matched as the ONE code span audio.md actually publishes, not as five bare
+  // substrings. `audio.includes('pass')` is satisfied by "passes", "bypass" or
+  // "password" and `includes('none')` by "none of the" — so the loop this
+  // replaces would have gone on passing after the status token was deleted
+  // outright, as long as ordinary English survived anywhere in the file. That is
+  // the false green: the assertion cannot distinguish the contract from prose.
   const audio = fs.readFileSync(path.join(__dirname, '..', 'docs', 'audio.md'), 'utf8');
-  for (const s of STATUSES) {
-    assert.ok(audio.includes(s), `docs/audio.md no longer mentions ${s}`);
-  }
+  assert.match(
+    audio,
+    /`none \| monitor \| pass \| partial \| blocked`/,
+    'docs/audio.md no longer carries the five-status token verbatim — the ' +
+      'mirror in guardrails.md is then copying a pattern its sibling dropped',
+  );
 });

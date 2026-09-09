@@ -109,11 +109,14 @@ That is per-entry, not per-route, so a route-level yes/no cannot express it:
 | `/v1/videos/{id}` · `/v1/videos/{id}/content` | **OpenAI only** (same capability as generation) |
 | `/v1/models` · `/v1/models/{model_id}` | listing surface — no provider constraint |
 
-### The eleven non-text routes are single-provider, and that is an ALLOWLIST
+### Nine of the eleven non-text routes are single-provider, and that is an ALLOWLIST
 
 The four text rows above list several providers each, which makes the table look
-like a general "most providers serve most routes" story. It is not. Everything
-below the text wires is served by **exactly one** provider family:
+like a general "most providers serve most routes" story. It is not. Every
+non-text route that *calls a provider* is served by **exactly one** provider
+family. The two exceptions are the listing routes `/v1/models` and
+`/v1/models/{model_id}`, which call no provider at all and carry no constraint —
+they return the catalogue your key can see:
 
 * **`count_tokens` — Anthropic alone.** It is Anthropic's own token counter; no
   other upstream exposes an equivalent at a path this gateway mounts.

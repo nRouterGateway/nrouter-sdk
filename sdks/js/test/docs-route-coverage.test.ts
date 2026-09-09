@@ -28,7 +28,17 @@ const path = require('node:path');
 const docs = (name: string) =>
   fs.readFileSync(path.join(__dirname, '..', 'docs', name), 'utf8') as string;
 
-/** Gateway rules §2 — the fifteen customer routes, exhaustive. */
+/**
+ * Gateway rules §2 — the fifteen customer routes, exhaustive.
+ *
+ * The three parameterized routes are load-bearing members of this list, not
+ * decoration. They were omitted while the comment still said "fifteen", so the
+ * array pinned TWELVE: routing.md could lose its `/v1/videos/{id}`,
+ * `/v1/videos/{id}/content` and `/v1/models/{model_id}` rows and this test
+ * stayed green — proven by deleting those rows and watching it pass. A reader
+ * building a video chain would then find the retrieval and content routes
+ * documented nowhere, which is the omission this file exists to catch.
+ */
 const ALL_ROUTES = [
   '/v1/audio/speech',
   '/v1/audio/transcriptions',
@@ -40,9 +50,24 @@ const ALL_ROUTES = [
   '/v1/messages',
   '/v1/messages/count_tokens',
   '/v1/models',
+  '/v1/models/{model_id}',
   '/v1/responses',
   '/v1/videos',
+  '/v1/videos/{id}',
+  '/v1/videos/{id}/content',
 ];
+
+test('the route list this file pins is the exhaustive fifteen', () => {
+  // The defect was a silent arithmetic one: a list labelled "fifteen" holding
+  // twelve entries. Counting it here makes the next omission fail loudly rather
+  // than quietly narrowing what the coverage test above can see.
+  assert.equal(
+    ALL_ROUTES.length,
+    15,
+    'gateway rules §2 fixes FIFTEEN customer routes — a shorter list silently ' +
+      'narrows the coverage assertion below without failing anything',
+  );
+});
 
 test('routing.md names every customer route, not only the four text wires', () => {
   const routing = docs('routing.md');
