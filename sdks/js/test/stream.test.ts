@@ -834,6 +834,33 @@ test('APIUserAbortError preserves constructor abort name and non-retryability (P
   );
 });
 
+test('transport abort error with generic Error name preserves AbortError name and non-retryability (PGSDK-112)', async () => {
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        const err = new Error('The user aborted a request.');
+        err.name = 'Error';
+        (err as any).code = 20;
+        throw err;
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' });
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      assert.equal((err as Error).name, 'AbortError');
+      assert.equal(isRetryable(err), false);
+      return true;
+    },
+  );
+});
+
 test('aborting with an nRouterRateLimitError reason preserves nRouterError hierarchy and non-retryability (PGSDK-112)', async () => {
   const controller = new AbortController();
   const callerError = new nRouterRateLimitError('too fast');

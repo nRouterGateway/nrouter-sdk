@@ -675,8 +675,6 @@ async function* readFrames(
         errorName = (err as { name: string }).name;
       } else if (typeof ctorName === 'string' && ABORT_NAMES.has(ctorName)) {
         errorName = ctorName;
-      } else if (err instanceof Error && err.name) {
-        errorName = err.name;
       }
 
       let rawMsg = 'the request was aborted';

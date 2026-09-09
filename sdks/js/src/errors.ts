@@ -464,7 +464,10 @@ export function isAbortLike(err: unknown): boolean {
   const name = (err as { name?: unknown }).name;
   if (typeof name === 'string' && ABORT_NAMES.has(name)) return true;
   const ctor = (err as { constructor?: { name?: unknown } }).constructor;
-  return typeof ctor?.name === 'string' && ABORT_NAMES.has(ctor.name);
+  if (typeof ctor?.name === 'string' && ABORT_NAMES.has(ctor.name)) return true;
+  const code = (err as { code?: unknown }).code;
+  if (code === 20 || code === 'ABORT_ERR') return true;
+  return false;
 }
 
 /** Walk a cause chain looking for an abort, bounded so a cycle cannot hang the caller. */
