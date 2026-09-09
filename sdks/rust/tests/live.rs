@@ -102,7 +102,7 @@ fn advertised_endpoints(catalogue: &Value, model: &str) -> Vec<String> {
 async fn live_claude_stream_reaches_the_configured_gateway() {
     let client = live_client();
     let model = std::env::var("NROUTER_LIVE_MESSAGES_MODEL")
-        .unwrap_or_else(|_| "claude-haiku-4-5-20251001".to_owned());
+        .unwrap_or_else(|_| "claude-3-5-haiku-20241022".to_owned());
     let mut stream = client
         .messages_stream(&json!({
             "model": model,

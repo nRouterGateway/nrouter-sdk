@@ -45,7 +45,7 @@ test('playground UI parameters serialize accurately into gateway request body', 
 
 test('playground Claude request enforces mutual exclusion and Anthropic wire translation', () => {
   const uiState = {
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-3-5-haiku-20241022',
     messages: [
       { role: 'system', content: 'System instruction' },
       { role: 'user', content: 'User question' },
@@ -79,7 +79,7 @@ test('playground Claude request enforces mutual exclusion and Anthropic wire tra
   const translated = toAnthropicMessagesRequest(body);
 
   assert.equal(MESSAGES_PATH, '/messages');
-  assert.equal(translated.body.model, 'claude-haiku-4-5-20251001');
+  assert.equal(translated.body.model, 'claude-3-5-haiku-20241022');
   assert.equal(translated.body.max_tokens, 300);
   assert.equal(translated.body.system, 'System instruction');
   assert.equal(translated.body.top_p, 0.9);

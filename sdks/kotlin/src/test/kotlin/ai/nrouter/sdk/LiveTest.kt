@@ -101,7 +101,7 @@ class LiveTest {
     @Test
     fun `live Claude stream reaches the configured gateway`() = runBlocking {
         val client = liveClient()
-        val model = System.getenv("NROUTER_LIVE_MESSAGES_MODEL") ?: "claude-haiku-4-5-20251001"
+        val model = System.getenv("NROUTER_LIVE_MESSAGES_MODEL") ?: "claude-3-5-haiku-20241022"
         val chunks = withTimeout(60_000) {
             client.messagesStream(
                 JSONObject()

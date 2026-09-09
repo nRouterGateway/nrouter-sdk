@@ -106,7 +106,7 @@ const BASE_URL = env.NROUTER_BASE_URL || 'https://api.nrouter.ai/v1';
 // OpenAI-shaped wire. Two model variables rather than one, so a single run
 // exercises BOTH paths instead of whichever one the default happened to pick.
 // nrouter-doc-wire: messages
-const MESSAGES_MODEL = env.NROUTER_MESSAGES_MODEL || 'claude-haiku-4-5-20251001';
+const MESSAGES_MODEL = env.NROUTER_MESSAGES_MODEL || 'claude-3-5-haiku-20241022';
 const CHAT_MODEL = env.NROUTER_CHAT_MODEL || 'gpt-4.1-mini';
 const RESPONSES_MODEL = env.NROUTER_RESPONSES_MODEL || 'gpt-4.1-mini';
 

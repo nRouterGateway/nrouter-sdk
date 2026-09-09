@@ -88,7 +88,7 @@ async function main() {
       maxTokens: 12,
       cache: false,
     },
-    ["claude-haiku-4-5-20251001", MODEL],
+    ["claude-3-5-haiku-20241022", MODEL],
   );
   console.log("\ncompare");
   console.log(compared.map((result) => client.nr.text(result)));

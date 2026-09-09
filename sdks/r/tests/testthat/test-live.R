@@ -3,7 +3,7 @@ test_that("live Claude request reaches the configured gateway", {
   base_url <- Sys.getenv("NROUTER_BASE_URL", unset = nrouter_default_base_url())
   client <- nrouter_client(base_url = base_url)
   result <- nrouter_messages(client, list(
-    model = "claude-haiku-4-5-20251001",
+    model = "claude-3-5-haiku-20241022",
     max_tokens = 2,
     messages = list(list(role = "user", content = "Reply OK"))
   ))
@@ -19,7 +19,7 @@ test_that("live Claude messages stream reaches its terminal event", {
   client <- nrouter_client(base_url = base_url)
   chunks <- list()
   result <- nrouter_messages_stream(client, list(
-    model = "claude-haiku-4-5-20251001",
+    model = "claude-3-5-haiku-20241022",
     max_tokens = 2,
     messages = list(list(role = "user", content = "Reply OK"))
   ), function(chunk) {

@@ -46,7 +46,7 @@ import { configurationError } from './errors';
 export interface SamplingInput {
   /** Advanced sampling explicitly enabled by the caller. When false, NOTHING is sent. */
   advanced: boolean;
-  /** The model id or public alias being called (e.g. `claude-haiku-4-5-20251001`). */
+  /** The model id or public alias being called (e.g. `claude-3-5-haiku-20241022`). */
   model: string;
   /** Optional provider attribution, when the caller knows it (e.g. from model_info). */
   provider?: string | null;

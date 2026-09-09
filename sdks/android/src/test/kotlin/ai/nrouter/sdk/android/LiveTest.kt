@@ -27,7 +27,7 @@ class LiveTest {
         val chunks = withTimeout(60_000) {
             client.messagesStream(
                 JSONObject()
-                    .put("model", "claude-haiku-4-5-20251001")
+                    .put("model", "claude-3-5-haiku-20241022")
                     .put("max_tokens", 2)
                     .put(
                         "messages",

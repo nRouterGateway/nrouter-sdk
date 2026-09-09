@@ -29,7 +29,7 @@ void main() async {
     // 4. Streaming Text Generation
     print('\nStreaming messages:');
     final stream = client.messagesStream({
-      'model': 'claude-haiku-4-5-20251001',
+      'model': 'claude-3-5-haiku-20241022',
       'max_tokens': 128,
       'messages': [
         {'role': 'user', 'content': 'Count from 1 to 5.'},

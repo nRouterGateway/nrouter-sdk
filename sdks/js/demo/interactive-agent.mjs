@@ -43,7 +43,8 @@ if (!API_KEY) {
 }
 
 const BASE_URL = process.env.NROUTER_BASE_URL || 'https://api.nrouter.ai/v1';
-let activeModel = process.env.NROUTER_MODEL || 'claude-haiku-4-5-20251001';
+// nrouter-doc-wire: messages
+let activeModel = process.env.NROUTER_MODEL || 'claude-3-5-haiku-20241022';
 
 const client = new nRouter({
   apiKey: API_KEY,

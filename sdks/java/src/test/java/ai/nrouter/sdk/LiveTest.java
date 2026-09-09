@@ -101,7 +101,7 @@ class LiveTest {
 
     @Test
     void liveClaudeRequestReturnsBillingMetadata() {
-        String model = System.getenv().getOrDefault("NROUTER_LIVE_MESSAGES_MODEL", "claude-haiku-4-5-20251001");
+        String model = System.getenv().getOrDefault("NROUTER_LIVE_MESSAGES_MODEL", "claude-3-5-haiku-20241022");
         NRouterHttpResponse response = liveClient().messages(textBody(model));
 
         assertCorrelatable(response, "/v1/messages");

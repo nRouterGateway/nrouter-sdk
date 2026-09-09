@@ -21,7 +21,7 @@ func main() {
 	}
 
 	stream, err := client.MessagesStream(context.Background(), map[string]any{
-		"model":      "claude-haiku-4-5-20251001",
+		"model":      "claude-3-5-haiku-20241022",
 		"max_tokens": 64,
 		"messages": []any{
 			map[string]any{"role": "user", "content": "Explain one useful Go concurrency rule."},

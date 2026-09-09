@@ -9,7 +9,7 @@ Generated from local checks after pulling `origin/main` on 2026-09-01.
 - Local Node version: `22.16.0`
 - SDK import path used by demos: built `dist/`
 - API key source: `NROUTER_API_KEY` from local environment or repo-root `.env`
-- Default live model: `claude-haiku-4-5-20251001` (`nrouter-doc-wire: messages`)
+- Default live model: `claude-3-5-haiku-20241022` (`nrouter-doc-wire: messages`)
 
 The API key is intentionally not printed or stored in this report.
 
@@ -82,7 +82,7 @@ Dry-run result: passed.
 
 Live result: passed.
 
-- Model: `claude-haiku-4-5-20251001`
+- Model: `claude-3-5-haiku-20241022`
 - Text returned: `Demo agent OK`
 - Metadata included a real request id.
 - Cost status: `exact`

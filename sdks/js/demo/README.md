@@ -20,7 +20,7 @@ export NROUTER_API_KEY="sk-nrouter-..."
 node demo/agent.js --live
 ```
 
-The live mode defaults to `claude-haiku-4-5-20251001`. Override with:
+The live mode defaults to `claude-3-5-haiku-20241022`. Override with:
 
 ```bash
 <!-- nrouter-doc-wire: messages -->

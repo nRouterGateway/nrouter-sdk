@@ -85,7 +85,7 @@ unread generation:
 
 ```rust
 let mut stream = client.messages_stream(&serde_json::json!({
-    "model": "claude-haiku-4-5-20251001",
+    "model": "claude-3-5-haiku-20241022",
     "max_tokens": 256,
     "messages": [{"role": "user", "content": "Hello!"}]
 })).await?;

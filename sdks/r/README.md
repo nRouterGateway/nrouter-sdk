@@ -58,7 +58,7 @@ terminators, and raises the same classed conditions for in-band gateway errors.
 
 ```r
 nrouter_messages_stream(client, list(
-  model = "claude-haiku-4-5-20251001",
+  model = "claude-3-5-haiku-20241022",
   max_tokens = 64,
   messages = list(list(role = "user", content = "Hello!"))
 ), function(chunk) {

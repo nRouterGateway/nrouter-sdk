@@ -26,7 +26,7 @@ func TestLiveClaude(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	body := map[string]any{
-		"model":      "claude-haiku-4-5-20251001",
+		"model":      "claude-3-5-haiku-20241022",
 		"max_tokens": 2,
 		"messages": []any{
 			map[string]any{"role": "user", "content": "Reply OK"},

@@ -23,7 +23,7 @@ test('the Claude family is matched by FAMILY, not by host cloud', () => {
   // let every Bedrock/Vertex Claude request through into the 400.
   for (const model of [
     'claude-sonnet-4-5',
-    'claude-haiku-4-5-20251001',
+    'claude-3-5-haiku-20241022',
     'us.anthropic.claude-sonnet-4-6-v1:0',
     'publishers/anthropic/models/claude-3-7-sonnet',
     'CLAUDE-OPUS-4',

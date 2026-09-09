@@ -123,7 +123,7 @@ async function post(client: any, path: string, body: Record<string, unknown>) {
 test('live Claude Messages request returns billing metadata', { skip }, async () => {
   const client = liveClient();
   const response = await client.nr.messages({
-    model: process.env.NROUTER_LIVE_MESSAGES_MODEL ?? 'claude-haiku-4-5-20251001',
+    model: process.env.NROUTER_LIVE_MESSAGES_MODEL ?? 'claude-3-5-haiku-20241022',
     max_tokens: 2,
     messages: [{ role: 'user', content: 'Reply OK' }],
   });

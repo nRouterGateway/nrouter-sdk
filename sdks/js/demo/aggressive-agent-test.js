@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { nRouter, nRouterConfigurationError, isRetryable } = require('../dist/index.js');
 const { classify, summarize, summaryLines } = require('./lib/accounting.js');
 
-const DEFAULT_MODEL = process.env.NROUTER_DEMO_MODEL || 'claude-haiku-4-5-20251001';
+const DEFAULT_MODEL = process.env.NROUTER_DEMO_MODEL || 'claude-3-5-haiku-20241022';
 const TARGET_USD = Number(process.env.NROUTER_TARGET_USD || '0.05');
 const MAX_REQUESTS = Number.parseInt(process.env.NROUTER_MAX_REQUESTS || '50', 10);
 const MAX_TOKENS = Number.parseInt(process.env.NROUTER_MAX_TOKENS || '256', 10);

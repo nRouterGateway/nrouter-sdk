@@ -9,7 +9,7 @@ const { nRouter, isRetryable, nRouterConfigurationError, isPriced } = require('.
 
 const PORT = Number.parseInt(process.env.PORT || '4317', 10);
 // nrouter-doc-wire: messages
-const DEFAULT_MODEL = process.env.NROUTER_DEMO_MODEL || 'claude-haiku-4-5-20251001';
+const DEFAULT_MODEL = process.env.NROUTER_DEMO_MODEL || 'claude-3-5-haiku-20241022';
 
 function loadRootEnv() {
   const envPath = path.resolve(__dirname, '..', '..', '..', '..', '.env');

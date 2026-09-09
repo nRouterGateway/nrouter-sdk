@@ -14,7 +14,7 @@ class nRouterExample {
         NRouterHttpClient client = NRouter.httpClient(System.getenv("NROUTER_API_KEY"));
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", "claude-haiku-4-5-20251001");
+        body.put("model", "claude-3-5-haiku-20241022");
         body.put("max_tokens", 256);
         body.put("messages", List.of(Map.of("role", "user", "content", "Summarize this release.")));
         body.putAll(NRouter.buildExtraBody(

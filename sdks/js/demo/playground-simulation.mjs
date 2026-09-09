@@ -61,7 +61,7 @@ function createSimulationFetch() {
         data: [
           { id: 'gpt-4o', owned_by: 'openai' },
           { id: 'claude-3-5-sonnet', owned_by: 'anthropic' },
-          { id: 'claude-haiku-4-5-20251001', owned_by: 'anthropic' },
+          { id: 'claude-3-5-haiku-20241022', owned_by: 'anthropic' },
           { id: 'claude-opus-5', owned_by: 'anthropic' },
           { id: 'gemini-2.5-pro', owned_by: 'google' },
           { id: 'deepseek-r1', owned_by: 'deepseek' },
@@ -189,7 +189,7 @@ console.log('-------------------------------------------------------------------
 // nrouter-doc-wire: messages
 const claudeXor = buildSamplingParams({
   advanced: true,
-  model: 'claude-haiku-4-5-20251001',
+  model: 'claude-3-5-haiku-20241022',
   temperature: 0.7,
   topP: 0.9,
 });
@@ -340,7 +340,7 @@ let ttftMs = null;
 let chunkCount = 0;
 
 const streamResult = await client.nr.stream({
-  model: 'claude-haiku-4-5-20251001',
+  model: 'claude-3-5-haiku-20241022',
   prompt: 'Give me 3 bullet points on microservices vs monoliths.',
   advancedSampling: true,
   temperature: 0.5,

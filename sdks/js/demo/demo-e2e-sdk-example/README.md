@@ -29,7 +29,7 @@ npm start
 |---|---|---|---|
 | `NROUTER_API_KEY` | **yes** | — | Your `sk-nrouter-…` virtual key. Put this in `.env`. Never commit it; this repo is public. |
 | `NROUTER_BASE_URL` | no | `https://api.nrouter.ai/v1` | Point at a local gateway for development (`http://localhost:4000/v1`). |
-| `NROUTER_MODEL` | no | `claude-fable-5` | Any model your key can reach (e.g. `claude-fable-5` or `claude-haiku-4-5-20251001`). |
+| `NROUTER_MODEL` | no | `claude-fable-5` | Any model your key can reach (e.g. `claude-fable-5` or `claude-3-5-haiku-20241022`). |
 | `NROUTER_PROMPT` | no | a question about unpriced costs | The prompt to send. |
 | `NROUTER_MAX_TOKENS` | no | `200` | Output ceiling — this is what you pay for. |
 

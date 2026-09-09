@@ -49,7 +49,7 @@ typed exceptions as buffered calls.
 
 ```dart
 await for (final chunk in client.messagesStream({
-  'model': 'claude-haiku-4-5-20251001',
+  'model': 'claude-3-5-haiku-20241022',
   'max_tokens': 64,
   'messages': [{'role': 'user', 'content': 'Hello!'}],
 })) {

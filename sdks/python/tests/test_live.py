@@ -132,7 +132,7 @@ def advertised_endpoints(catalogue: dict[str, Any], model: str) -> list[str]:
 def test_live_claude_messages_returns_billing_metadata():
     with live_client() as client:
         response = client.messages.create(
-            model=os.getenv("NROUTER_LIVE_MESSAGES_MODEL", "claude-haiku-4-5-20251001"),
+            model=os.getenv("NROUTER_LIVE_MESSAGES_MODEL", "claude-3-5-haiku-20241022"),
             max_tokens=2,
             messages=[{"role": "user", "content": "Reply OK"}],
         )

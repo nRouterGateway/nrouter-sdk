@@ -61,7 +61,7 @@ metadata. Cancelling collection cancels the underlying OkHttp call immediately:
 ```kotlin
 client.messagesStream(
     JSONObject()
-        .put("model", "claude-haiku-4-5-20251001")
+        .put("model", "claude-3-5-haiku-20241022")
         .put("max_tokens", 256)
         .put("messages", listOf(mapOf("role" to "user", "content" to "Hello!")))
 ).collect { chunk ->

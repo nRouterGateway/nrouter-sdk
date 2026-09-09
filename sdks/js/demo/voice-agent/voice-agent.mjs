@@ -70,7 +70,7 @@ const BASE_URL = env.NROUTER_BASE_URL || 'https://api.nrouter.ai/v1';
 // same id sent to /v1/chat/completions answers 404 model_unavailable_on_route.
 // `client.nr.chat()` below handles that; nothing here has to.
 // nrouter-doc-wire: messages
-const CHAT_MODEL = env.NROUTER_CHAT_MODEL || 'claude-haiku-4-5-20251001';
+const CHAT_MODEL = env.NROUTER_CHAT_MODEL || 'claude-3-5-haiku-20241022';
 const SPEECH_MODEL = env.NROUTER_SPEECH_MODEL || 'tts-1';
 const SPEECH_VOICE = env.NROUTER_SPEECH_VOICE || 'alloy';
 const TRANSCRIBE_MODEL = env.NROUTER_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe';

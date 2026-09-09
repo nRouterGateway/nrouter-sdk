@@ -65,7 +65,7 @@ the untouched provider-native JSON bytes:
 
 ```swift
 let response = try await client.messagesStream([
-    "model": "claude-haiku-4-5-20251001",
+    "model": "claude-3-5-haiku-20241022",
     "max_tokens": 256,
     "messages": [["role": "user", "content": "Hello!"]],
 ])
