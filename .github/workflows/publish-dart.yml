@@ -73,8 +73,29 @@ jobs:
             echo "::error::publish_to is set; pub.dev would refuse this package"; exit 1; }
           dart pub publish --dry-run
 
-      - name: Publish to pub.dev
+      - name: Already on pub.dev?
+        id: check
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          VERSION="$(sed -n 's/^version: *//p' pubspec.yaml | head -1)"
+          case "$VERSION" in
+            '') echo "::error::no version: in pubspec.yaml"; exit 1 ;;
+            *[!0-9.]*) echo "::error::version '$VERSION' is not a release version"; exit 1 ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          code="$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://pub.dev/api/packages/nrouter/versions/$VERSION")"
+          case "$code" in
+            200) echo "publish=false" >> "$GITHUB_OUTPUT"
+                 echo "::notice::nrouter $VERSION is already on pub.dev; nothing to do." ;;
+            404) echo "publish=true"  >> "$GITHUB_OUTPUT" ;;
+            # pub.dev versions are immutable, so an ambiguous answer must stop
+            # rather than attempt an upload that can only be made once.
+            *)   echo "::error::pub.dev answered $code; cannot tell whether $VERSION exists"; exit 1 ;;
+          esac
+
+      - name: Publish to pub.dev
+        if: steps.check.outputs.publish == 'true'
         # pub.dev authenticates via OIDC (id-token: write is granted at the job
         # level below), so there is no stored secret here to leak.
         run: |
@@ -95,6 +116,13 @@ jobs:
             echo "published"; exit 0
           fi
           cat publish.log
+          # The existence check above races with any concurrent publish, and
+          # pub.dev is the authority. "already exists" means the goal state
+          # holds, which is success, not a failure to report.
+          if grep -qiE 'already exists' publish.log; then
+            echo "::notice::pub.dev already serves this version; nothing to do."
+            exit 0
+          fi
           if grep -qiE 'trusted publish|not authorized|no.*permission|OIDC|audience' publish.log; then
             echo "::warning::pub.dev has no trusted-publisher entry for this repo yet." \
                  "Enable it at https://pub.dev/packages/nrouter/admin ->" \

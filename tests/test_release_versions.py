@@ -142,7 +142,7 @@ def test_sdk_version_6_registry_publishes_refuse_an_ambiguous_existence_check() 
     third — anything that is neither 200 nor 404 — must stop the run.  Treating
     an error page as "not published" is what republishes a live coordinate.
     """
-    for wf in ("publish-rust", "publish-kotlin"):
+    for wf in ("publish-rust", "publish-kotlin", "publish-dart"):
         workflow = (ROOT / f".github/workflows/{wf}.yml").read_text()
         assert "cannot tell whether" in workflow, f"{wf} guesses on an ambiguous status"
         assert "is not a release version" in workflow, f"{wf} accepts a junk version"
