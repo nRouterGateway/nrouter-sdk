@@ -1,0 +1,147 @@
+---
+name: nrouter-sdk-hardening
+description: Use when changing error classification, streaming and abort/cancellation, secret redaction, retry policy, or timeouts in any nRouter SDK — the five cross-language invariants, the two blind spots the conformance gate structurally cannot see, and the drift classes that hide in them.
+metadata:
+  version: 1.0.0
+---
+
+# Hardening the nRouter SDKs
+
+Ten SDKs, one gateway contract. This skill covers the five behaviours where a per-language mistake
+costs a customer money, leaks a credential, or hangs a caller — and where the machine gate
+**cannot** catch you.
+
+## Read this first: what `check_conformance.py` structurally cannot see
+
+The gate greps each SDK's SOURCE TEXT for spec constants. That design is right — it needs no
+toolchain, so no SDK is ever silently skipped — but it has two consequences its own README states
+plainly, and **every drift class below lives inside them**:
+
+1. **It cannot bind an error code to its status.** It proves the full set of codes and the full set
+   of statuses each appear *somewhere* in the dispatch. A code wired to the wrong status passes.
+2. **It cannot prove a header is used correctly.** It proves the header name is *referenced*. A
+   header parsed into the wrong field passes.
+
+Add a third, by construction: **the spec documents nine errors, so any status outside those nine is
+invisible to the gate.** That is where the worst divergence lives — see below.
+
+**So: a green conformance run is necessary and never sufficient.** Behaviour needs a behavioural
+test in the SDK's own suite.
+
+## 1. Error classification — three signals, in order
+
+The gateway's ordinary error envelope carries **no `code` field** — it emits
+`{"error":{"type":"gateway_error","message":…}}`. Only a post-call guardrail cut carries a real
+stable code. Every SDK therefore classifies in the same order:
+
+**`code` when present → HTTP status → message substring** (the substring only to split the two 400s
+and the two 402s).
+
+An SDK that classifies on `code` alone silently degrades every ordinary gateway error to a generic
+class. That mistake shipped in five SDKs at once; it is why the order above is written down.
+
+⚠️ **The nine spec'd codes are well aligned. The UNDOCUMENTED statuses are not.** 502 and 504 are
+ordinary gateway outcomes — the gateway maps upstream and sandbox failures to 502 — and the spec
+documents neither, so the gate cannot see them. Whenever you touch classification, check your SDK's
+dispatch for an explicit 502/504 arm and decide deliberately between these three, because all three
+exist across the ten today:
+
+- **Service + a "response too large" carve-out** — retryable, *except* when the message says the
+  upstream response was too large, which is permanent and must not be retried. This is the correct
+  target shape.
+- **Service, always** — retries a permanent failure forever.
+- **No arm at all** — falls through to a non-retryable generic class, so a genuinely transient
+  upstream blip is never retried.
+
+And the worst case: an SDK with no branch at all may return the **raw vendor exception**, so a
+caller writing `except nRouterError:` catches nothing. Any SDK wrapping a vendor client must
+confirm every status it can emit is wrapped.
+
+**Test it behaviourally.** Assert *this* status maps to *that* class, with a fake returning the
+exact envelope. The gate cannot.
+
+## 2. Streaming and abort — cancellation outranks everything
+
+Hard-won, in this order:
+
+1. **Cancellation beats truncation.** A stream that ends without its terminator is truncated — but
+   if the caller's cancellation signal is set, report the ABORT. A retry layer that sees
+   "unexpected stream drop" resends a call the caller deliberately cancelled.
+2. **An aborted request is NEVER retryable.** Force it, ahead of any class-based check. The gateway
+   reserves credit once per request; resending a cancelled POST that may already have been billed
+   is a double charge.
+3. **Never mutate the caller's error or signal object.** Clone before attaching a cause. A caller
+   holding a reference to that error must not see it change under them.
+4. **The abort signal is rarely at the top of the cause chain.** Transports wrap a real abort as a
+   generic fetch failure with the abort as `cause`, and a vendor client wraps that again. **Walk the
+   chain with a depth bound and cycle detection; never flatten it** — flattening leaves nothing to
+   walk, and the abort check then answers "retryable" for a cancelled, possibly-billed call.
+5. **One shared set of abort names**, used by every detection site. Two routines disagreeing about
+   what an abort looks like is a real bug that shipped.
+6. **Sanitize a structured cancellation reason before attaching it.** A caller may cancel with an
+   arbitrary object; if it becomes `.cause` it may carry headers or credentials. Strip
+   auth/token/secret/bearer/jwt-shaped keys case-insensitively, drop request and header objects
+   whole, and bound depth.
+7. **A stream that ends without its terminator is a distinct, NON-retryable error.** Do not let it
+   look like a clean finish.
+
+Language-native cancellation is the right primitive: a context, a signal, a token, future-drop.
+⚠️ **Never bound a stream with a whole-request timeout** — it severs a healthy long generation. Use
+an idle / between-bytes bound.
+
+## 3. Redaction — redact at CONSTRUCTION, not in the formatter
+
+Every SDK masks the branded key prefix and generic provider keys. The trap is *where*.
+
+**Correct:** redact in the error constructor, so the stored message is already safe and every
+access path — the field, the exception message, the formatter — is safe.
+
+**The bug:** store the raw gateway text in a **public** error-body field and redact only in a
+separate format/display helper. Then `print(e)` is safe and `print(e.body.message)` is not. Several
+SDKs are in this shape today; it is the same class as a derived debug printer reflecting a whole
+client struct, one layer deeper.
+
+**Rule: if a type crosses a security boundary, the raw string never reaches a public field.** Redact
+before storing, or keep the field private behind an accessor that redacts. Also redact the CLIENT
+object's own printer — and in languages where a value receiver versus a pointer receiver changes
+which printer is chosen, pick the one that cannot fall back to reflection.
+
+## 4. Retries — the client retries NOTHING on a billed path
+
+**Every SDK pins automatic client-side retries to zero on billed calls.** The gateway reserves
+credit once per request and owns retry and failover itself; a client-side retry is a second call and
+a second bill, with nothing to deduplicate against.
+
+⚠️ **The two SDKs wrapping a vendor client had to OVERRIDE a non-zero vendor default.** If you swap,
+upgrade, or reconfigure a vendor client, re-assert the pin and prove it with a test — this is the
+one place the default silently comes back.
+
+Retry helpers may be exposed as **advisory** for a caller's own loop. Advisory means the SDK never
+runs the loop itself.
+
+Retryable kinds: rate-limit, service, transport, plus 408 and 425 regardless of kind. Never
+retryable: anything aborted (§2), and the SDK's own configuration errors.
+
+## 5. Timeouts — idle bounds, not whole-request bounds
+
+The gateway's honest worst case is roughly seven minutes: up to three provider attempts, each with
+a connect bound and a long between-bytes bound, plus cumulative backoff. Every SDK derives its
+numbers from that figure and uses an **idle / between-bytes** bound so a long generation is not cut.
+
+Two things to hold:
+
+- **Numbers drift between SDKs even while the reasoning agrees.** If you change one, say what the
+  new number is derived from. A value no comment explains, and that no other SDK shares, is a
+  defect waiting to be discovered by a customer whose long request was cut.
+- **A buffered ceiling and a streaming ceiling are different bounds.** Streaming needs a far larger
+  one, or none, with the idle bound doing the real work.
+
+## Before you land a change here
+
+- A behavioural test with a fake that actually delays, aborts, or returns the exact envelope.
+  Conformance sees none of this.
+- If the change touches classification, retry, or abort: state which of the ten SDKs share the
+  behaviour and whether they now agree. A fix in one SDK that leaves nine divergent is half a fix.
+- If it touches redaction: prove the raw string is unreachable from a public field, not merely
+  absent from the formatter.
+- Run `python3 conformance/check_conformance.py --self-test` before the gate itself.
