@@ -20,7 +20,7 @@ commitment, and every SDK stays subject to the same conformance gate.
 
 - **Tag-distributed** — `sdks/go` via `proxy.golang.org` on the `sdks/go/vN.N.N`
   tag; `sdks/swift` via SPM on the repo tag.
-- **Preview registry** — `sdks/r` at `https://nrouterai.r-universe.dev/nrouter`
+- **Preview registry** — `sdks/r` at `https://nroutergateway.r-universe.dev/nrouter`
   as package `nrouter`, built from the `release-r` branch that `publish-r.yml`
   pushes. Preview publication is not a support commitment.
 - **Registry-published, unsupported** — `sdks/rust` on crates.io as `nrouter`,

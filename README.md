@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/%40nrouter_ai%2Fsdk?logo=npm&label=%40nrouter_ai%2Fsdk)](https://www.npmjs.com/package/@nrouter_ai/sdk)
 [![PyPI](https://img.shields.io/pypi/v/nrouter-sdk?logo=pypi&logoColor=white&label=nrouter-sdk)](https://pypi.org/project/nrouter-sdk/)
-[![R-universe](https://nrouterai.r-universe.dev/nrouter/badges/version)](https://nrouterai.r-universe.dev/nrouter)
+[![R-universe](https://nroutergateway.r-universe.dev/nrouter/badges/version)](https://nroutergateway.r-universe.dev/nrouter)
 [![Go Reference](https://pkg.go.dev/badge/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3.svg)](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3)
 [![Socket](https://badge.socket.dev/npm/package/@nrouter_ai/sdk/latest)](https://socket.dev/npm/package/@nrouter_ai/sdk)
 [![npm publish](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/publish-npm.yml/badge.svg)](https://github.com/nRouterGateway/nrouter-sdk/actions/workflows/publish-npm.yml)
@@ -323,7 +323,7 @@ nothing):
 | **Rust** | `cargo add nrouter@2.1.0` | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | 🧪 PUBLIC PREVIEW — serves `2.1.0` | [`sdks/rust/`](sdks/rust/) | ✅ 9 codes | ✅ 14 headers |
 | **Dart / Flutter** | `dart pub add nrouter` | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | 🧪 PUBLIC PREVIEW — serves `2.1.1` | [`sdks/dart/`](sdks/dart/) | ✅ 9 codes | ✅ 14 headers |
 | **Swift** | SwiftPM, this repo's URL | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | ✅ git tag `3.1.0` | [`sdks/swift/`](sdks/swift/) | ✅ 9 codes | ✅ 14 headers |
-| **R** | `install.packages("nrouter", repos = c(nrouterai = "https://nrouterai.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nrouterai.r-universe.dev/nrouter](https://nrouterai.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW | [`sdks/r/`](sdks/r/) | ✅ 9 classed conditions | ✅ 14 headers |
+| **R** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW | [`sdks/r/`](sdks/r/) | ✅ 9 classed conditions | ✅ 14 headers |
 | **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.0` | [pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.1.0` | [`sdks/go/`](sdks/go/) | ✅ 9 codes | ✅ 14 headers |
 
 Verify any row rather than trusting it:
@@ -347,7 +347,7 @@ curl -s https://pub.dev/api/packages/nrouter | python3 -c 'import sys,json;print
 # Go has no registry: proxy.golang.org serves whatever a git tag points at, and
 # it case-encodes the path (each uppercase letter becomes '!' + lowercase).
 curl -s https://proxy.golang.org/github.com/n!router!a!i/nrouter-sdk/sdks/go/v3/@v/list
-curl -s https://nrouterai.r-universe.dev/src/contrib/PACKAGES | grep -A4 '^Package: nrouter$'
+curl -s https://nroutergateway.r-universe.dev/src/contrib/PACKAGES | grep -A4 '^Package: nrouter$'
 ```
 
 Java keeps its vendor-compatible OpenAI factory and adds a Java 11 native HTTP
@@ -549,7 +549,7 @@ example for any of these without first adding the route to the gateway and the s
 | **Android (branded)** | Maven `ai.nrouter:nrouter-sdk-android:2.1.0` | [`sdks/android/`](sdks/android/) · [`sdks/android/demo/`](sdks/android/demo/) |
 | **Rust (branded)** | `cargo add nrouter@2.1.0` | [`sdks/rust/`](sdks/rust/) · [`sdks/rust/demo/quickstart.rs`](sdks/rust/demo/quickstart.rs) |
 | **Dart / Flutter (branded)** | `dart pub add nrouter` | [`sdks/dart/`](sdks/dart/) · [`sdks/dart/demo/quickstart.dart`](sdks/dart/demo/quickstart.dart) |
-| **R (branded)** | `install.packages("nrouter", repos = c(nrouterai = "https://nrouterai.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [`sdks/r/`](sdks/r/) · [`sdks/r/demo/quickstart.R`](sdks/r/demo/quickstart.R) |
+| **R (branded)** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [`sdks/r/`](sdks/r/) · [`sdks/r/demo/quickstart.R`](sdks/r/demo/quickstart.R) |
 | **Node.js / TypeScript (plain openai)** | `npm install openai` | [`sdks/js/demo/node.ts`](sdks/js/demo/node.ts) |
 | **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.0`, or plain `openai-go` | [`sdks/go/demo/quickstart.go`](sdks/go/demo/quickstart.go) |
 | **Java (plain openai-java)** | `com.openai:openai-java` | [`sdks/java/demo/quickstart.java`](sdks/java/demo/quickstart.java) |

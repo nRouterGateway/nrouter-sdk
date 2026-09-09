@@ -60,9 +60,9 @@ roxygenise rather than hand-editing.
 ## R-universe — live public preview
 
 No review queue, and it builds binaries for macOS and Windows. Direct package page:
-[https://nrouterai.r-universe.dev/nrouter](https://nrouterai.r-universe.dev/nrouter)
+[https://nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter)
 
-The registry configuration lives at: `https://github.com/nRouterAI/nrouterai.r-universe.dev`
+The registry configuration lives at: `https://github.com/nRouterAI/nroutergateway.r-universe.dev`
 
 Its `packages.json` maps package `nrouter` to this repository with
 `"subdir": "sdks/r"`. Users install with:
@@ -71,7 +71,7 @@ Its `packages.json` maps package `nrouter` to this repository with
 install.packages(
   "nrouter",
   repos = c(
-    nrouterai = "https://nrouterai.r-universe.dev",
+    nroutergateway = "https://nroutergateway.r-universe.dev",
     CRAN = "https://cloud.r-project.org"
   )
 )

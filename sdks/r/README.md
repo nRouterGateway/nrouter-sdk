@@ -1,13 +1,13 @@
 # nRouter SDK for R
 
-[![R-universe version](https://nrouterai.r-universe.dev/nrouter/badges/version)](https://nrouterai.r-universe.dev/nrouter)
-[![R-universe checks](https://nrouterai.r-universe.dev/nrouter/badges/checks)](https://nrouterai.r-universe.dev/nrouter)
+[![R-universe version](https://nroutergateway.r-universe.dev/nrouter/badges/version)](https://nroutergateway.r-universe.dev/nrouter)
+[![R-universe checks](https://nroutergateway.r-universe.dev/nrouter/badges/checks)](https://nroutergateway.r-universe.dev/nrouter)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/nRouterGateway/nrouter-sdk/blob/main/LICENSE)
 
 One API key for models across six provider clouds. There is no official OpenAI
 SDK for R, so this package calls the gateway's HTTP API directly via `httr`.
 
-**Registry & Package URL:** [https://nrouterai.r-universe.dev/nrouter](https://nrouterai.r-universe.dev/nrouter)  
+**Registry & Package URL:** [https://nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter)  
 **Registry Status:** 🧪 Public Preview on R-universe (Package `nrouter` v3.1.0)
 
 ```r
@@ -15,7 +15,7 @@ SDK for R, so this package calls the gateway's HTTP API directly via `httr`.
 install.packages(
   "nrouter",
   repos = c(
-    nrouterai = "https://nrouterai.r-universe.dev",
+    nroutergateway = "https://nroutergateway.r-universe.dev",
     CRAN = "https://cloud.r-project.org"
   )
 )

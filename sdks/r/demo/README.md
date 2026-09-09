@@ -6,7 +6,7 @@ Runnable demonstrations for the nRouter R SDK (`nrouter`).
 
 ```R
 # Install from R-universe:
-install.packages("nrouter", repos = c(nrouterai = "https://nrouterai.r-universe.dev", CRAN = "https://cloud.r-project.org"))
+install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))
 ```
 
 ```bash
