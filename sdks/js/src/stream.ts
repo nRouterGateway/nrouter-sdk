@@ -340,6 +340,25 @@ function isDefaultAbort(reason: unknown): boolean {
   );
 }
 
+function sanitizeStructuredReason(obj: Record<string, unknown>, seen = new Set<unknown>()): Record<string, unknown> {
+  if (seen.has(obj)) return {};
+  seen.add(obj);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === 'authorization' || k === 'auth' || k === 'key' || k === 'token' || k === 'secret' || k === 'password' || k === 'cookie' || k === 'request') {
+      continue;
+    }
+    if (typeof v === 'string') {
+      out[k] = redactKeys(v);
+    } else if (typeof v === 'number' || typeof v === 'boolean' || v === null) {
+      out[k] = v;
+    } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      out[k] = sanitizeStructuredReason(v as Record<string, unknown>, seen);
+    }
+  }
+  return out;
+}
+
 function attachMeta(target: unknown, status?: number, meta?: ResponseMeta): void {
   if (typeof target !== 'object' || target === null) return;
   try {
@@ -459,7 +478,7 @@ async function* readFrames(
     throw new nRouterError(
       'the stream ended without its [DONE] sentinel; the answer is truncated and ' +
         'the request was billed. Retrying issues a NEW billed request.',
-      { status, meta },
+      { status, meta, code: 'stream_truncated' },
     );
   } catch (err) {
     // An nRouterError is re-thrown UNWRAPPED because it is already classified
@@ -475,32 +494,54 @@ async function* readFrames(
           typeof abortCause === 'object' && abortCause !== null
             ? abortCause instanceof Error
               ? sanitizeCause(abortCause)
-              : abortCause
-            : abortCause;
+              : sanitizeStructuredReason(abortCause as Record<string, unknown>)
+            : typeof abortCause === 'string'
+              ? redactKeys(abortCause)
+              : abortCause;
 
         if (safeAbortCause !== undefined) {
-          if (
-            existingCause !== undefined &&
-            safeAbortCause instanceof Error &&
-            !(safeAbortCause as { cause?: unknown }).cause
-          ) {
+          if (safeAbortCause instanceof Error) {
+            if (
+              existingCause !== undefined &&
+              !(safeAbortCause as { cause?: unknown }).cause
+            ) {
+              try {
+                Object.defineProperty(safeAbortCause, 'cause', {
+                  value: existingCause,
+                  writable: true,
+                  enumerable: false,
+                  configurable: true,
+                });
+              } catch {}
+            }
             try {
-              Object.defineProperty(safeAbortCause, 'cause', {
-                value: existingCause,
+              Object.defineProperty(abortMarker, 'cause', {
+                value: safeAbortCause,
+                writable: true,
+                enumerable: false,
+                configurable: true,
+              });
+            } catch {}
+          } else {
+            // Non-Error structured reason or string: preserve existingCause on abortMarker.cause
+            // and attach structured reason on abortMarker.reason
+            try {
+              if (existingCause !== undefined) {
+                Object.defineProperty(abortMarker, 'cause', {
+                  value: existingCause,
+                  writable: true,
+                  enumerable: false,
+                  configurable: true,
+                });
+              }
+              Object.defineProperty(abortMarker, 'reason', {
+                value: safeAbortCause,
                 writable: true,
                 enumerable: false,
                 configurable: true,
               });
             } catch {}
           }
-          try {
-            Object.defineProperty(abortMarker, 'cause', {
-              value: safeAbortCause,
-              writable: true,
-              enumerable: false,
-              configurable: true,
-            });
-          } catch {}
         } else if (existingCause !== undefined) {
           try {
             Object.defineProperty(abortMarker, 'cause', {
@@ -574,34 +615,31 @@ async function* readFrames(
       const abortErr = new Error(redactKeys(msg));
       abortErr.name = errorName;
 
-      // Always preserve reason (if custom or default signal.reason) or underlying failure (err) as cause, non-enumerably.
-      // Never mutate the caller's shared signal.reason object.
-      // Rule #5: if the cause is a transport error (err !== signal.reason), sanitize it so
-      // authorization headers and tokens from undici/fetch requests are never leaked into logs.
-      const safeReason =
-        hasCustomReason
-          ? reason instanceof Error && 'request' in reason
-            ? sanitizeCause(reason)
-            : reason
-          : undefined;
-
-      const causeVal = safeReason !== undefined
-        ? safeReason
+      // Always sanitize cause unconditionally to enforce Rule #5 (no leaked headers or credentials in logs).
+      const rawCause = hasCustomReason
+        ? reason
         : err === signal?.reason
           ? signal?.reason
-          : err !== undefined
-            ? sanitizeCause(err)
-            : reason !== undefined
-              ? (signal?.aborted ? signal?.reason : sanitizeCause(reason))
+          : err ?? reason;
+
+      const causeVal =
+        rawCause instanceof Error
+          ? sanitizeCause(rawCause)
+          : typeof rawCause === 'string'
+            ? redactKeys(rawCause)
+            : typeof rawCause === 'object' && rawCause !== null
+              ? sanitizeStructuredReason(rawCause as Record<string, unknown>)
               : undefined;
 
       if (causeVal !== undefined) {
-        Object.defineProperty(abortErr, 'cause', {
-          value: causeVal,
-          writable: true,
-          enumerable: false,
-          configurable: true,
-        });
+        try {
+          Object.defineProperty(abortErr, 'cause', {
+            value: causeVal,
+            writable: true,
+            enumerable: false,
+            configurable: true,
+          });
+        } catch {}
       }
 
       attachMeta(abortErr, status, meta);

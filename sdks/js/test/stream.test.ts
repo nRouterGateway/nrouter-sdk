@@ -549,9 +549,11 @@ test('an abort error preserves the original custom reason without mutating calle
       assert.equal(isAbortError(err), true, 'must be recognised as AbortError');
       assert.equal(isRetryable(err), false, 'an abort is never retryable');
       assert.equal((err as Error).message, 'caller cancelled');
-      assert.equal(customReason.name, 'Error', 'caller reason must not be mutated');
       const cause = (err as Error & { cause?: unknown }).cause;
-      assert.equal(cause, customReason, 'custom reason preserved as cause');
+      assert.ok(cause instanceof Error);
+      assert.equal((cause as Error).message, 'caller cancelled');
+      assert.equal((cause as Error).name, 'Error');
+      assert.equal(customReason.name, 'Error', 'caller reason must not be mutated');
       assert.equal(Object.prototype.propertyIsEnumerable.call(err, 'cause'), false, 'cause must not be enumerable own property');
       assert.equal((err as { requestId?: string }).requestId, 'req-abort-789', 'requestId preserved on abort error');
       return true;
@@ -672,7 +674,10 @@ test('a custom AbortError reason message is preserved on transport failure (PGSD
     (err: unknown) => {
       assert.equal(isAbortError(err), true);
       assert.equal((err as Error).message, 'custom timeout error', 'custom AbortError message preserved');
-      assert.equal((err as Error & { cause?: unknown }).cause, customAbort, 'custom AbortError preserved as cause');
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.ok(cause instanceof Error);
+      assert.equal((cause as Error).message, 'custom timeout error');
+      assert.equal((cause as Error).name, 'AbortError');
       assert.equal((customAbort as { cause?: unknown }).cause, undefined, 'caller custom abort was not mutated');
       return true;
     },
@@ -701,7 +706,9 @@ test('a standard fetch DOMException abort carries metadata without mutating sign
       assert.equal((err as { requestId?: string }).requestId, 'req-fetch-abort', 'standard fetch abort carries requestId');
       assert.equal((err as { status?: number }).status, 200, 'standard fetch abort carries status');
       assert.equal(isRetryable(err), false);
-      assert.equal((err as Error & { cause?: unknown }).cause, controller.signal.reason);
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.ok(cause instanceof Error);
+      assert.equal((cause as Error).name, 'AbortError');
       assert.equal((controller.signal.reason as { requestId?: unknown })?.requestId, undefined, 'caller signal.reason was not mutated');
       return true;
     },
@@ -754,7 +761,10 @@ test('a DOMException AbortError preserves DOMException identity in cause (PGSDK-
       for await (const _ of res.chunks) { /* drain */ }
     },
     (err: unknown) => {
-      assert.equal((err as Error & { cause?: unknown }).cause, domErr, 'DOMException preserved in cause');
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.ok(cause instanceof Error);
+      assert.equal((cause as Error).name, 'AbortError');
+      assert.equal((cause as Error).message, 'The user aborted a request.');
       assert.equal(isAbortError(err), true);
       assert.equal(isRetryable(err), false);
       assert.equal((domErr as { requestId?: unknown }).requestId, undefined, 'caller DOMException not mutated');
@@ -845,7 +855,10 @@ test('aborting with an nRouterRateLimitError reason synthesizes non-retryable Ab
     (err: unknown) => {
       assert.equal(isAbortError(err), true);
       assert.equal(isRetryable(err), false);
-      assert.equal((err as Error & { cause?: unknown }).cause, callerError);
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.ok(cause instanceof Error);
+      assert.equal((cause as Error).name, 'nRouterRateLimitError');
+      assert.equal((cause as Error).message, 'too fast');
       assert.equal(callerError.name, 'nRouterRateLimitError', 'caller object must not be mutated');
       return true;
     },
@@ -878,7 +891,10 @@ test('in-band nRouterError preserves structured object reason and pre-existing c
       assert.equal(isRetryable(err), false);
       const marker = (err as Error & { cause?: any }).cause;
       assert.equal(marker?.name, 'AbortError');
-      assert.deepEqual(marker?.cause, structuredReason, 'structured reason preserved');
+      assert.deepEqual(marker?.reason, structuredReason, 'structured reason preserved');
+      assert.ok(marker?.cause instanceof Error, 'upstream cause preserved as Error');
+      assert.equal((marker?.cause as Error).message, 'circuit breaker open');
+      assert.equal((marker?.cause as Error).name, 'Error');
       return true;
     },
   );
@@ -903,7 +919,8 @@ test('a custom abort message redacts embedded API keys (Rule #5, PGSDK-112)', as
     },
     (err: unknown) => {
       assert.equal(isAbortError(err), true);
-      assert.ok(!((err as Error).message.includes('leakedsecret123')), 'error message must be redacted');
+      const rendered = inspect(err, { depth: 10 });
+      assert.ok(!rendered.includes('leakedsecret123'), `secret leaked:\n${rendered}`);
       assert.ok((err as Error).message.includes('sk-nrouter-***'), 'token must be masked');
       return true;
     },
@@ -1028,6 +1045,7 @@ test('a Claude stream cut before message_stop is still reported as truncated', a
   const err = await rejection(result.text());
   assert.ok(err instanceof nRouterError);
   assert.match(err.message, /truncated/);
+  assert.equal(err.code, 'stream_truncated', 'must carry stream_truncated code');
   assert.equal(isRetryable(err), false);
 });
 

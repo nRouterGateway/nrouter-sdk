@@ -795,6 +795,8 @@ const MAX_CAUSE_DEPTH = 8;
  *
  * Bounded by depth AND by an identity set, so a cause cycle — which undici and
  * several HTTP clients do produce — cannot spin here.
+ *
+ * @internal
  */
 export function sanitizeCause(cause: unknown, depth = 0, seen: Set<unknown> = new Set()): unknown {
   if (depth >= MAX_CAUSE_DEPTH) return undefined;
