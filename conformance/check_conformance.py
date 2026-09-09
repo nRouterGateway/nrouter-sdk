@@ -1303,6 +1303,30 @@ def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
     return failures
 
 
+def _mutate(text: str, old: str, new: str, problems: list[str], label: str) -> str:
+    """Apply one planted mutation, refusing to apply a mutation that does nothing.
+
+    Every self-test case here is `text.replace(old, new, 1)`, which returns the
+    string UNCHANGED when `old` is absent.  When the source is later reformatted
+    the literal stops matching, the victim file is rewritten identically, the
+    check correctly reports no failure, and the case then blames the GATE:
+    "miswiring ... did not fail the check".  That is how a stale mutation
+    masquerades as a broken gate — and, worse, how it would read as a passing
+    mutation test if the assertion were ever inverted.
+
+    Distinguishing the two costs one comparison, so make it impossible to skip:
+    a mutation that changes nothing is reported as a stale mutation, naming the
+    literal to re-anchor.
+    """
+    mutated = text.replace(old, new, 1)
+    if mutated == text:
+        problems.append(
+            f"STALE MUTATION ({label}): the planted text is absent, so this case "
+            f"proved nothing. Re-anchor it on the current source. Looked for: {old!r}"
+        )
+    return mutated
+
+
 def self_test() -> int:
     """Prove the gate bites, two ways.
 
@@ -1542,10 +1566,12 @@ def self_test() -> int:
         # concrete POST construction must invalidate the route even while the
         # correct path constant and runChat wrapper remain.
         victim.write_text(
-            text.replace(
-                "? { method: 'POST', path: pathOrReq,",
-                "? { method: 'GET', path: pathOrReq,",
-                1,
+            _mutate(
+                text,
+                "method: 'POST',\n            path: pathOrReq,",
+                "method: 'GET',\n            path: pathOrReq,",
+                problems,
+                "JS chat transport method",
             )
         )
         failures = check(root=fake_root)
