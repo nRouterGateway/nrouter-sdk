@@ -1562,3 +1562,127 @@ test('a stream that reported no usage says null, never zero', async () => {
   assert.equal(await result.finishReason(), null);
   assert.deepEqual(await result.toolCalls(), []);
 });
+
+// ---------------------------------------------------------------------------
+// Review round — the four sentinels, the placeholder count, and the two
+// unindexed fragment paths.
+// ---------------------------------------------------------------------------
+
+test('a frame carrying an explicit error: 0 is content, not an in-band error', async () => {
+  // `0` is the THIRD way an upstream says "no error on this chunk" (errno 0),
+  // and `0 != null && 0 !== false` is TRUE, so the sentinel guard cut a billed
+  // stream on a frame that reported success.
+  const withZeroError =
+    `data: ${JSON.stringify({ error: 0, choices: [{ delta: { content: 'hi' } }] })}\n\n`;
+  const result = await streamChat(chunkRunner([withZeroError, DONE]), { model: 'm', prompt: 'hi' });
+  assert.equal(await result.text(), 'hi');
+});
+
+test('a frame carrying an explicit empty error string is content, not an in-band error', async () => {
+  // The FOURTH sentinel: an empty `error` string carries no verdict to report,
+  // so building an error from it discards a paid-for answer and hands the
+  // caller a message with nothing in it.
+  const withEmptyError =
+    `data: ${JSON.stringify({ error: '', choices: [{ delta: { content: 'hi' } }] })}\n\n`;
+  const result = await streamChat(chunkRunner([withEmptyError, DONE]), { model: 'm', prompt: 'hi' });
+  assert.equal(await result.text(), 'hi');
+});
+
+test("a REAL error carried as a non-empty STRING still stops the stream", async () => {
+  // The positive control for the two tests above: narrowing the sentinel set
+  // must not stop a genuine error being reported.
+  const withError = `data: ${JSON.stringify({ error: 'guardrail_blocked' })}\n\n`;
+  const result = await streamChat(chunkRunner([withError, DONE]), { model: 'm', prompt: 'hi' });
+  const err = await rejection(result.text());
+  assert.ok(err instanceof nRouterError, `expected a typed error, got ${inspect(err)}`);
+});
+
+test("Anthropic message_start's placeholder output_tokens is not a completion count", async () => {
+  // Anthropic's `message_start` carries `usage: {input_tokens: N,
+  // output_tokens: 1}` — the 1 is a placeholder, not a measurement. Recorded,
+  // a stream whose `message_delta` never arrives reports completionTokens: 1
+  // instead of null: a confident wrong figure where we took no reading.
+  const frames = [
+    `data: ${JSON.stringify({ type: 'message_start', message: { usage: { input_tokens: 11, output_tokens: 1 } } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hi' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'end_turn' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_stop' })}\n\n`,
+  ];
+  const result = await streamChat(chunkRunner(frames), { model: 'm', prompt: 'hi' });
+  await result.text();
+
+  assert.deepEqual(await result.usage(), {
+    promptTokens: 11,
+    completionTokens: null,
+    totalTokens: null,
+  });
+});
+
+test("Anthropic message_delta's output_tokens IS still recorded", async () => {
+  // The positive control: ignoring the message_start placeholder must not
+  // discard the real figure the terminal frame reports.
+  const frames = [
+    `data: ${JSON.stringify({ type: 'message_start', message: { usage: { input_tokens: 11, output_tokens: 1 } } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 7 } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_stop' })}\n\n`,
+  ];
+  const result = await streamChat(chunkRunner(frames), { model: 'm', prompt: 'hi' });
+  await result.text();
+
+  assert.deepEqual(await result.usage(), { promptTokens: 11, completionTokens: 7, totalTokens: 18 });
+});
+
+test('an unindexed fragment carrying an id opens the NEXT slot even when the open one has none', async () => {
+  // The open slot's id being null does not make the next id the SAME call's:
+  // it means the wire never named the open call. Joining across that boundary
+  // concatenates two calls into one un-parseable argument string and renames
+  // the first call to the second's name.
+  const frames = [
+    `data: ${JSON.stringify({
+      choices: [{ delta: { tool_calls: [{ function: { name: 'a', arguments: '{"x":1}' } }] } }],
+    })}\n\n`,
+    `data: ${JSON.stringify({
+      choices: [{ delta: { tool_calls: [{ id: 'call_2', function: { name: 'b', arguments: '{"y":2}' } }] } }],
+    })}\n\n`,
+    DONE,
+  ];
+  const result = await streamChat(chunkRunner(frames), { model: 'm', prompt: 'hi' });
+  await result.text();
+
+  assert.deepEqual(await result.toolCalls(), [
+    { id: null, name: 'a', arguments: '{"x":1}' },
+    { id: 'call_2', name: 'b', arguments: '{"y":2}' },
+  ]);
+});
+
+test('an unindexed input_json_delta joins the block that opened, never vanishes', async () => {
+  // `content_block_start` already falls back to a slot when the wire omits
+  // `index`; the delta branch required one, so every argument fragment of an
+  // unindexed block was dropped in silence — a tool call with a name and no
+  // arguments, which reads as a call that took none.
+  const frames = [
+    `data: ${JSON.stringify({ type: 'content_block_start', content_block: { type: 'tool_use', id: 'toolu_1', name: 'get_weather' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '{"city":' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '"Paris"}' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_stop' })}\n\n`,
+  ];
+  const result = await streamChat(chunkRunner(frames), { model: 'm', prompt: 'hi' });
+  await result.text();
+
+  assert.deepEqual(await result.toolCalls(), [
+    { id: 'toolu_1', name: 'get_weather', arguments: '{"city":"Paris"}' },
+  ]);
+});
+
+test('an input_json_delta for a block that never STARTED is still dropped', async () => {
+  // The positive control for the fallback above: joining onto "whatever was
+  // opened last" must not invent a slot when nothing opened at all.
+  const frames = [
+    `data: ${JSON.stringify({ type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '{"city":"Paris"}' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_stop' })}\n\n`,
+  ];
+  const result = await streamChat(chunkRunner(frames), { model: 'm', prompt: 'hi' });
+  await result.text();
+
+  assert.deepEqual(await result.toolCalls(), []);
+});

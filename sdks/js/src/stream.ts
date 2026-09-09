@@ -194,10 +194,19 @@ export interface StreamResult {
    */
   usage(): Promise<StreamUsage | null>;
   /**
-   * The finish reason, normalized: OpenAI's `choices[0].finish_reason` and
-   * Anthropic's `stop_reason` are the same fact under two names. `null` when
-   * the stream never said — which, on a stream that ended cleanly, is itself
-   * worth surfacing rather than guessing `'stop'`.
+   * The finish reason, read from whichever field the wire used: OpenAI's
+   * `choices[0].finish_reason` and Anthropic's `stop_reason` are the same fact
+   * under two names, so a caller need not know which wire answered.
+   *
+   * The VALUE is the wire's own string and is NOT translated — OpenAI says
+   * `'stop'` / `'length'` / `'tool_calls'` where Anthropic says `'end_turn'` /
+   * `'max_tokens'` / `'tool_use'`. Switch on the pair, not on one of them.
+   * Mapping them onto a single vocabulary here would have to invent a value
+   * for every reason only one wire has, and would silently re-label the day a
+   * provider adds one — so the raw string is passed through and named as such.
+   *
+   * `null` when the stream never said — which, on a stream that ended cleanly,
+   * is itself worth surfacing rather than guessing `'stop'`.
    */
   finishReason(): Promise<string | null>;
   /**
@@ -836,6 +845,24 @@ type FrameOutcome =
   | { kind: 'done' }
   | { kind: 'error'; error: nRouterError };
 
+/**
+ * Whether a frame's top-level `error` member is reporting an actual failure.
+ *
+ * FOUR values are the "no error on this chunk" sentinel, and upstreams differ
+ * on which they stamp: `null`, `false`, `0` (errno 0 means success) and `""`.
+ * Treating any of them as a verdict cuts a billed stream on a frame that
+ * reported success — which is the single failure this whole branch exists to
+ * avoid, so the sentinel set is deliberately wide.
+ *
+ * It costs nothing to be wide: a real error is an object or a non-empty
+ * string, and one carried as `0` or `""` has no message to report anyway.
+ */
+function carriesError(value: unknown): boolean {
+  if (value == null || value === false) return false;
+  if (value === 0 || value === '') return false;
+  return true;
+}
+
 /** Decide what one parsed SSE frame means. */
 function interpret(
   frame: { event?: string; data: string },
@@ -890,16 +917,18 @@ function interpret(
   // top-level `error` member, because they agree on the gateway's own frame
   // and each catches a shape the other misses.
   //
-  // `!= null`, NOT `!== undefined`: some upstreams stamp an explicit
-  // `"error": null` on every chunk. Under `!== undefined` such a frame takes
-  // this branch, and a billed answer is discarded mid-flight with a message
-  // built from a frame that reported no error at all.
+  // `carriesError` and NOT `!== undefined`: an upstream that stamps an
+  // `error` member on EVERY chunk has four ways of saying "not this one" —
+  // `null`, `false`, `0` (errno 0 is success) and `""`. Every one of them is
+  // `!= null`-true or `!== false`-true, so a narrower guard takes this branch
+  // on a frame that reported success and discards a billed answer mid-flight,
+  // with a message built from a frame that carried no verdict at all.
   //
-  // `!== false` for the same reason pointed at the other sentinel: `false`
-  // is the OTHER way an upstream says "no error on this chunk", and
-  // `false != null` is TRUE in JavaScript, so the nullish guard alone still
-  // cuts a billed stream on a frame that reported success.
-  if (frame.event === 'error' || (raw.error != null && raw.error !== false)) {
+  // Nothing real is lost by skipping the four: a genuine error is an object or
+  // a non-empty string, and an `error` of `0` or `""` has no message to hand
+  // the caller even if we did report it. A server that means it also labels
+  // the frame `event: error`, which the first test catches regardless.
+  if (frame.event === 'error' || carriesError(raw.error)) {
     return {
       kind: 'error',
       error: errorFromValue(raw, data, status, meta),
@@ -962,17 +991,27 @@ function toolSlot(state: StreamState, index: number): StreamToolCall {
  * A fragment announcing a DIFFERENT `id` opens the next one, because the id is
  * the only call boundary an unindexed wire gives us; joining across it would
  * concatenate two calls' arguments into one broken string.
+ *
+ * An open slot whose id is still `null` is DIFFERENT from every announced id,
+ * not the same as all of them. Treating null as a match was the mirror of the
+ * sharding bug above: a wire that never named its first call had the second
+ * call's fragments folded onto it, renaming the first call and gluing both
+ * argument strings together — one call reported where two were made.
  */
-function unindexedToolSlot(state: StreamState, id: unknown): number {
+function lastOpenedToolSlot(state: StreamState): number | null {
   let last: number | null = null;
   for (const key of state.toolCalls.keys()) {
     if (last === null || key > last) last = key;
   }
+  return last;
+}
+
+function unindexedToolSlot(state: StreamState, id: unknown): number {
+  const last = lastOpenedToolSlot(state);
   if (last === null) return 0;
 
   const open = state.toolCalls.get(last);
-  const startsANewCall =
-    typeof id === 'string' && open !== undefined && open.id !== null && open.id !== id;
+  const startsANewCall = typeof id === 'string' && open !== undefined && open.id !== id;
   return startsANewCall ? last + 1 : last;
 }
 
@@ -987,13 +1026,24 @@ function unindexedToolSlot(state: StreamState, id: unknown): number {
 function absorbMetadata(state: StreamState, raw: Record<string, unknown>): void {
   // ---- usage -------------------------------------------------------------
   // OpenAI: a terminal chunk with `usage` and (usually) empty `choices`.
-  // Anthropic: `message_start` carries input_tokens, `message_delta` carries
-  // output_tokens — two frames, one figure each.
+  // Anthropic: `message_start` carries the real input_tokens, `message_delta`
+  // carries the real output_tokens — two frames, one figure each.
+  //
+  // `message_start` ALSO carries `output_tokens: 1`, and that 1 is a
+  // placeholder, not a measurement — the answer has not been generated yet.
+  // Recording it makes a stream cut short before `message_delta` report
+  // `completionTokens: 1`, a confident figure where we took no reading at all,
+  // which is exactly the invented number `usage()` returns `null` to avoid.
+  // So the completion half of a `message_start` frame is DROPPED; the input
+  // half, which is a real count, is kept.
+  const isMessageStart = raw.type === 'message_start';
   const usage = asObject(raw.usage) ?? asObject(asObject(raw.message)?.usage);
   if (usage !== null) {
     const prompt = numberOrNull(usage.prompt_tokens) ?? numberOrNull(usage.input_tokens);
-    const completion = numberOrNull(usage.completion_tokens) ?? numberOrNull(usage.output_tokens);
-    const total = numberOrNull(usage.total_tokens);
+    const completion = isMessageStart
+      ? null
+      : numberOrNull(usage.completion_tokens) ?? numberOrNull(usage.output_tokens);
+    const total = isMessageStart ? null : numberOrNull(usage.total_tokens);
     if (prompt !== null) state.promptTokens = prompt;
     if (completion !== null) state.completionTokens = completion;
     if (total !== null) state.totalTokens = total;
@@ -1043,9 +1093,17 @@ function absorbMetadata(state: StreamState, raw: Record<string, unknown>): void 
   if (raw.type === 'content_block_delta') {
     const delta = asObject(raw.delta);
     if (delta !== null && delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
-      const index = numberOrNull(raw.index);
       // Only join onto a slot a `content_block_start` actually opened — a
       // fragment for a block we never saw start belongs to no tool call.
+      //
+      // When the wire omits `index`, fall back to the slot most recently
+      // opened, exactly as `content_block_start` above falls back rather than
+      // refusing. Requiring an index on both halves would have been consistent;
+      // requiring it on only ONE was not — the start opened a slot the delta
+      // could never reach, so every argument fragment of an unindexed block was
+      // dropped in silence and the call surfaced with a name and no arguments,
+      // which reads as a tool invoked with none.
+      const index = numberOrNull(raw.index) ?? lastOpenedToolSlot(state);
       if (index !== null && state.toolCalls.has(index)) {
         state.toolCalls.get(index)!.arguments += delta.partial_json;
       }
