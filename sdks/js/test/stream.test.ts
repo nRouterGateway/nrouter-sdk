@@ -976,11 +976,20 @@ test('structured abort reasons strip sensitive keys case-insensitively and prese
     Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.doNotLeakThisJWT',
     SECRET: 'topsecret',
     access_token: 'opaque-access-token-1234',
+    accessToken: 'camel-access-token-1234',
     client_secret: 'oauth-client-secret-5678',
+    clientSecret: 'camel-client-secret-5678',
     auth_token: 'raw-auth-token-9012',
+    authToken: 'camel-auth-token-9012',
     refresh_token: 'refresh-token-3456',
+    refreshToken: 'camel-refresh-token-3456',
     private_key: 'private-key-material',
+    privateKey: 'camel-private-key',
+    apiKey: 'camel-api-key',
     session_token: 'sess-token-7890',
+    sessionToken: 'camel-session-token',
+    requestId: 'req-allowed-1234',
+    request_id: 'req-allowed-5678',
     tags: ['allowed-tag', 'key sk-nrouter-leakedarraytoken'],
     counts: [1, 2, 3],
     nestedError: new Error('nested failure sk-nrouter-nestedleak'),
@@ -1013,11 +1022,18 @@ test('structured abort reasons strip sensitive keys case-insensitively and prese
       assert.ok(!rendered.includes('nestedJWTSecret'), `nested JWT leaked:\n${rendered}`);
       assert.ok(!rendered.includes('topsecret'), `SECRET leaked:\n${rendered}`);
       assert.ok(!rendered.includes('opaque-access-token-1234'), `access_token leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('camel-access-token-1234'), `accessToken leaked:\n${rendered}`);
       assert.ok(!rendered.includes('oauth-client-secret-5678'), `client_secret leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('camel-client-secret-5678'), `clientSecret leaked:\n${rendered}`);
       assert.ok(!rendered.includes('raw-auth-token-9012'), `auth_token leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('camel-auth-token-9012'), `authToken leaked:\n${rendered}`);
       assert.ok(!rendered.includes('refresh-token-3456'), `refresh_token leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('camel-refresh-token-3456'), `refreshToken leaked:\n${rendered}`);
       assert.ok(!rendered.includes('private-key-material'), `private_key leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('camel-private-key'), `privateKey leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('camel-api-key'), `apiKey leaked:\n${rendered}`);
       assert.ok(!rendered.includes('sess-token-7890'), `session_token leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('camel-session-token'), `sessionToken leaked:\n${rendered}`);
       assert.ok(!rendered.includes('leakedarraytoken'), `array token leaked:\n${rendered}`);
       assert.ok(!rendered.includes('nestedleak'), `nested error token leaked:\n${rendered}`);
       assert.ok(!rendered.includes('opaque-matrix-token'), `matrix bearer leaked:\n${rendered}`);
@@ -1025,9 +1041,100 @@ test('structured abort reasons strip sensitive keys case-insensitively and prese
       assert.ok(rendered.includes('allowed-tag'), 'non-sensitive array element preserved');
       assert.ok(rendered.includes('matrix-item'), 'non-sensitive matrix element preserved');
       assert.ok(rendered.includes('2026-09-08T20:00:00.000Z'), 'Date serialized as ISO string');
-      const cause = (err as Error & { cause?: { refA?: { name: string }; refB?: { name: string } } }).cause;
+      const cause = (err as Error & { cause?: Record<string, any> }).cause;
       assert.equal(cause?.refA?.name, 'shared-tag-value');
       assert.equal(cause?.refB?.name, 'shared-tag-value', 'repeated reference preserved across siblings');
+      assert.equal(cause?.requestId, 'req-allowed-1234', 'requestId preserved');
+      assert.equal(cause?.request_id, 'req-allowed-5678', 'request_id preserved');
+      return true;
+    },
+  );
+});
+
+test('top-level array and Date abort reasons are sanitized without object corruption (PGSDK-112)', async () => {
+  // Test top-level array
+  const controllerArray = new AbortController();
+  const runnerArray = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        controllerArray.abort(['top-item', 'Bearer secret-bearer-token', 'sk-nrouter-leakedarray3']);
+        throw controllerArray.signal.reason;
+      })(),
+    }),
+  };
+  const resArray = await streamChat(runnerArray as never, { model: 'm', prompt: 'x' }, controllerArray.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of resArray.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.ok(Array.isArray(cause), 'top-level array preserved as Array');
+      assert.equal((cause as any[])[0], 'top-item');
+      assert.equal((cause as any[])[1], 'Bearer [REDACTED]');
+      assert.equal((cause as any[])[2], 'sk-nrouter-***');
+      return true;
+    },
+  );
+
+  // Test top-level Date
+  const controllerDate = new AbortController();
+  const dateVal = new Date('2026-09-08T21:00:00.000Z');
+  const runnerDate = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        controllerDate.abort(dateVal);
+        throw controllerDate.signal.reason;
+      })(),
+    }),
+  };
+  const resDate = await streamChat(runnerDate as never, { model: 'm', prompt: 'x' }, controllerDate.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of resDate.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.equal(cause, '2026-09-08T21:00:00.000Z', 'top-level Date serialized as ISO string');
+      return true;
+    },
+  );
+});
+
+test('cloneNRouterError preserves non-enumerable requestId, status, and meta on aborted stream (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: {
+        'content-type': 'text/event-stream',
+        'x-nr-request-id': 'req-clone-1234',
+        'x-nr-model': 'gpt-4o',
+      },
+      body: (async function* () {
+        controller.abort(new Error('client canceled mid-flight'));
+        const err = new nRouterServiceError('gateway error');
+        throw err;
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof nRouterServiceError);
+      assert.equal((err as nRouterServiceError).requestId, 'req-clone-1234', 'requestId preserved on clone');
+      assert.equal((err as nRouterServiceError).status, 200, 'status preserved on clone');
+      assert.equal((err as nRouterServiceError).meta?.model, 'gpt-4o', 'meta preserved on clone');
+      assert.equal(isRetryable(err), false);
       return true;
     },
   );

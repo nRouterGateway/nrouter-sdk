@@ -360,7 +360,9 @@ function defineHidden(target: unknown, key: string, value: unknown): void {
 
 function cloneNRouterError(err: nRouterError, cause: unknown): nRouterError {
   const cloned = Object.create(Object.getPrototypeOf(err));
-  Object.assign(cloned, err);
+  const descs = Object.getOwnPropertyDescriptors(err);
+  delete descs.cause;
+  Object.defineProperties(cloned, descs);
   cloned.message = err.message;
   cloned.name = err.name;
   cloned.stack = err.stack;
@@ -375,7 +377,8 @@ function isErrorLike(val: unknown): val is Error {
   return tag === '[object Error]' || tag === '[object DOMException]';
 }
 
-const SENSITIVE_KEY_RE = /\b(auth|authorization|api[-_]?key|token|secret|password|passwd|cookie|credential|session|bearer|jwt)\b|[-_](auth|token|secret|key)\b/i;
+const SENSITIVE_KEY_RE =
+  /(auth|authorization|token|secret|password|passwd|cookie|credential|session|bearer|jwt|[-_]keys?\b|\bkeys?\b|[a-z0-9]Keys?\b)/i;
 const MAX_STRUCTURED_DEPTH = 8;
 
 function sanitizeReasonValue(val: unknown, depth = 0, seen = new Set<unknown>()): unknown {
@@ -438,7 +441,7 @@ function attachMeta(target: unknown, status?: number, meta?: ResponseMeta): void
   if (meta && !(target as { meta?: unknown }).meta) {
     defineHidden(target, 'meta', meta);
   }
-  if (status !== undefined && (target as { status?: unknown }).status === undefined) {
+  if (status !== undefined && ((target as { status?: unknown }).status === undefined || (target as { status?: unknown }).status === null)) {
     defineHidden(target, 'status', status);
   }
 }
@@ -544,15 +547,8 @@ async function* readFrames(
         const rawExistingCause = err.cause;
         const safeExistingCause =
           rawExistingCause !== undefined ? sanitizeCause(rawExistingCause) : undefined;
-        const abortCause = signal.reason;
         const safeAbortCause =
-          typeof abortCause === 'object' && abortCause !== null
-            ? isErrorLike(abortCause)
-              ? sanitizeCause(abortCause)
-              : sanitizeStructuredReason(abortCause as Record<string, unknown>)
-            : typeof abortCause === 'string'
-              ? redactKeys(abortCause)
-              : abortCause;
+          signal.reason !== undefined ? sanitizeReasonValue(signal.reason) : undefined;
 
         if (safeAbortCause !== undefined) {
           defineHidden(abortMarker, 'reason', safeAbortCause);
@@ -565,6 +561,7 @@ async function* readFrames(
 
         // Clone err to ensure caller's error object or shared instance is NEVER mutated in place
         const clonedErr = cloneNRouterError(err, abortMarker);
+        attachMeta(clonedErr, status, meta);
         state.failure = clonedErr;
         throw clonedErr;
       }
@@ -602,7 +599,11 @@ async function* readFrames(
             ? (err as { name: string }).name
             : typeof ctorName === 'string' && ABORT_NAMES.has(ctorName)
               ? ctorName
-              : 'AbortError';
+              : signal?.aborted
+                ? 'AbortError'
+                : reason instanceof Error
+                  ? reason.name
+                  : 'AbortError';
 
       const rawMsg =
         hasCustomReason
@@ -633,14 +634,7 @@ async function* readFrames(
       // preserve both: custom reason as causeVal, with transport err chained underneath.
       let causeVal: unknown;
       if (hasCustomReason) {
-        causeVal =
-          isErrorLike(reason)
-            ? sanitizeCause(reason)
-            : typeof reason === 'string'
-              ? redactKeys(reason)
-              : typeof reason === 'object' && reason !== null
-                ? sanitizeStructuredReason(reason as Record<string, unknown>)
-                : undefined;
+        causeVal = sanitizeReasonValue(reason);
         if (err !== undefined && err !== signal?.reason) {
           const safeErr = sanitizeCause(err);
           if (typeof causeVal === 'object' && causeVal !== null) {
@@ -651,14 +645,7 @@ async function* readFrames(
         }
       } else {
         const rawCause = err ?? reason;
-        causeVal =
-          isErrorLike(rawCause)
-            ? sanitizeCause(rawCause)
-            : typeof rawCause === 'string'
-              ? redactKeys(rawCause)
-              : typeof rawCause === 'object' && rawCause !== null
-                ? sanitizeStructuredReason(rawCause as Record<string, unknown>)
-                : undefined;
+        causeVal = sanitizeReasonValue(rawCause);
       }
 
       if (causeVal !== undefined) {
