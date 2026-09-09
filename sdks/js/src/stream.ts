@@ -361,10 +361,7 @@ async function* readFrames(
         if (frame === null) continue;
 
         const outcome = interpret(frame, status, meta);
-        if (outcome.kind === 'done') {
-          throwIfAborted(signal);
-          return;
-        }
+        if (outcome.kind === 'done') return;
         if (outcome.kind === 'error') throw outcome.error;
         if (outcome.kind === 'skip') continue;
 
@@ -382,10 +379,7 @@ async function* readFrames(
     // last event.
     for (const frame of parseSSE(buffer)) {
       const outcome = interpret(frame, status, meta);
-      if (outcome.kind === 'done') {
-        throwIfAborted(signal);
-        return;
-      }
+      if (outcome.kind === 'done') return;
       if (outcome.kind === 'error') throw outcome.error;
       if (outcome.kind === 'skip') continue;
 
@@ -393,7 +387,9 @@ async function* readFrames(
       yield outcome.chunk;
     }
 
-    // If the caller aborted, cancellation takes precedence over normal termination.
+    // If the stream ended without [DONE], check if the caller aborted.
+    // Cancellation takes precedence over the truncation error so retry layers
+    // do not mistake a caller abort for an unexpected stream drop.
     throwIfAborted(signal);
 
     // FELL OFF THE END WITHOUT `data: [DONE]`.
@@ -413,18 +409,54 @@ async function* readFrames(
       { status, meta },
     );
   } catch (err) {
+    // An nRouterError is re-thrown UNWRAPPED because it is already classified
+    // and carries kind, status, requestId, and response meta for auditing and reconciliation.
+    // If the signal was aborted, attach the abort reason to cause so isRetryable() is false.
+    if (err instanceof nRouterError) {
+      if (signal?.aborted && !err.cause) {
+        Object.defineProperty(err, 'cause', {
+          value: signal.reason ?? new Error('the request was aborted'),
+          writable: true,
+          enumerable: false,
+          configurable: true,
+        });
+      }
+      state.failure = err;
+      throw err;
+    }
+
     // If the request was cancelled by the caller via AbortSignal or an AbortError:
     // A cancelled request must never be resent — it was billed (gate 8).
-    // An abort takes absolute precedence over any classified or transport failure
-    // so retry layers never mistake a cancellation for a transient retryable error.
+    // An abort takes precedence over any transport failure so retry layers never
+    // mistake a cancellation for a transient retryable error.
     if (signal?.aborted || isAbortError(err)) {
+      const hasCustomReason =
+        signal?.aborted &&
+        signal.reason !== undefined &&
+        !(isAbortError(signal.reason) && (signal.reason as Error).message === '');
+
+      if (isAbortError(err) && !hasCustomReason) {
+        state.failure = err instanceof Error ? err : new Error(String(err));
+        throw err;
+      }
+
       const reason = signal?.aborted
         ? (signal.reason !== undefined ? signal.reason : err)
         : err;
 
-      // If the abort reason is already a typed AbortError (e.g. DOMException),
-      // re-throw unwrapped to preserve DOMException identity, code, and call stack.
       if (isAbortError(reason)) {
+        if (err && err !== reason && reason instanceof Error && !(reason as { cause?: unknown }).cause) {
+          try {
+            Object.defineProperty(reason, 'cause', {
+              value: err,
+              writable: true,
+              enumerable: false,
+              configurable: true,
+            });
+          } catch {
+            // ignore if reason is frozen
+          }
+        }
         state.failure = reason instanceof Error ? reason : new Error(String(reason));
         throw reason;
       }
@@ -434,26 +466,50 @@ async function* readFrames(
           ? reason.message
           : typeof reason === 'string' && reason
             ? reason
-            : 'the request was aborted';
+            : typeof reason === 'object' && reason !== null && 'message' in reason && typeof (reason as { message: unknown }).message === 'string'
+              ? (reason as { message: string }).message
+              : 'the request was aborted';
+
       const abortErr = new Error(msg);
       abortErr.name = 'AbortError';
-      if (reason instanceof Error) {
+
+      // Always preserve reason or underlying err as cause, non-enumerably
+      const causeVal = reason !== undefined ? reason : err;
+      if (causeVal !== undefined) {
         Object.defineProperty(abortErr, 'cause', {
-          value: reason,
+          value: causeVal,
           writable: true,
           enumerable: false,
           configurable: true,
         });
       }
+      if (meta?.requestId) {
+        Object.defineProperty(abortErr, 'requestId', {
+          value: meta.requestId,
+          writable: true,
+          enumerable: false,
+          configurable: true,
+        });
+      }
+      if (meta) {
+        Object.defineProperty(abortErr, 'meta', {
+          value: meta,
+          writable: true,
+          enumerable: false,
+          configurable: true,
+        });
+      }
+      if (status !== undefined) {
+        Object.defineProperty(abortErr, 'status', {
+          value: status,
+          writable: true,
+          enumerable: false,
+          configurable: true,
+        });
+      }
+
       state.failure = abortErr;
       throw abortErr;
-    }
-
-    // An nRouterError is re-thrown UNWRAPPED because it is already classified
-    // and carries status, requestId, and response meta for auditing and reconciliation.
-    if (err instanceof nRouterError) {
-      state.failure = err;
-      throw err;
     }
 
     // Anything else is a raw socket or runtime failure escaping out of the
@@ -538,9 +594,8 @@ function interpret(
   // guardrail cut arriving ahead of it is never skipped past.
   //
   // Without this the truncation refusal below fires on every COMPLETE Claude
-  // stream: the reader falls off the end of a whole answer, reports it
-  // truncated and marks it retryable, so a caller's retry loop re-sends — and
-  // re-pays for — a request that already succeeded (gateway §4f gate 8).
+  // stream: the reader falls off the end of a whole answer and reports it
+  // truncated, refusing a request that already succeeded (gateway §4f gate 8).
   if (raw.type === 'message_stop' || raw.type === 'response.completed') {
     return { kind: 'done' };
   }

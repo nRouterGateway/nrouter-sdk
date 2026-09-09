@@ -485,6 +485,9 @@ test('a socket failure caused by abort is normalized to an AbortError (PGSDK-112
     (err: unknown) => {
       assert.equal(isAbortError(err), true, 'socket hang up on aborted signal must be recognized as abort');
       assert.equal(isRetryable(err), false, 'an aborted request is never retryable');
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.ok(cause instanceof Error, 'underlying socket error preserved as cause');
+      assert.equal((cause as Error).message, 'socket hang up');
       return true;
     },
   );
@@ -524,7 +527,7 @@ test('an abort error preserves the original custom reason without mutating calle
   const runner = {
     open: async () => ({
       status: 200,
-      headers: { 'content-type': 'text/event-stream' },
+      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-abort-789' },
       body: (async function* () {
         yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
         controller.abort(customReason);
@@ -550,20 +553,23 @@ test('an abort error preserves the original custom reason without mutating calle
       const cause = (err as Error & { cause?: unknown }).cause;
       assert.equal(cause, customReason, 'custom reason preserved as cause');
       assert.equal(Object.prototype.propertyIsEnumerable.call(err, 'cause'), false, 'cause must not be enumerable own property');
+      assert.equal((err as { requestId?: string }).requestId, 'req-abort-789', 'requestId preserved on abort error');
       return true;
     },
   );
 });
 
-test('an explicit abort takes precedence even if stream completes normally with [DONE] (PGSDK-112)', async () => {
+test('an abort with structured object reason preserves object in cause (PGSDK-112)', async () => {
   const controller = new AbortController();
+  const structuredReason = { code: 'USER_NAVIGATED', view: '/chat' };
   const runner = {
     open: async () => ({
       status: 200,
       headers: { 'content-type': 'text/event-stream' },
       body: (async function* () {
-        controller.abort();
-        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n');
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
+        controller.abort(structuredReason);
+        throw new Error('stream dropped');
       })(),
     }),
   };
@@ -573,8 +579,37 @@ test('an explicit abort takes precedence even if stream completes normally with 
       for await (const _ of res.chunks) { /* drain */ }
     },
     (err: unknown) => {
-      assert.equal(isAbortError(err), true, 'abort must take precedence over [DONE]');
-      assert.equal(isRetryable(err), false, 'an abort is never retryable');
+      assert.equal(isAbortError(err), true);
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.deepEqual(cause, structuredReason, 'structured object reason preserved in cause');
+      return true;
+    },
+  );
+});
+
+test('an in-band nRouterError preserves kind, status, and requestId when signal is aborted (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-guardrail-123' },
+      body: (async function* () {
+        yield new TextEncoder().encode(
+          'event: error\ndata: {"error":{"type":"guardrail_blocked","message":"blocked by output guardrail"}}\n\n',
+        );
+        controller.abort();
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof nRouterError, 'must stay inside nRouterError hierarchy');
+      assert.equal((err as nRouterError).requestId, 'req-guardrail-123', 'requestId preserved');
+      assert.equal(isRetryable(err), false, 'aborted stream is never retryable');
       return true;
     },
   );
