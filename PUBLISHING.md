@@ -29,7 +29,7 @@ install snippets.
 | Android | Maven Central `ai.nrouter:nrouter-sdk-android` ([central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android)) | `2.1.0` | **No — frozen.** `publish-android.yml` builds and `publishToMavenLocal` only |
 | Rust | crates.io `nrouter` ([crates.io/crates/nrouter](https://crates.io/crates/nrouter)) | `2.1.0` | **No — frozen.** `Cargo.toml` declares `publish = false` |
 | Dart / Flutter | pub.dev `nrouter` ([pub.dev/packages/nrouter](https://pub.dev/packages/nrouter)) | `2.1.1` | **No — frozen.** `pubspec.yaml` declares `publish_to: none` |
-| R | [R-universe](https://nrouterai.r-universe.dev/nrouter) | `3.0.0` | Yes — R-universe rebuilds from `main` |
+| R | [R-universe](https://nrouterai.r-universe.dev/nrouter) | `3.0.0` | Yes — R-universe rebuilds from `release-r` branch |
 | Swift | bare SemVer git tag, resolved by SwiftPM | `3.0.0` | Yes — tag the release commit |
 | Go | `sdks/go/v*` git tag, resolved by `proxy.golang.org` | `v3.0.0` | Yes — tag the release commit |
 
