@@ -763,6 +763,36 @@ test('a DOMException AbortError preserves DOMException identity in cause (PGSDK-
   );
 });
 
+test('an aborted stream sanitizes leaky cause to prevent Authorization header leak (Rule #5, PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const leaky: Error & { request?: unknown } = new Error('socket hang up');
+  leaky.request = { headers: { authorization: 'Bearer sk-nrouter-secrettail1234' } };
+
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        controller.abort();
+        throw leaky;
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      const rendered = inspect(err, { depth: 10 });
+      assert.ok(!rendered.includes('secrettail1234'), `secret leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('Bearer'), `Bearer leaked:\n${rendered}`);
+      return true;
+    },
+  );
+});
+
 // HTTP header names are case-insensitive on the wire, and a hand-written
 // runner returning a plain object reasonably spells it `Retry-After`. An exact
 // lowercase lookup missed it, so the caller retried immediately against the

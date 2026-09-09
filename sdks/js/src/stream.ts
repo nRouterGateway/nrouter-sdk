@@ -19,6 +19,8 @@ import {
   transportError,
   parseRetryAfter,
   isAbortLike,
+  sanitizeCause,
+  ABORT_NAMES,
 } from './errors';
 import { buildChatBody } from './options';
 import { buildSamplingParams } from './sampling';
@@ -461,7 +463,7 @@ async function* readFrames(
     // and carries kind, status, requestId, and response meta for auditing and reconciliation.
     // If the signal was aborted, guarantee wasAborted(err.cause) is true so isRetryable() is false.
     if (err instanceof nRouterError) {
-      if (signal?.aborted) {
+      if (signal?.aborted && err !== signal.reason) {
         const abortMarker = new Error('the request was aborted');
         abortMarker.name = 'AbortError';
         const existingCause = err.cause;
@@ -469,7 +471,7 @@ async function* readFrames(
         if (abortCause !== undefined) {
           try {
             Object.defineProperty(abortMarker, 'cause', {
-              value: abortCause,
+              value: sanitizeCause(abortCause),
               writable: true,
               enumerable: false,
               configurable: true,
@@ -486,7 +488,7 @@ async function* readFrames(
             configurable: true,
           });
         } catch {
-          err.cause = abortMarker;
+          // ignore if frozen
         }
       }
       state.failure = err;
@@ -505,23 +507,49 @@ async function* readFrames(
 
       const reason = signal?.aborted ? signal.reason : err;
 
+      const errorName =
+        typeof (reason as { name?: unknown })?.name === 'string' &&
+        ABORT_NAMES.has((reason as { name: string }).name)
+          ? (reason as { name: string }).name
+          : typeof (err as { name?: unknown })?.name === 'string' && isAbortLike(err)
+            ? (err as { name: string }).name
+            : 'AbortError';
+
       const msg =
         hasCustomReason
           ? reason instanceof Error
             ? reason.message
             : typeof reason === 'string'
               ? reason
-              : typeof reason === 'object' && reason !== null && 'message' in reason && typeof (reason as { message: unknown }).message === 'string'
+              : typeof reason === 'object' &&
+                  reason !== null &&
+                  'message' in reason &&
+                  typeof (reason as { message: unknown }).message === 'string'
                 ? (reason as { message: string }).message
                 : 'the request was aborted'
-          : 'the request was aborted';
+          : typeof (reason as { message?: unknown })?.message === 'string' &&
+              (reason as { message: string }).message &&
+              !isDefaultAbort(reason)
+            ? (reason as { message: string }).message
+            : 'the request was aborted';
 
       const abortErr = new Error(msg);
-      abortErr.name = 'AbortError';
+      abortErr.name = errorName;
 
-      // Always preserve reason (if custom) or underlying failure (err) as cause, non-enumerably.
+      // Always preserve reason (if custom or default signal.reason) or underlying failure (err) as cause, non-enumerably.
       // Never mutate the caller's shared signal.reason object.
-      const causeVal = hasCustomReason ? reason : err !== undefined ? err : reason;
+      // Rule #5: if the cause is a transport error (err !== signal.reason), sanitize it so
+      // authorization headers and tokens from undici/fetch requests are never leaked into logs.
+      const causeVal = hasCustomReason
+        ? reason
+        : err === signal?.reason
+          ? signal?.reason
+          : err !== undefined
+            ? sanitizeCause(err)
+            : reason !== undefined
+              ? (signal?.aborted ? signal?.reason : sanitizeCause(reason))
+              : undefined;
+
       if (causeVal !== undefined) {
         Object.defineProperty(abortErr, 'cause', {
           value: causeVal,
@@ -530,6 +558,7 @@ async function* readFrames(
           configurable: true,
         });
       }
+
       attachMeta(abortErr, status, meta);
 
       state.failure = abortErr;
