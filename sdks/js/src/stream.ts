@@ -340,19 +340,48 @@ function isDefaultAbort(reason: unknown): boolean {
   );
 }
 
+const SENSITIVE_REASON_KEYS = new Set([
+  'authorization',
+  'auth',
+  'key',
+  'token',
+  'secret',
+  'password',
+  'cookie',
+  'request',
+  'bearer',
+  'apikey',
+  'api_key',
+]);
+
 function sanitizeStructuredReason(obj: Record<string, unknown>, seen = new Set<unknown>()): Record<string, unknown> {
   if (seen.has(obj)) return {};
   seen.add(obj);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
-    if (k === 'authorization' || k === 'auth' || k === 'key' || k === 'token' || k === 'secret' || k === 'password' || k === 'cookie' || k === 'request') {
+    const lk = k.toLowerCase().replace(/[-_]/g, '');
+    if (
+      SENSITIVE_REASON_KEYS.has(k.toLowerCase()) ||
+      SENSITIVE_REASON_KEYS.has(lk)
+    ) {
       continue;
     }
     if (typeof v === 'string') {
       out[k] = redactKeys(v);
     } else if (typeof v === 'number' || typeof v === 'boolean' || v === null) {
       out[k] = v;
-    } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+    } else if (Array.isArray(v)) {
+      out[k] = v
+        .map((item) => {
+          if (typeof item === 'string') return redactKeys(item);
+          if (typeof item === 'number' || typeof item === 'boolean' || item === null) return item;
+          if (typeof item === 'object' && item !== null) {
+            return sanitizeStructuredReason(item as Record<string, unknown>, seen);
+          }
+          return undefined;
+        })
+        .filter((item) => item !== undefined);
+    } else if (typeof v === 'object' && v !== null) {
       out[k] = sanitizeStructuredReason(v as Record<string, unknown>, seen);
     }
   }
@@ -488,7 +517,9 @@ async function* readFrames(
       if (signal?.aborted) {
         const abortMarker = new Error('the request was aborted');
         abortMarker.name = 'AbortError';
-        const existingCause = err.cause;
+        const rawExistingCause = err.cause;
+        const safeExistingCause =
+          rawExistingCause !== undefined ? sanitizeCause(rawExistingCause) : undefined;
         const abortCause = signal.reason !== undefined ? signal.reason : undefined;
         const safeAbortCause =
           typeof abortCause === 'object' && abortCause !== null
@@ -501,13 +532,14 @@ async function* readFrames(
 
         if (safeAbortCause !== undefined) {
           if (safeAbortCause instanceof Error) {
-            if (
-              existingCause !== undefined &&
-              !(safeAbortCause as { cause?: unknown }).cause
-            ) {
+            // Construct a fresh Error copy so caller's error object is never mutated
+            const chainErr = new Error(safeAbortCause.message);
+            chainErr.name = safeAbortCause.name;
+            chainErr.stack = safeAbortCause.stack;
+            if (safeExistingCause !== undefined) {
               try {
-                Object.defineProperty(safeAbortCause, 'cause', {
-                  value: existingCause,
+                Object.defineProperty(chainErr, 'cause', {
+                  value: safeExistingCause,
                   writable: true,
                   enumerable: false,
                   configurable: true,
@@ -516,19 +548,19 @@ async function* readFrames(
             }
             try {
               Object.defineProperty(abortMarker, 'cause', {
-                value: safeAbortCause,
+                value: chainErr,
                 writable: true,
                 enumerable: false,
                 configurable: true,
               });
             } catch {}
           } else {
-            // Non-Error structured reason or string: preserve existingCause on abortMarker.cause
+            // Non-Error structured reason or string: preserve safeExistingCause on abortMarker.cause
             // and attach structured reason on abortMarker.reason
             try {
-              if (existingCause !== undefined) {
+              if (safeExistingCause !== undefined) {
                 Object.defineProperty(abortMarker, 'cause', {
-                  value: existingCause,
+                  value: safeExistingCause,
                   writable: true,
                   enumerable: false,
                   configurable: true,
@@ -542,10 +574,10 @@ async function* readFrames(
               });
             } catch {}
           }
-        } else if (existingCause !== undefined) {
+        } else if (safeExistingCause !== undefined) {
           try {
             Object.defineProperty(abortMarker, 'cause', {
-              value: existingCause,
+              value: safeExistingCause,
               writable: true,
               enumerable: false,
               configurable: true,
