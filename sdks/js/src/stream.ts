@@ -319,6 +319,20 @@ export function isAbortError(err: unknown): boolean {
   return isAbortLike(err);
 }
 
+function isDefaultAbort(reason: unknown): boolean {
+  if (reason === undefined) return true;
+  if (typeof reason !== 'object' || reason === null) return false;
+  const name = (reason as { name?: unknown }).name;
+  if (name !== 'AbortError') return false;
+  const msg = (reason as { message?: unknown }).message;
+  return (
+    msg === '' ||
+    msg === 'This operation was aborted' ||
+    msg === 'The operation was aborted' ||
+    msg === 'The user aborted a request.'
+  );
+}
+
 function attachMeta(target: unknown, status?: number, meta?: ResponseMeta): void {
   if (typeof target !== 'object' || target === null) return;
   try {
@@ -448,9 +462,11 @@ async function* readFrames(
       if (signal?.aborted) {
         const abortMarker = new Error('the request was aborted');
         abortMarker.name = 'AbortError';
-        if (signal.reason !== undefined) {
+        const existingCause = err.cause;
+        const abortCause = signal.reason !== undefined ? signal.reason : existingCause;
+        if (abortCause !== undefined) {
           Object.defineProperty(abortMarker, 'cause', {
-            value: signal.reason,
+            value: abortCause,
             writable: true,
             enumerable: false,
             configurable: true,
@@ -475,12 +491,13 @@ async function* readFrames(
       const hasCustomReason =
         signal?.aborted &&
         signal.reason !== undefined &&
-        !isAbortError(signal.reason);
+        !isDefaultAbort(signal.reason);
 
       // If the thrown error is already an AbortError (e.g. DOMException),
-      // and caller did not provide a custom signal reason, re-throw it unwrapped directly.
+      // and caller did not provide a custom signal reason:
       if (isAbortError(err) && !hasCustomReason) {
-        attachMeta(err, status, meta);
+        // If err is caller's shared signal.reason, never mutate it in place.
+        // Re-throw it unwrapped directly to preserve DOMException identity, code, and call stack.
         state.failure = err instanceof Error ? err : new Error(String(err));
         throw err;
       }

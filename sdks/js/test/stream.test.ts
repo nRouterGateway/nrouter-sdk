@@ -643,6 +643,63 @@ test('a standard abort preserves requestId and metadata without mutating caller 
       const cause = (err as Error & { cause?: unknown }).cause;
       assert.ok(cause instanceof Error);
       assert.equal((cause as Error).message, 'connection severed');
+      assert.equal((controller.signal.reason as { requestId?: unknown })?.requestId, undefined, 'signal.reason must not be mutated');
+      assert.equal((controller.signal as { requestId?: unknown }).requestId, undefined, 'signal must not be mutated');
+      return true;
+    },
+  );
+});
+
+test('a custom AbortError reason message is preserved on transport failure (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const customAbort = new DOMException('custom timeout error', 'AbortError');
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
+        controller.abort(customAbort);
+        throw new Error('socket hang up');
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      assert.equal((err as Error).message, 'custom timeout error', 'custom AbortError message preserved');
+      assert.equal((err as Error & { cause?: unknown }).cause, customAbort, 'custom AbortError preserved as cause');
+      assert.equal((customAbort as { cause?: unknown }).cause, undefined, 'caller custom abort was not mutated');
+      return true;
+    },
+  );
+});
+
+test('a standard fetch DOMException abort is rethrown without mutating signal.reason (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-fetch-abort' },
+      body: (async function* () {
+        controller.abort();
+        throw controller.signal.reason;
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(err, controller.signal.reason, 'rethrows signal.reason unwrapped');
+      assert.equal(isAbortError(err), true);
+      assert.equal((controller.signal.reason as { requestId?: unknown })?.requestId, undefined, 'caller signal.reason was not mutated');
       return true;
     },
   );
