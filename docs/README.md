@@ -26,7 +26,7 @@ docs/validation-playbook-template.md
 6. **Kotlin** (`sdks/kotlin/docs/validation-playbook.md`) — Maven Central, Gradle, Coroutines
 7. **Android** (`sdks/android/docs/validation-playbook.md`) — Android AAR, Manifest meta-data, OkHttp client bounds
 8. **Swift** (`sdks/swift/docs/validation-playbook.md`) — SwiftPM, async/await, URLSession
-9. **Dart / Flutter** (`sdks/dart/docs/validation-playbook.md`) — pub.dev, Dart streams, cross-platform IO
+9. **Dart / Flutter** (`sdks/dart/doc/validation-playbook.md`) — pub.dev, Dart streams, cross-platform IO
 10. **R** (`sdks/r/docs/validation-playbook.md`) — R-universe, CRAN, httr2, S3 classes
 
 ## Cross-SDK Parity Contract
