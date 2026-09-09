@@ -353,8 +353,9 @@ test('a stream that ends without [DONE] is refused, not reported complete', asyn
     },
     (err: unknown) => {
       assert.ok(err instanceof nRouterError, 'a typed error');
-      assert.equal(isRetryable(err), true, 'the same request can succeed next time');
+      assert.equal(isRetryable(err), false, 'retrying issues a new billed request, so it must not auto-retry');
       assert.match((err as Error).message, /\[DONE\]/);
+      assert.match((err as Error).message, /Retrying issues a NEW billed request/);
       return true;
     },
   );
@@ -457,6 +458,33 @@ test('a CUSTOM abort reason is still a cancellation, not a retryable failure', a
     },
     (err: unknown) => {
       assert.equal(isRetryable(err), false, 'a cancelled request must never be resent — it was billed');
+      return true;
+    },
+  );
+});
+
+test('a socket failure caused by abort is normalized to an AbortError (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
+        controller.abort();
+        // Emulate socket drop upon abort (e.g. node fetch or undici socket hang up)
+        throw new Error('socket hang up');
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true, 'socket hang up on aborted signal must be recognized as abort');
+      assert.equal(isRetryable(err), false, 'an aborted request is never retryable');
       return true;
     },
   );
@@ -579,7 +607,7 @@ test('a Claude stream cut before message_stop is still reported as truncated', a
   const err = await rejection(result.text());
   assert.ok(err instanceof nRouterError);
   assert.match(err.message, /truncated/);
-  assert.equal(isRetryable(err), true);
+  assert.equal(isRetryable(err), false);
 });
 
 test('an OpenAI stream asks for the usage chunk it would otherwise never get', async () => {

@@ -395,13 +395,13 @@ async function* readFrames(
     // the request was BILLED, so the tokens are not the problem; reporting the
     // result as COMPLETE is. `text()` would hand back a truncated answer that
     // is indistinguishable from a short one, which is the same
-    // silently-wrong-and-confident failure the buffered path refuses.
-    //
-    // Transport, not configuration: the identical request can succeed next
-    // time, so this one IS retryable.
-    throw transportError(
+    // PGSDK-112: The stream was cut off after tokens were billed.
+    // Classifying it as a retryable transport error causes generic retry
+    // loops to pay for the same completion again. It is non-auto-retryable
+    // (kind 'other') because retrying will issue a NEW billed request.
+    throw new nRouterError(
       'the stream ended without its [DONE] sentinel; the answer is truncated and ' +
-        'the request was billed. Retrying is safe.',
+        'the request was billed. Retrying issues a NEW billed request.',
       { status, meta },
     );
   } catch (err) {
@@ -424,8 +424,18 @@ async function* readFrames(
     // the name check missed. It was then wrapped as a transport failure and
     // reported RETRYABLE, so a generic retry loop could resend a billed
     // request the caller had explicitly cancelled (gate 8). The signal is the
-    // authority on whether a cancellation happened; the name is only a hint.
-    if (err instanceof nRouterError || isAbortError(err) || signal?.aborted) {
+    if (signal?.aborted) {
+      const abortErr = isAbortLike(err)
+        ? (err as Error)
+        : isAbortLike(signal.reason)
+          ? (signal.reason as Error)
+          : signal.reason instanceof Error
+            ? signal.reason
+            : Object.assign(new Error('the request was aborted'), { name: 'AbortError', cause: err });
+      state.failure = abortErr;
+      throw abortErr;
+    }
+    if (err instanceof nRouterError || isAbortError(err)) {
       state.failure = err instanceof Error ? err : new Error(String(err));
       throw err;
     }
