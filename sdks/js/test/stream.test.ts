@@ -679,7 +679,7 @@ test('a custom AbortError reason message is preserved on transport failure (PGSD
   );
 });
 
-test('a standard fetch DOMException abort is rethrown without mutating signal.reason (PGSDK-112)', async () => {
+test('a standard fetch DOMException abort carries metadata without mutating signal.reason (PGSDK-112)', async () => {
   const controller = new AbortController();
   const runner = {
     open: async () => ({
@@ -697,8 +697,11 @@ test('a standard fetch DOMException abort is rethrown without mutating signal.re
       for await (const _ of res.chunks) { /* drain */ }
     },
     (err: unknown) => {
-      assert.equal(err, controller.signal.reason, 'rethrows signal.reason unwrapped');
       assert.equal(isAbortError(err), true);
+      assert.equal((err as { requestId?: string }).requestId, 'req-fetch-abort', 'standard fetch abort carries requestId');
+      assert.equal((err as { status?: number }).status, 200, 'standard fetch abort carries status');
+      assert.equal(isRetryable(err), false);
+      assert.equal((err as Error & { cause?: unknown }).cause, controller.signal.reason);
       assert.equal((controller.signal.reason as { requestId?: unknown })?.requestId, undefined, 'caller signal.reason was not mutated');
       return true;
     },
@@ -731,7 +734,7 @@ test('an explicit abort during stream drain takes precedence over truncation err
   );
 });
 
-test('a DOMException AbortError is rethrown unwrapped (PGSDK-112)', async () => {
+test('a DOMException AbortError preserves DOMException identity in cause (PGSDK-112)', async () => {
   const controller = new AbortController();
   const domErr = new DOMException('The user aborted a request.', 'AbortError');
   const runner = {
@@ -751,9 +754,10 @@ test('a DOMException AbortError is rethrown unwrapped (PGSDK-112)', async () => 
       for await (const _ of res.chunks) { /* drain */ }
     },
     (err: unknown) => {
-      assert.equal(err, domErr, 'DOMException must be rethrown unwrapped without losing identity');
+      assert.equal((err as Error & { cause?: unknown }).cause, domErr, 'DOMException preserved in cause');
       assert.equal(isAbortError(err), true);
       assert.equal(isRetryable(err), false);
+      assert.equal((domErr as { requestId?: unknown }).requestId, undefined, 'caller DOMException not mutated');
       return true;
     },
   );

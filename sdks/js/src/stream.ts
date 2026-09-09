@@ -324,12 +324,14 @@ function isDefaultAbort(reason: unknown): boolean {
   if (typeof reason !== 'object' || reason === null) return false;
   const name = (reason as { name?: unknown }).name;
   if (name !== 'AbortError') return false;
-  const msg = (reason as { message?: unknown }).message;
+  const msg =
+    typeof (reason as { message?: unknown }).message === 'string'
+      ? (reason as { message: string }).message.trim()
+      : '';
+  if (!msg) return true;
   return (
-    msg === '' ||
-    msg === 'This operation was aborted' ||
-    msg === 'The operation was aborted' ||
-    msg === 'The user aborted a request.'
+    /^(this|the) (operation|user) (was aborted|aborted a request)\.?$/i.test(msg) ||
+    /^signal is aborted without reason\.?$/i.test(msg)
   );
 }
 
@@ -465,19 +467,27 @@ async function* readFrames(
         const existingCause = err.cause;
         const abortCause = signal.reason !== undefined ? signal.reason : existingCause;
         if (abortCause !== undefined) {
-          Object.defineProperty(abortMarker, 'cause', {
-            value: abortCause,
+          try {
+            Object.defineProperty(abortMarker, 'cause', {
+              value: abortCause,
+              writable: true,
+              enumerable: false,
+              configurable: true,
+            });
+          } catch {
+            // ignore if frozen
+          }
+        }
+        try {
+          Object.defineProperty(err, 'cause', {
+            value: abortMarker,
             writable: true,
             enumerable: false,
             configurable: true,
           });
+        } catch {
+          err.cause = abortMarker;
         }
-        Object.defineProperty(err, 'cause', {
-          value: abortMarker,
-          writable: true,
-          enumerable: false,
-          configurable: true,
-        });
       }
       state.failure = err;
       throw err;
@@ -492,15 +502,6 @@ async function* readFrames(
         signal?.aborted &&
         signal.reason !== undefined &&
         !isDefaultAbort(signal.reason);
-
-      // If the thrown error is already an AbortError (e.g. DOMException),
-      // and caller did not provide a custom signal reason:
-      if (isAbortError(err) && !hasCustomReason) {
-        // If err is caller's shared signal.reason, never mutate it in place.
-        // Re-throw it unwrapped directly to preserve DOMException identity, code, and call stack.
-        state.failure = err instanceof Error ? err : new Error(String(err));
-        throw err;
-      }
 
       const reason = signal?.aborted ? signal.reason : err;
 
