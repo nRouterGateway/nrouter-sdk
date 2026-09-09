@@ -61,3 +61,83 @@ jobs:
       - name: Run Demo E2E Smoke Check
         run: |
           ./gradlew test --tests "ai.nrouter.sdk.ContractTest"
+
+      # ---- release ------------------------------------------------------
+      # Everything below runs only on a push to main, so a pull request keeps
+      # the credential-free shape it has always had.
+
+      - name: Already on Central?
+        id: check
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          VERSION="$(sed -n 's/^version=//p' gradle.properties)"
+          # An empty VERSION builds a URL that 404s, which reads as "not yet
+          # published" and would release an artifact with no coordinate.
+          case "$VERSION" in
+            '') echo "::error::no version= in sdks/kotlin/gradle.properties"; exit 1 ;;
+            *[!0-9.]*) echo "::error::version '$VERSION' is not a release version"; exit 1 ;;
+          esac
+          URL="https://repo1.maven.org/maven2/ai/nrouter/nrouter-sdk-kotlin/$VERSION/nrouter-sdk-kotlin-$VERSION.pom"
+          code="$(curl -s -o /dev/null -w '%{http_code}' "$URL")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          case "$code" in
+            200) echo "publish=false" >> "$GITHUB_OUTPUT"
+                 echo "::notice::nrouter-sdk-kotlin $VERSION is already on Central; nothing to do." ;;
+            404) echo "publish=true"  >> "$GITHUB_OUTPUT" ;;
+            # Never guess. Central is immutable, so an ambiguous answer must stop
+            # the run rather than risk a second upload of the same coordinate.
+            *)   echo "::error::Central answered $code; cannot tell whether $VERSION exists"; exit 1 ;;
+          esac
+
+      - name: Build, sign and stage
+        if: steps.check.outputs.publish == 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: ./gradlew publishMavenPublicationToCentralStagingRepository
+
+      - name: Refuse an unsigned bundle
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          # Central rejects unsigned artifacts, but it rejects them AFTER the
+          # upload has consumed the deployment name. Failing here keeps the
+          # failure local and re-runnable.
+          # An empty staging dir would make the loop below run zero times and
+          # report success having checked nothing -- the exact shape of a gate
+          # that is green because it is broken. Count first, then verify.
+          signable="$(find build/central-staging -type f \( -name '*.jar' -o -name '*.pom' \) | wc -l | tr -d ' ')"
+          if [ "$signable" -lt 3 ]; then
+            echo "::error::expected at least the main jar, sources, javadoc and pom; found $signable"
+            find build/central-staging -type f || true
+            exit 1
+          fi
+          missing=0
+          find build/central-staging -type f \( -name '*.jar' -o -name '*.pom' \) -print |
+            while IFS= read -r f; do
+              [ -f "$f.asc" ] || { echo "::error::unsigned: $f"; exit 1; }
+            done || missing=1
+          [ "$missing" -eq 0 ] || exit 1
+          echo "all $signable jar/pom artifacts carry a .asc signature"
+
+      - name: Upload to Central (staged, NOT released)
+        if: steps.check.outputs.publish == 'true'
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          cd build/central-staging
+          zip -qr ../central-bundle.zip .
+          cd ..
+          TOKEN="$(printf '%s:%s' "$CENTRAL_USERNAME" "$CENTRAL_PASSWORD" | base64 | tr -d '\n')"
+          # USER_MANAGED: the deployment lands in Central's staging area and a
+          # human releases it from https://central.sonatype.com/publishing/deployments.
+          # AUTOMATIC would make the coordinate permanent with no way back.
+          code="$(curl -s -o response.txt -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -F "bundle=@central-bundle.zip" \
+            "https://central.sonatype.com/api/v1/publisher/upload?name=nrouter-sdk-kotlin-$VERSION&publishingType=USER_MANAGED")"
+          echo "HTTP $code"; cat response.txt; echo
+          [ "$code" = "201" ] || { echo "::error::Central upload failed"; exit 1; }
+          echo "::notice::Staged. Release it at https://central.sonatype.com/publishing/deployments"

@@ -2,6 +2,7 @@ plugins {
     kotlin("jvm") version "2.0.21"
     `java-library`
     `maven-publish`
+    signing
 }
 
 kotlin {
@@ -77,5 +78,29 @@ publishing {
                 }
             }
         }
+    }
+
+    // Central takes a BUNDLE, not a repository connection: the Portal API wants a
+    // zip laid out as a Maven repo. Staging locally keeps every artifact and every
+    // signature inspectable before anything leaves the machine — which matters
+    // because Central never lets a published coordinate be replaced.
+    repositories {
+        maven {
+            name = "centralStaging"
+            url = uri(layout.buildDirectory.dir("central-staging"))
+        }
+    }
+}
+
+signing {
+    // In-memory only. A key imported into the runner's keyring outlives the step
+    // that needed it; this one dies with the JVM. Absent credentials must leave
+    // signing OFF rather than half-configured, so `check`/`publishToMavenLocal`
+    // still run for contributors with no release material.
+    val signingKey = providers.environmentVariable("GPG_PRIVATE_KEY").orNull
+    val signingPassphrase = providers.environmentVariable("MAVEN_GPG_PASSPHRASE").orNull
+    if (!signingKey.isNullOrBlank() && !signingPassphrase.isNullOrBlank()) {
+        useInMemoryPgpKeys(signingKey, signingPassphrase)
+        sign(publishing.publications["maven"])
     }
 }

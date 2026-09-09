@@ -93,16 +93,46 @@ def test_sdk_version_3_source_only_workflows_cannot_publish() -> None:
     Central repository land together.  Rust and Dart left this set once their
     registry metadata was complete; see the publishable test below.
     """
-    for sdk in ("kotlin", "android"):
+    for sdk in ("android",):
         workflow = (ROOT / f".github/workflows/publish-{sdk}.yml").read_text()
         assert "publishToMavenLocal" in workflow
         assert "secrets." not in workflow, f"{sdk} workflow accepts release credentials"
-        assert "Publish to Maven Central" not in workflow
 
-    for sdk in ("kotlin", "android"):
+    for sdk in ("android",):
         build = (ROOT / f"sdks/{sdk}/build.gradle.kts").read_text()
-        assert "ossrh-staging-api.central.sonatype.com" not in build
         assert "signing {" not in build
+
+
+def test_sdk_version_5_kotlin_release_cannot_skip_signing_or_staging() -> None:
+    """Kotlin publishes to Central, so the two irreversible mistakes get gates.
+
+    Central assigns a coordinate permanently on release and rejects unsigned
+    artifacts only after the upload has consumed the deployment name.  So the
+    workflow must (a) verify a signature exists before uploading and (b) stage
+    rather than auto-release.  Neither is provable by running the happy path.
+    """
+    workflow = (ROOT / ".github/workflows/publish-kotlin.yml").read_text()
+
+    assert "publishingType=USER_MANAGED" in workflow, (
+        "kotlin uploads must stage; AUTOMATIC makes the coordinate permanent"
+    )
+    assert "publishingType=AUTOMATIC" not in workflow
+    assert "Refuse an unsigned bundle" in workflow, "no pre-upload signature check"
+    # Asserting the step's NAME would pass against a step that checks nothing.
+    # These two assert the mechanism that makes it non-vacuous: it counts the
+    # artifacts first, so an empty staging directory fails instead of reporting
+    # success after zero iterations.
+    assert 'signable="$(find' in workflow, "signature check does not count artifacts"
+    assert '"$signable" -lt 3' in workflow, "no floor on the artifact count"
+    assert "no version= in" in workflow, "an empty version would release no coordinate"
+
+    # A release step that runs on a pull request would leak release credentials
+    # to any fork that opens one.
+    assert "github.ref == 'refs/heads/main'" in workflow
+
+    build = (ROOT / "sdks/kotlin/build.gradle.kts").read_text()
+    assert "signing" in build
+    assert "useInMemoryPgpKeys" in build, "a keyring import outlives the step"
 
 
 def test_sdk_version_4_publishable_sdks_carry_registry_metadata() -> None:
