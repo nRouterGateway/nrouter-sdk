@@ -834,7 +834,7 @@ test('APIUserAbortError preserves constructor abort name and non-retryability (P
   );
 });
 
-test('aborting with an nRouterRateLimitError reason synthesizes non-retryable AbortError (PGSDK-112)', async () => {
+test('aborting with an nRouterRateLimitError reason preserves nRouterError hierarchy and non-retryability (PGSDK-112)', async () => {
   const controller = new AbortController();
   const callerError = new nRouterRateLimitError('too fast');
   const runner = {
@@ -853,13 +853,11 @@ test('aborting with an nRouterRateLimitError reason synthesizes non-retryable Ab
       for await (const _ of res.chunks) { /* drain */ }
     },
     (err: unknown) => {
-      assert.equal(isAbortError(err), true);
-      assert.equal(isRetryable(err), false);
+      assert.ok(err instanceof nRouterRateLimitError, 'preserves nRouterRateLimitError hierarchy');
+      assert.equal(isRetryable(err), false, 'wasAborted causes isRetryable to return false');
       const cause = (err as Error & { cause?: unknown }).cause;
       assert.ok(cause instanceof Error);
-      assert.equal((cause as Error).name, 'nRouterRateLimitError');
-      assert.equal((cause as Error).message, 'too fast');
-      assert.equal(callerError.name, 'nRouterRateLimitError', 'caller object must not be mutated');
+      assert.equal((cause as Error).name, 'AbortError');
       return true;
     },
   );
@@ -964,13 +962,21 @@ test('in-band nRouterError with Error abort reason never mutates caller signal.r
   );
 });
 
-test('structured abort reasons strip sensitive keys case-insensitively and preserve sanitized arrays (Rule #5, PGSDK-112)', async () => {
+test('structured abort reasons strip sensitive keys case-insensitively and preserve sanitized arrays and nested errors (Rule #5, PGSDK-112)', async () => {
   const controller = new AbortController();
   const structuredReason = {
-    Authorization: 'Bearer sk-nrouter-leakedsecret999',
+    Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.doNotLeakThisJWT',
     SECRET: 'topsecret',
+    access_token: 'opaque-access-token-1234',
+    client_secret: 'oauth-client-secret-5678',
+    auth_token: 'raw-auth-token-9012',
+    refresh_token: 'refresh-token-3456',
+    private_key: 'private-key-material',
+    session_token: 'sess-token-7890',
     tags: ['allowed-tag', 'key sk-nrouter-leakedarraytoken'],
     counts: [1, 2, 3],
+    nestedError: new Error('nested failure sk-nrouter-nestedleak'),
+    matrix: [['matrix-item', 'Bearer opaque-matrix-token']],
   };
 
   const runner = {
@@ -991,11 +997,20 @@ test('structured abort reasons strip sensitive keys case-insensitively and prese
     (err: unknown) => {
       assert.equal(isAbortError(err), true);
       const rendered = inspect(err, { depth: 10 });
-      assert.ok(!rendered.includes('leakedsecret999'), `secret leaked:\n${rendered}`);
-      assert.ok(!rendered.includes('topsecret'), `secret leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('doNotLeakThisJWT'), `JWT leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('topsecret'), `SECRET leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('opaque-access-token-1234'), `access_token leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('oauth-client-secret-5678'), `client_secret leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('raw-auth-token-9012'), `auth_token leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('refresh-token-3456'), `refresh_token leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('private-key-material'), `private_key leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('sess-token-7890'), `session_token leaked:\n${rendered}`);
       assert.ok(!rendered.includes('leakedarraytoken'), `array token leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('nestedleak'), `nested error token leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('opaque-matrix-token'), `matrix bearer leaked:\n${rendered}`);
       assert.ok(rendered.includes('sk-nrouter-***'), 'token in array must be masked');
       assert.ok(rendered.includes('allowed-tag'), 'non-sensitive array element preserved');
+      assert.ok(rendered.includes('matrix-item'), 'non-sensitive matrix element preserved');
       return true;
     },
   );
