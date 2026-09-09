@@ -97,7 +97,9 @@ export interface nRouterErrorOptions {
 export function redactKeys(message: string): string {
   return message
     .replace(/(sk-nrouter-)[A-Za-z0-9._-]{6,}/g, '$1***')
-    .replace(/(sk-)(?!nrouter-)[A-Za-z0-9._-]{6,}/g, '$1***');
+    .replace(/(sk-)(?!nrouter-)[A-Za-z0-9._-]{6,}/g, '$1***')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/g, '[REDACTED_JWT]');
 }
 
 /**

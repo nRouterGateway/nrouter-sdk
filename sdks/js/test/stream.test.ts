@@ -741,7 +741,7 @@ test('an explicit abort during stream drain takes precedence over truncation err
   );
 });
 
-test('a DOMException AbortError preserves DOMException identity in cause (PGSDK-112)', async () => {
+test('a DOMException AbortError preserves error name and message in cause (PGSDK-112)', async () => {
   const controller = new AbortController();
   const domErr = new DOMException('The user aborted a request.', 'AbortError');
   const runner = {
@@ -855,6 +855,7 @@ test('aborting with an nRouterRateLimitError reason preserves nRouterError hiera
     (err: unknown) => {
       assert.ok(err instanceof nRouterRateLimitError, 'preserves nRouterRateLimitError hierarchy');
       assert.equal(isRetryable(err), false, 'wasAborted causes isRetryable to return false');
+      assert.equal((callerError as { cause?: unknown }).cause, undefined, 'caller error must not be mutated');
       const cause = (err as Error & { cause?: unknown }).cause;
       assert.ok(cause instanceof Error);
       assert.equal((cause as Error).name, 'AbortError');
@@ -868,6 +869,7 @@ test('in-band nRouterError preserves structured object reason and pre-existing c
   const structuredReason = { code: 'CLIENT_ABORT', detail: 'user closed dialog' };
   const upstreamCause = new Error('circuit breaker open');
   const classifiedErr = new nRouterServiceError('upstream unavailable', { cause: upstreamCause });
+  const initialCause = classifiedErr.cause;
 
   const runner = {
     open: async () => ({
@@ -887,6 +889,8 @@ test('in-band nRouterError preserves structured object reason and pre-existing c
     (err: unknown) => {
       assert.ok(err instanceof nRouterServiceError);
       assert.equal(isRetryable(err), false);
+      assert.equal(classifiedErr.cause, initialCause, 'in-band error cause must not be mutated');
+      assert.equal((classifiedErr.cause as Error).message, 'circuit breaker open');
       const marker = (err as Error & { cause?: any }).cause;
       assert.equal(marker?.name, 'AbortError');
       assert.deepEqual(marker?.reason, structuredReason, 'structured reason preserved');
@@ -930,6 +934,7 @@ test('in-band nRouterError with Error abort reason never mutates caller signal.r
   const callerError = new Error('caller abort reason');
   const upstreamCause = new Error('upstream failure');
   const classifiedErr = new nRouterServiceError('service failure', { cause: upstreamCause });
+  const initialCause = classifiedErr.cause;
 
   const runner = {
     open: async () => ({
@@ -950,13 +955,15 @@ test('in-band nRouterError with Error abort reason never mutates caller signal.r
       assert.ok(err instanceof nRouterServiceError);
       assert.equal(isRetryable(err), false);
       assert.equal((callerError as { cause?: unknown }).cause, undefined, 'caller error must not be mutated');
+      assert.equal(classifiedErr.cause, initialCause, 'in-band error cause must not be mutated');
+      assert.equal((classifiedErr.cause as Error).message, 'upstream failure');
 
-      const marker = (err as Error & { cause?: any }).cause;
+      const marker = (err as Error & { cause?: any; reason?: any }).cause;
       assert.equal(marker?.name, 'AbortError');
-      assert.ok(marker?.cause instanceof Error);
-      assert.equal(marker?.cause?.message, 'caller abort reason');
-      assert.ok(marker?.cause?.cause instanceof Error, 'upstream cause chained under abort reason');
-      assert.equal(marker?.cause?.cause?.message, 'upstream failure');
+      assert.ok(marker?.reason instanceof Error, 'abort reason attached to marker.reason');
+      assert.equal(marker?.reason?.message, 'caller abort reason');
+      assert.ok(marker?.cause instanceof Error, 'upstream cause preserved as cause');
+      assert.equal(marker?.cause?.message, 'upstream failure');
       return true;
     },
   );
@@ -964,6 +971,7 @@ test('in-band nRouterError with Error abort reason never mutates caller signal.r
 
 test('structured abort reasons strip sensitive keys case-insensitively and preserve sanitized arrays and nested errors (Rule #5, PGSDK-112)', async () => {
   const controller = new AbortController();
+  const sharedTagObj = { name: 'shared-tag-value' };
   const structuredReason = {
     Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.doNotLeakThisJWT',
     SECRET: 'topsecret',
@@ -976,7 +984,11 @@ test('structured abort reasons strip sensitive keys case-insensitively and prese
     tags: ['allowed-tag', 'key sk-nrouter-leakedarraytoken'],
     counts: [1, 2, 3],
     nestedError: new Error('nested failure sk-nrouter-nestedleak'),
+    nestedBearerError: new Error('nested bearer Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.nestedJWTSecret'),
     matrix: [['matrix-item', 'Bearer opaque-matrix-token']],
+    abortedAt: new Date('2026-09-08T20:00:00.000Z'),
+    refA: sharedTagObj,
+    refB: sharedTagObj,
   };
 
   const runner = {
@@ -998,6 +1010,7 @@ test('structured abort reasons strip sensitive keys case-insensitively and prese
       assert.equal(isAbortError(err), true);
       const rendered = inspect(err, { depth: 10 });
       assert.ok(!rendered.includes('doNotLeakThisJWT'), `JWT leaked:\n${rendered}`);
+      assert.ok(!rendered.includes('nestedJWTSecret'), `nested JWT leaked:\n${rendered}`);
       assert.ok(!rendered.includes('topsecret'), `SECRET leaked:\n${rendered}`);
       assert.ok(!rendered.includes('opaque-access-token-1234'), `access_token leaked:\n${rendered}`);
       assert.ok(!rendered.includes('oauth-client-secret-5678'), `client_secret leaked:\n${rendered}`);
@@ -1011,6 +1024,35 @@ test('structured abort reasons strip sensitive keys case-insensitively and prese
       assert.ok(rendered.includes('sk-nrouter-***'), 'token in array must be masked');
       assert.ok(rendered.includes('allowed-tag'), 'non-sensitive array element preserved');
       assert.ok(rendered.includes('matrix-item'), 'non-sensitive matrix element preserved');
+      assert.ok(rendered.includes('2026-09-08T20:00:00.000Z'), 'Date serialized as ISO string');
+      const cause = (err as Error & { cause?: { refA?: { name: string }; refB?: { name: string } } }).cause;
+      assert.equal(cause?.refA?.name, 'shared-tag-value');
+      assert.equal(cause?.refB?.name, 'shared-tag-value', 'repeated reference preserved across siblings');
+      return true;
+    },
+  );
+});
+
+test('empty error abort reason falls back to default message rather than empty string (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        controller.abort(new Error(''));
+        throw controller.signal.reason;
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      assert.equal((err as Error).message, 'the request was aborted');
       return true;
     },
   );
