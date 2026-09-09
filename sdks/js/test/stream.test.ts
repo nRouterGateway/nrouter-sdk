@@ -555,55 +555,77 @@ test('an abort error preserves the original custom reason without mutating calle
   );
 });
 
-test('a custom non-abort-shaped Error abort reason is normalized to isAbortError (PGSDK-112)', async () => {
+test('an explicit abort during stream drain takes precedence over truncation error (PGSDK-112)', async () => {
   const controller = new AbortController();
-  const customReason = new Error('too slow');
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"chunk"}}]}\n\n');
+        controller.abort();
+        // Stream terminates normally here without sending [DONE]
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true, 'caller abort must take precedence over truncation');
+      assert.equal(isRetryable(err), false, 'an abort is never retryable');
+      return true;
+    },
+  );
+});
+
+test('a stream that closes before any chunk is yielded is retryable as a transport error (PGSDK-112)', async () => {
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        // Closed immediately without yielding any frames
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' });
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof nRouterError, 'typed nRouterError');
+      assert.equal((err as nRouterError).kind, 'transport');
+      assert.equal(isRetryable(err), true, 'unstarted stream failure is safe to retry');
+      assert.match((err as Error).message, /closed before any answer was received/);
+      return true;
+    },
+  );
+});
+
+test('a DOMException AbortError is rethrown unwrapped (PGSDK-112)', async () => {
+  const domErr = new DOMException('The user aborted a request.', 'AbortError');
   const runner = {
     open: async () => ({
       status: 200,
       headers: { 'content-type': 'text/event-stream' },
       body: (async function* () {
         yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
-        controller.abort(customReason);
-        throw new Error('connection dropped');
+        throw domErr;
       })(),
     }),
   };
-  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' });
   await assert.rejects(
     async () => {
       for await (const _ of res.chunks) { /* drain */ }
     },
     (err: unknown) => {
-      assert.equal(isAbortError(err), true, 'custom Error reason must be recognized by isAbortError');
-      assert.equal(isRetryable(err), false, 'custom Error abort is never retryable');
-      assert.equal((err as Error).message, 'too slow');
-      return true;
-    },
-  );
-});
-
-test('an nRouterError on an aborted signal preserves typed error and metadata (PGSDK-112)', async () => {
-  const controller = new AbortController();
-  const runner = {
-    open: async () => ({
-      status: 200,
-      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-billed-123' },
-      body: (async function* () {
-        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"chunk"}}]}\n\n');
-        controller.abort();
-        // Stream fell off end without [DONE], raising billed truncation nRouterError
-      })(),
-    }),
-  };
-  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
-  await assert.rejects(
-    async () => {
-      for await (const _ of res.chunks) { /* drain */ }
-    },
-    (err: unknown) => {
-      assert.ok(err instanceof nRouterError, 'nRouterError must not be downgraded to bare AbortError');
-      assert.equal(err.requestId, 'req-billed-123');
+      assert.equal(err, domErr, 'DOMException must be rethrown unwrapped without losing identity');
+      assert.equal(isAbortError(err), true);
       assert.equal(isRetryable(err), false);
       return true;
     },
