@@ -319,6 +319,38 @@ export function isAbortError(err: unknown): boolean {
   return isAbortLike(err);
 }
 
+function attachMeta(target: unknown, status?: number, meta?: ResponseMeta): void {
+  if (typeof target !== 'object' || target === null) return;
+  try {
+    if (meta?.requestId && !(target as { requestId?: unknown }).requestId) {
+      Object.defineProperty(target, 'requestId', {
+        value: meta.requestId,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+    if (meta && !(target as { meta?: unknown }).meta) {
+      Object.defineProperty(target, 'meta', {
+        value: meta,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+    if (status !== undefined && (target as { status?: unknown }).status === undefined) {
+      Object.defineProperty(target, 'status', {
+        value: status,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      });
+    }
+  } catch {
+    // Ignore if target is frozen
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The frame reader
 // ---------------------------------------------------------------------------
@@ -411,11 +443,21 @@ async function* readFrames(
   } catch (err) {
     // An nRouterError is re-thrown UNWRAPPED because it is already classified
     // and carries kind, status, requestId, and response meta for auditing and reconciliation.
-    // If the signal was aborted, attach the abort reason to cause so isRetryable() is false.
+    // If the signal was aborted, guarantee wasAborted(err.cause) is true so isRetryable() is false.
     if (err instanceof nRouterError) {
-      if (signal?.aborted && !err.cause) {
+      if (signal?.aborted) {
+        const abortMarker = new Error('the request was aborted');
+        abortMarker.name = 'AbortError';
+        if (signal.reason !== undefined) {
+          Object.defineProperty(abortMarker, 'cause', {
+            value: signal.reason,
+            writable: true,
+            enumerable: false,
+            configurable: true,
+          });
+        }
         Object.defineProperty(err, 'cause', {
-          value: signal.reason ?? new Error('the request was aborted'),
+          value: abortMarker,
           writable: true,
           enumerable: false,
           configurable: true,
@@ -433,48 +475,35 @@ async function* readFrames(
       const hasCustomReason =
         signal?.aborted &&
         signal.reason !== undefined &&
-        !(isAbortError(signal.reason) && (signal.reason as Error).message === '');
+        !isAbortError(signal.reason);
 
+      // If the thrown error is already an AbortError (e.g. DOMException),
+      // and caller did not provide a custom signal reason, re-throw it unwrapped directly.
       if (isAbortError(err) && !hasCustomReason) {
+        attachMeta(err, status, meta);
         state.failure = err instanceof Error ? err : new Error(String(err));
         throw err;
       }
 
-      const reason = signal?.aborted
-        ? (signal.reason !== undefined ? signal.reason : err)
-        : err;
-
-      if (isAbortError(reason)) {
-        if (err && err !== reason && reason instanceof Error && !(reason as { cause?: unknown }).cause) {
-          try {
-            Object.defineProperty(reason, 'cause', {
-              value: err,
-              writable: true,
-              enumerable: false,
-              configurable: true,
-            });
-          } catch {
-            // ignore if reason is frozen
-          }
-        }
-        state.failure = reason instanceof Error ? reason : new Error(String(reason));
-        throw reason;
-      }
+      const reason = signal?.aborted ? signal.reason : err;
 
       const msg =
-        reason instanceof Error
-          ? reason.message
-          : typeof reason === 'string' && reason
-            ? reason
-            : typeof reason === 'object' && reason !== null && 'message' in reason && typeof (reason as { message: unknown }).message === 'string'
-              ? (reason as { message: string }).message
-              : 'the request was aborted';
+        hasCustomReason
+          ? reason instanceof Error
+            ? reason.message
+            : typeof reason === 'string'
+              ? reason
+              : typeof reason === 'object' && reason !== null && 'message' in reason && typeof (reason as { message: unknown }).message === 'string'
+                ? (reason as { message: string }).message
+                : 'the request was aborted'
+          : 'the request was aborted';
 
       const abortErr = new Error(msg);
       abortErr.name = 'AbortError';
 
-      // Always preserve reason or underlying err as cause, non-enumerably
-      const causeVal = reason !== undefined ? reason : err;
+      // Always preserve reason (if custom) or underlying failure (err) as cause, non-enumerably.
+      // Never mutate the caller's shared signal.reason object.
+      const causeVal = hasCustomReason ? reason : err !== undefined ? err : reason;
       if (causeVal !== undefined) {
         Object.defineProperty(abortErr, 'cause', {
           value: causeVal,
@@ -483,30 +512,7 @@ async function* readFrames(
           configurable: true,
         });
       }
-      if (meta?.requestId) {
-        Object.defineProperty(abortErr, 'requestId', {
-          value: meta.requestId,
-          writable: true,
-          enumerable: false,
-          configurable: true,
-        });
-      }
-      if (meta) {
-        Object.defineProperty(abortErr, 'meta', {
-          value: meta,
-          writable: true,
-          enumerable: false,
-          configurable: true,
-        });
-      }
-      if (status !== undefined) {
-        Object.defineProperty(abortErr, 'status', {
-          value: status,
-          writable: true,
-          enumerable: false,
-          configurable: true,
-        });
-      }
+      attachMeta(abortErr, status, meta);
 
       state.failure = abortErr;
       throw abortErr;

@@ -587,15 +587,16 @@ test('an abort with structured object reason preserves object in cause (PGSDK-11
   );
 });
 
-test('an in-band nRouterError preserves kind, status, and requestId when signal is aborted (PGSDK-112)', async () => {
+test('a retryable in-band nRouterError becomes non-retryable and preserves metadata when signal is aborted (PGSDK-112)', async () => {
   const controller = new AbortController();
   const runner = {
     open: async () => ({
       status: 200,
-      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-guardrail-123' },
+      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-retry-rate-limit' },
       body: (async function* () {
+        // Unterminated event delivered in tail buffer, aborted as body ends
         yield new TextEncoder().encode(
-          'event: error\ndata: {"error":{"type":"guardrail_blocked","message":"blocked by output guardrail"}}\n\n',
+          'event: error\ndata: {"error":{"code":"rate_limit_exceeded","message":"rate limit hit"}}',
         );
         controller.abort();
       })(),
@@ -608,8 +609,40 @@ test('an in-band nRouterError preserves kind, status, and requestId when signal 
     },
     (err: unknown) => {
       assert.ok(err instanceof nRouterError, 'must stay inside nRouterError hierarchy');
-      assert.equal((err as nRouterError).requestId, 'req-guardrail-123', 'requestId preserved');
-      assert.equal(isRetryable(err), false, 'aborted stream is never retryable');
+      assert.equal((err as nRouterError).kind, 'rate_limit', 'must preserve classified kind');
+      assert.equal((err as nRouterError).requestId, 'req-retry-rate-limit', 'requestId preserved');
+      assert.equal(isRetryable(err), false, 'aborted stream must NOT be retryable even on rate_limit');
+      return true;
+    },
+  );
+});
+
+test('a standard abort preserves requestId and metadata without mutating caller signal (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-std-abort' },
+      body: (async function* () {
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"hi"}}]}\n\n');
+        controller.abort();
+        throw new Error('connection severed');
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      assert.equal((err as { requestId?: string }).requestId, 'req-std-abort');
+      assert.equal((err as { status?: number }).status, 200);
+      assert.equal(isRetryable(err), false);
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.ok(cause instanceof Error);
+      assert.equal((cause as Error).message, 'connection severed');
       return true;
     },
   );
