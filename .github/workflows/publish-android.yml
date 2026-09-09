@@ -66,3 +66,105 @@ jobs:
         run: |
           python3 -m pip install --upgrade pip
           python3 conformance/check_conformance.py
+
+      # ---- release ------------------------------------------------------
+      # Only on a push to main, so a pull request keeps the credential-free
+      # shape. Android depends on ai.nrouter:nrouter-sdk-kotlin at the SAME
+      # coordinated version, so it can only publish once that artifact is on
+      # Central -- the local publishToMavenLocal above is not enough for a
+      # consumer resolving from the network.
+
+      - name: Already on Central?
+        id: check
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: sdks/android
+        run: |
+          VERSION="$(sed -n 's/^version=//p' gradle.properties)"
+          case "$VERSION" in
+            '') echo "::error::no version= in sdks/android/gradle.properties"; exit 1 ;;
+            *[!0-9.]*) echo "::error::version '$VERSION' is not a release version"; exit 1 ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # The Kotlin core must be on Central first or every consumer of this
+          # artifact gets an unresolvable dependency. Publishing android against
+          # a core that only exists in the runner's local repo ships a broken POM.
+          core="$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://repo1.maven.org/maven2/ai/nrouter/nrouter-sdk-kotlin/$VERSION/nrouter-sdk-kotlin-$VERSION.pom")"
+          if [ "$core" != "200" ]; then
+            echo "::warning::nrouter-sdk-kotlin $VERSION is not on Central yet (HTTP $core); skipping."
+            echo "publish=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
+          code="$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://repo1.maven.org/maven2/ai/nrouter/nrouter-sdk-android/$VERSION/nrouter-sdk-android-$VERSION.pom")"
+          case "$code" in
+            200) echo "publish=false" >> "$GITHUB_OUTPUT"
+                 echo "::notice::nrouter-sdk-android $VERSION is already on Central; nothing to do." ;;
+            404) echo "publish=true"  >> "$GITHUB_OUTPUT" ;;
+            *)   echo "::error::Central answered $code; cannot tell whether $VERSION exists"; exit 1 ;;
+          esac
+
+      - name: Build, sign and stage
+        if: steps.check.outputs.publish == 'true'
+        working-directory: sdks/android
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: ./gradlew publishReleasePublicationToCentralStagingRepository
+
+      - name: Refuse an unsigned bundle
+        if: steps.check.outputs.publish == 'true'
+        working-directory: sdks/android
+        run: |
+          # Count first: an empty staging directory would run the loop zero
+          # times and report success having checked nothing.
+          signable="$(find build/central-staging -type f \( -name '*.aar' -o -name '*.jar' -o -name '*.pom' \) | wc -l | tr -d ' ')"
+          if [ "$signable" -lt 3 ]; then
+            echo "::error::expected at least the aar, sources, javadoc and pom; found $signable"
+            find build/central-staging -type f || true
+            exit 1
+          fi
+          missing=0
+          find build/central-staging -type f \( -name '*.aar' -o -name '*.jar' -o -name '*.pom' \) -print |
+            while IFS= read -r f; do
+              [ -f "$f.asc" ] || { echo "::error::unsigned: $f"; exit 1; }
+            done || missing=1
+          [ "$missing" -eq 0 ] || exit 1
+          echo "all $signable aar/jar/pom artifacts carry a .asc signature"
+
+      - name: Publish to Central
+        if: steps.check.outputs.publish == 'true'
+        working-directory: sdks/android
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          cd build/central-staging
+          zip -qr ../central-bundle.zip .
+          cd ..
+          TOKEN="$(printf '%s:%s' "$CENTRAL_USERNAME" "$CENTRAL_PASSWORD" | base64 | tr -d '\n')"
+          code="$(curl -s -o response.txt -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -F "bundle=@central-bundle.zip" \
+            "https://central.sonatype.com/api/v1/publisher/upload?name=nrouter-sdk-android-$VERSION&publishingType=AUTOMATIC")"
+          echo "HTTP $code"; cat response.txt; echo
+          [ "$code" = "201" ] || { echo "::error::Central upload failed"; exit 1; }
+
+      - name: Verify Central serves it
+        if: steps.check.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          # A 201 is acceptance for validation, not publication.
+          URL="https://repo1.maven.org/maven2/ai/nrouter/nrouter-sdk-android/$VERSION/nrouter-sdk-android-$VERSION.pom"
+          for _ in $(seq 1 60); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' "$URL")"
+            [ "$code" = "200" ] && { echo "Central serves nrouter-sdk-android $VERSION"; exit 0; }
+            sleep 30
+          done
+          echo "::error::Central did not serve $VERSION within 30 minutes."
+          echo "::error::Check https://central.sonatype.com/publishing/deployments for a validation failure."
+          exit 1

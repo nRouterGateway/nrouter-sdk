@@ -2,6 +2,7 @@ plugins {
     id("com.android.library") version "8.6.1"
     kotlin("android") version "2.0.21"
     `maven-publish`
+    signing
 }
 
 dependencyLocking { lockAllConfigurations() }
@@ -97,5 +98,29 @@ publishing {
                 }
             }
         }
+    }
+
+    // Same shape as sdks/kotlin: Central takes a bundle zip laid out as a Maven
+    // repo, so stage locally first and keep every artifact and signature
+    // inspectable before anything leaves the runner.
+    repositories {
+        maven {
+            name = "centralStaging"
+            url = uri(layout.buildDirectory.dir("central-staging"))
+        }
+    }
+}
+
+signing {
+    // In-memory only; a keyring import outlives the step that needed it.
+    // Absent credentials leave signing OFF so `check` and publishToMavenLocal
+    // still work for a contributor with no release material.
+    val signingKey = providers.environmentVariable("GPG_PRIVATE_KEY").orNull
+    val signingPassphrase = providers.environmentVariable("MAVEN_GPG_PASSPHRASE").orNull
+    if (!signingKey.isNullOrBlank() && !signingPassphrase.isNullOrBlank()) {
+        useInMemoryPgpKeys(signingKey, signingPassphrase)
+        // The Android publication is registered lazily by the AGP `release`
+        // component, so it does not exist yet at configuration time.
+        afterEvaluate { sign(publishing.publications["release"]) }
     }
 }

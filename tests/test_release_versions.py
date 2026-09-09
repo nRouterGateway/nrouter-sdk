@@ -87,22 +87,28 @@ def test_sdk_version_2_go_module_path_carries_the_release_major() -> None:
         ), f"Go {version} requires a /v{major} module path; got {module}"
 
 
-def test_sdk_version_3_source_only_workflows_cannot_publish() -> None:
-    """Kotlin and Android stay source-only until Central signing is wired.
+def test_sdk_version_3_android_cannot_publish_ahead_of_its_kotlin_core() -> None:
+    """Android declares api("ai.nrouter:nrouter-sdk-kotlin:<same version>").
 
-    Maven Central rejects unsigned artifacts and never lets one be replaced, so
-    these two keep the credential-free shape until a `signing {}` block and a
-    Central repository land together.  Rust and Dart left this set once their
-    registry metadata was complete; see the publishable test below.
+    Publishing the Android artifact while that core is absent from Central ships
+    a POM whose dependency no consumer can resolve, and Central never lets a
+    published coordinate be replaced.  Staging it locally is not enough: the
+    runner's Maven Local satisfies the BUILD and nobody else's.
+
+    This replaces the old source-only assertion.  Android now publishes; what
+    must stay true is the ORDER.
     """
-    for sdk in ("android",):
-        workflow = (ROOT / f".github/workflows/publish-{sdk}.yml").read_text()
-        assert "publishToMavenLocal" in workflow
-        assert "secrets." not in workflow, f"{sdk} workflow accepts release credentials"
+    workflow = (ROOT / ".github/workflows/publish-android.yml").read_text()
+    assert "nrouter-sdk-kotlin/$VERSION/nrouter-sdk-kotlin-$VERSION.pom" in workflow, (
+        "android must check its Kotlin core is on Central before publishing"
+    )
+    assert "is not on Central yet" in workflow, "the core check must skip, not proceed"
 
-    for sdk in ("android",):
-        build = (ROOT / f"sdks/{sdk}/build.gradle.kts").read_text()
-        assert "signing {" not in build
+    build = (ROOT / "sdks/android/build.gradle.kts").read_text()
+    assert "useInMemoryPgpKeys" in build, "a keyring import outlives the step"
+    # AGP registers the `release` publication lazily, so signing it at
+    # configuration time throws; the signing block must defer.
+    assert "afterEvaluate { sign(" in build
 
 
 def test_sdk_version_5_kotlin_release_cannot_skip_signing_or_staging() -> None:
