@@ -409,31 +409,17 @@ async function* readFrames(
       { status, meta },
     );
   } catch (err) {
-    // An nRouterError is re-thrown UNWRAPPED because it is already classified
-    // and carries status, requestId, and response meta for auditing and reconciliation.
-    if (err instanceof nRouterError) {
-      // If the caller cancelled, attach the abort cause so isRetryable() is false
-      // and retry loops never resend the cancelled request (gate 8).
-      if (signal?.aborted) {
-        err.cause = signal.reason ?? new Error('the request was aborted');
-      }
-      state.failure = err;
-      throw err;
-    }
-
     // If the request was cancelled by the caller via AbortSignal or an AbortError:
     // A cancelled request must never be resent — it was billed (gate 8).
-    // An abort takes precedence so no retry layer mistakes a cancellation for
-    // a transient transport failure or attempts to auto-retry.
+    // An abort takes absolute precedence over any classified or transport failure
+    // so retry layers never mistake a cancellation for a transient retryable error.
     if (signal?.aborted || isAbortError(err)) {
-      // If the thrown error is already a typed AbortError (e.g. DOMException),
-      // re-throw unwrapped to preserve DOMException identity, code, and call stack.
       if (isAbortError(err)) {
         state.failure = err instanceof Error ? err : new Error(String(err));
         throw err;
       }
       const reason = signal?.aborted ? signal.reason : err;
-      if (err === reason && isAbortError(reason)) {
+      if (isAbortError(reason)) {
         state.failure = reason instanceof Error ? reason : new Error(String(reason));
         throw reason;
       }
@@ -445,10 +431,9 @@ async function* readFrames(
             : 'the request was aborted';
       const abortErr = new Error(msg);
       abortErr.name = 'AbortError';
-      const cause = err && err !== reason ? err : reason;
-      if (cause !== undefined) {
+      if (reason instanceof Error) {
         Object.defineProperty(abortErr, 'cause', {
-          value: cause,
+          value: reason,
           writable: true,
           enumerable: false,
           configurable: true,
@@ -456,6 +441,13 @@ async function* readFrames(
       }
       state.failure = abortErr;
       throw abortErr;
+    }
+
+    // An nRouterError is re-thrown UNWRAPPED because it is already classified
+    // and carries status, requestId, and response meta for auditing and reconciliation.
+    if (err instanceof nRouterError) {
+      state.failure = err;
+      throw err;
     }
 
     // Anything else is a raw socket or runtime failure escaping out of the
