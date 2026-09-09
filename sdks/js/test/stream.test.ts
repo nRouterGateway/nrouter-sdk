@@ -19,7 +19,7 @@ const assert = require('node:assert/strict');
 const { inspect } = require('node:util');
 
 const { parseSSE, streamChat, isAbortError } = require('../dist/stream');
-const { nRouterError, isRetryable, transportError } = require('../dist/errors');
+const { nRouterError, isRetryable, transportError, nRouterRateLimitError, nRouterServiceError } = require('../dist/errors');
 
 const encoder = new TextEncoder();
 
@@ -792,6 +792,124 @@ test('an aborted stream sanitizes leaky cause to prevent Authorization header le
     },
   );
 });
+
+test('APIUserAbortError preserves constructor abort name and non-retryability (PGSDK-112)', async () => {
+  class APIUserAbortError extends Error {
+    constructor() {
+      super('Request was aborted.');
+      this.name = 'Error'; // OpenAI client leaves name as 'Error'
+    }
+  }
+
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        throw new APIUserAbortError();
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' });
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      assert.equal((err as Error).name, 'APIUserAbortError');
+      assert.equal(isRetryable(err), false);
+      return true;
+    },
+  );
+});
+
+test('aborting with an nRouterRateLimitError reason synthesizes non-retryable AbortError (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const callerError = new nRouterRateLimitError('too fast');
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        controller.abort(callerError);
+        throw controller.signal.reason;
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      assert.equal(isRetryable(err), false);
+      assert.equal((err as Error & { cause?: unknown }).cause, callerError);
+      assert.equal(callerError.name, 'nRouterRateLimitError', 'caller object must not be mutated');
+      return true;
+    },
+  );
+});
+
+test('in-band nRouterError preserves structured object reason and pre-existing cause chain (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const structuredReason = { code: 'CLIENT_ABORT', detail: 'user closed dialog' };
+  const upstreamCause = new Error('circuit breaker open');
+  const classifiedErr = new nRouterServiceError('upstream unavailable', { cause: upstreamCause });
+
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        controller.abort(structuredReason);
+        throw classifiedErr;
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof nRouterServiceError);
+      assert.equal(isRetryable(err), false);
+      const marker = (err as Error & { cause?: any }).cause;
+      assert.equal(marker?.name, 'AbortError');
+      assert.deepEqual(marker?.cause, structuredReason, 'structured reason preserved');
+      return true;
+    },
+  );
+});
+
+test('a custom abort message redacts embedded API keys (Rule #5, PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        controller.abort(new Error('cancelled token sk-nrouter-leakedsecret123'));
+        throw controller.signal.reason;
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true);
+      assert.ok(!((err as Error).message.includes('leakedsecret123')), 'error message must be redacted');
+      assert.ok((err as Error).message.includes('sk-nrouter-***'), 'token must be masked');
+      return true;
+    },
+  );
+});
+
 
 // HTTP header names are case-insensitive on the wire, and a hand-written
 // runner returning a plain object reasonably spells it `Retry-After`. An exact

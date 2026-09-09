@@ -20,6 +20,7 @@ import {
   parseRetryAfter,
   isAbortLike,
   sanitizeCause,
+  redactKeys,
   ABORT_NAMES,
 } from './errors';
 import { buildChatBody } from './options';
@@ -332,8 +333,10 @@ function isDefaultAbort(reason: unknown): boolean {
       : '';
   if (!msg) return true;
   return (
-    /^(this|the) (operation|user) (was aborted|aborted a request)\.?$/i.test(msg) ||
-    /^signal is aborted without reason\.?$/i.test(msg)
+    /^(this|the) operation was aborted\.?$/i.test(msg) ||
+    /^the user aborted a request\.?$/i.test(msg) ||
+    /^(this|the)?\s*signal (is|has been) aborted( without reason)?\.?$/i.test(msg) ||
+    /^fetch is aborted\.?$/i.test(msg)
   );
 }
 
@@ -462,23 +465,51 @@ async function* readFrames(
     // An nRouterError is re-thrown UNWRAPPED because it is already classified
     // and carries kind, status, requestId, and response meta for auditing and reconciliation.
     // If the signal was aborted, guarantee wasAborted(err.cause) is true so isRetryable() is false.
-    if (err instanceof nRouterError) {
-      if (signal?.aborted && err !== signal.reason) {
+    if (err instanceof nRouterError && err !== signal?.reason) {
+      if (signal?.aborted) {
         const abortMarker = new Error('the request was aborted');
         abortMarker.name = 'AbortError';
         const existingCause = err.cause;
-        const abortCause = signal.reason !== undefined ? signal.reason : existingCause;
-        if (abortCause !== undefined) {
+        const abortCause = signal.reason !== undefined ? signal.reason : undefined;
+        const safeAbortCause =
+          typeof abortCause === 'object' && abortCause !== null
+            ? abortCause instanceof Error
+              ? sanitizeCause(abortCause)
+              : abortCause
+            : abortCause;
+
+        if (safeAbortCause !== undefined) {
+          if (
+            existingCause !== undefined &&
+            safeAbortCause instanceof Error &&
+            !(safeAbortCause as { cause?: unknown }).cause
+          ) {
+            try {
+              Object.defineProperty(safeAbortCause, 'cause', {
+                value: existingCause,
+                writable: true,
+                enumerable: false,
+                configurable: true,
+              });
+            } catch {}
+          }
           try {
             Object.defineProperty(abortMarker, 'cause', {
-              value: sanitizeCause(abortCause),
+              value: safeAbortCause,
               writable: true,
               enumerable: false,
               configurable: true,
             });
-          } catch {
-            // ignore if frozen
-          }
+          } catch {}
+        } else if (existingCause !== undefined) {
+          try {
+            Object.defineProperty(abortMarker, 'cause', {
+              value: existingCause,
+              writable: true,
+              enumerable: false,
+              configurable: true,
+            });
+          } catch {}
         }
         try {
           Object.defineProperty(err, 'cause', {
@@ -507,13 +538,20 @@ async function* readFrames(
 
       const reason = signal?.aborted ? signal.reason : err;
 
+      const ctorName =
+        (reason as { constructor?: { name?: unknown } })?.constructor?.name ??
+        (err as { constructor?: { name?: unknown } })?.constructor?.name;
+
       const errorName =
         typeof (reason as { name?: unknown })?.name === 'string' &&
         ABORT_NAMES.has((reason as { name: string }).name)
           ? (reason as { name: string }).name
-          : typeof (err as { name?: unknown })?.name === 'string' && isAbortLike(err)
+          : typeof (err as { name?: unknown })?.name === 'string' &&
+            ABORT_NAMES.has((err as { name: string }).name)
             ? (err as { name: string }).name
-            : 'AbortError';
+            : typeof ctorName === 'string' && ABORT_NAMES.has(ctorName)
+              ? ctorName
+              : 'AbortError';
 
       const msg =
         hasCustomReason
@@ -533,15 +571,22 @@ async function* readFrames(
             ? (reason as { message: string }).message
             : 'the request was aborted';
 
-      const abortErr = new Error(msg);
+      const abortErr = new Error(redactKeys(msg));
       abortErr.name = errorName;
 
       // Always preserve reason (if custom or default signal.reason) or underlying failure (err) as cause, non-enumerably.
       // Never mutate the caller's shared signal.reason object.
       // Rule #5: if the cause is a transport error (err !== signal.reason), sanitize it so
       // authorization headers and tokens from undici/fetch requests are never leaked into logs.
-      const causeVal = hasCustomReason
-        ? reason
+      const safeReason =
+        hasCustomReason
+          ? reason instanceof Error && 'request' in reason
+            ? sanitizeCause(reason)
+            : reason
+          : undefined;
+
+      const causeVal = safeReason !== undefined
+        ? safeReason
         : err === signal?.reason
           ? signal?.reason
           : err !== undefined
