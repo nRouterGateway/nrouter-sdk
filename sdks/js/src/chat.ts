@@ -631,7 +631,17 @@ export function toAnthropicMessagesRequest(
     // anything — parallel calls are Anthropic's default, so `true` is a no-op
     // and adding a switch for it would change nothing while looking like it did.
     const serial = openai['parallel_tool_calls'] === false;
-    const choice = toolChoiceToAnthropic(openai['tool_choice']) ?? (serial ? { type: 'auto' } : undefined);
+    // `?? (serial ? auto : undefined)` conflated two very different undefineds.
+    // `toolChoiceToAnthropic` returns undefined both when NO choice was given —
+    // where defaulting to `auto` to carry the switch is right — and for an
+    // explicit `tool_choice: 'none'`, where it means "do not call tools". The
+    // coalesce rewrote that refusal into `{type:'auto'}` whenever the caller
+    // ALSO asked for serial calls, i.e. `none` + `parallel_tool_calls: false`
+    // granted permission to call tools. It also made the `else if (serial)`
+    // arm below unreachable. Only an ABSENT choice may be defaulted.
+    const explicitChoice = openai['tool_choice'] !== undefined;
+    const translated = toolChoiceToAnthropic(openai['tool_choice']);
+    const choice = translated ?? (serial && !explicitChoice ? { type: 'auto' } : undefined);
     if (choice) {
       if (serial) choice['disable_parallel_tool_use'] = true;
       out['tool_choice'] = choice;

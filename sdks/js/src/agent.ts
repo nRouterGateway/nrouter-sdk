@@ -27,6 +27,7 @@
 import { chat as runChat } from './chat';
 import type { ChatRunner } from './chat';
 import { configurationError } from './errors';
+import { buildMessages } from './options';
 import { CostAccumulator, type CostSummary } from './meta';
 import type {
   ChatMessage,
@@ -149,9 +150,21 @@ export async function runTools(
   let text = '';
 
   while (steps < maxSteps) {
+    // `messages` is the whole conversation, seeded by `seedMessages` — which
+    // has ALREADY placed the system turn, the opening prompt and any images
+    // where they belong. Every ergonomic field that `buildMessages` would
+    // expand into a turn must therefore be cleared here, or it is expanded a
+    // SECOND time on every step: the system prompt was prepended ahead of the
+    // seeded one (two identical system turns per request), and the images were
+    // re-folded — and because the newest turn in a tool loop is a tool RESULT,
+    // that fold appends them as a fresh trailing user turn AFTER the tool
+    // output, so the model watched the attachment arrive again after every
+    // call. Both are billed on each step.
     const response = await runChat(runner, {
       ...call,
       prompt: undefined,
+      systemPrompt: undefined,
+      images: undefined,
       messages,
       tools: definitions,
     } as NRouterCallOptions);
@@ -192,25 +205,41 @@ export async function runTools(
   }
 
   if (stopReason === 'maxSteps' && last) {
-    // The bound was reached mid-conversation. Report whatever text the last
-    // turn carried rather than '' — a partial answer the caller paid for is
+    // The bound was reached mid-conversation. Report whatever ASSISTANT text
+    // the run produced rather than '' — a partial answer the caller paid for is
     // still theirs.
-    text = contentText(messages[messages.length - 1] ?? { role: 'assistant' });
+    //
+    // Walk back to the last assistant turn instead of reading
+    // `messages[length - 1]`. The final turn of a loop that halted on maxSteps
+    // is, by construction, the `tool` RESULT that the next (never-made) request
+    // would have answered — so reading the tail returned raw tool output as
+    // `result.text`, which the type documents as the assistant's answer. A
+    // caller rendering it showed the user a JSON blob from a function.
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role !== 'assistant') continue;
+      const candidate = contentText(messages[i]);
+      if (candidate) {
+        text = candidate;
+        break;
+      }
+    }
   }
 
   return { text, messages, steps, stopReason, cost: cost.summary(), last };
 }
 
-/** Build the opening conversation from the ergonomic single-turn options. */
+/**
+ * Build the opening conversation from the ergonomic single-turn options.
+ *
+ * This DELEGATES to `buildMessages` rather than restating its rules. The
+ * hand-rolled version here handled `systemPrompt`, `messages` and `prompt` but
+ * silently ignored `images`, so an attachment never entered the conversation
+ * and was instead re-folded into the outgoing body on every step — landing
+ * after the newest tool result each time. One seeding rule, in one place, is
+ * also what stops the two drifting the next time `buildMessages` learns a field.
+ */
 function seedMessages(call: Omit<NRouterCallOptions, 'tools'>): ChatMessage[] {
-  const out: ChatMessage[] = [];
-  if (call.systemPrompt) out.push({ role: 'system', content: call.systemPrompt });
-  if (call.messages && call.messages.length > 0) {
-    for (const message of call.messages) out.push({ ...message });
-  } else if (call.prompt !== undefined) {
-    out.push({ role: 'user', content: call.prompt });
-  }
-  return out;
+  return buildMessages(call as NRouterCallOptions);
 }
 
 /**
