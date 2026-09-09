@@ -99,6 +99,39 @@ That is per-entry, not per-route, so a route-level yes/no cannot express it:
 | `/v1/responses` | OpenAI, Azure OpenAI, Azure AI Foundry |
 | `/v1/messages` | Anthropic, Vertex AI, AWS Bedrock (Anthropic-family models only) |
 | `/v1/completions` | OpenAI |
+| `/v1/messages/count_tokens` | **Anthropic only** |
+| `/v1/embeddings` | **OpenAI only** |
+| `/v1/images/generations` | **OpenAI only** |
+| `/v1/audio/speech` | **OpenAI only** |
+| `/v1/audio/transcriptions` | **OpenAI only** |
+| `/v1/audio/translations` | **OpenAI only** |
+| `/v1/videos` | **OpenAI only** |
+| `/v1/videos/{id}` · `/v1/videos/{id}/content` | **OpenAI only** (same capability as generation) |
+| `/v1/models` · `/v1/models/{model_id}` | listing surface — no provider constraint |
+
+### The eleven non-text routes are single-provider, and that is an ALLOWLIST
+
+The four text rows above list several providers each, which makes the table look
+like a general "most providers serve most routes" story. It is not. Everything
+below the text wires is served by **exactly one** provider family:
+
+* **`count_tokens` — Anthropic alone.** It is Anthropic's own token counter; no
+  other upstream exposes an equivalent at a path this gateway mounts.
+* **embeddings, images, all three audio routes and all three video routes —
+  OpenAI alone** (the `openai` and `codex` provider ids, which are the same
+  upstream).
+
+This is an allowlist, not a gap that quietly widens: a newly registered provider
+serves none of these routes until its upstream path, request shape, response
+shape, usage, pricing and credential handling have each been added and tested.
+
+**What that means for a fallback chain.** The per-entry skip rule above applies
+here with far more bite: a chain entry for an image, audio, video or embeddings
+call on any provider other than OpenAI is skipped, so a chain built entirely from
+Anthropic, Bedrock, Vertex or DashScope entries has every entry skipped and the
+request fails while the chain looks configured. There is no cross-provider
+failover available on those routes today — a fallback there can only be another
+OpenAI deployment.
 
 **The case that bites is `/v1/responses`.** Anthropic, AWS Bedrock, Vertex AI and
 Alibaba DashScope declare no Responses path, so a Responses chain whose entries

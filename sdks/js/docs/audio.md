@@ -8,6 +8,15 @@ Three calls, on `client.nr.media`:
 | `transcribe(params)` | `POST /v1/audio/transcriptions` | `TranscriptionResult` — text, in the caller's language |
 | `translate(params)` | `POST /v1/audio/translations` | `TranscriptionResult` — text, always in English |
 
+**All three audio routes are served by OpenAI only.** This is a provider
+allowlist in the gateway, not a catalogue accident: no other provider declares an
+upstream path for speech, transcription or translation at a path this gateway
+mounts, so an audio call routed to Anthropic, AWS Bedrock, Vertex AI, Azure AI
+Foundry or Alibaba DashScope is refused, and a fallback chain entry on any of
+them is skipped rather than tried. The same holds for images, video and
+embeddings; `count_tokens` is the mirror image, served by Anthropic alone. Full
+table: [`routing.md`](./routing.md).
+
 Fewer models serve audio than serve chat, and the set is the live catalogue's
 rather than this page's. Fetch it — `await client.models.list()`, or
 `curl https://nrouter.ai/api/public/models` — and pick an id that declares the

@@ -67,6 +67,59 @@ one key:
 Under a union it would run for both, and the dashboard toggle would have done
 nothing.
 
+## Reading the result
+
+Everything above is about which guardrails *ran*. This is how you find out what
+happened, and it is the part most callers get wrong.
+
+Every response carries a guardrail posture. The SDK exposes it as
+`meta.guardrails`, read from the `x-nr-guardrails` response header — the same
+token on the text wires, the audio routes, images and video.
+
+```ts
+const res = await client.chat.completions.create({ model, messages });
+res.meta?.guardrails; // 'none' | 'monitor' | 'pass' | 'partial' | 'blocked'
+```
+
+There are **five** values, and they do not collapse into "blocked or fine":
+
+| status | what it means | were you protected? |
+| --- | --- | --- |
+| `none` | no guardrail was resolved for this request at all | **no** |
+| `monitor` | a chain ran in observe-only mode — it recorded, and could not have refused | **no** |
+| `pass` | an enforcing chain ran and found nothing to act on | yes |
+| `partial` | an enforcing chain ran and acted on some content (e.g. redaction) while the request proceeded | yes |
+| `blocked` | an enforcing chain refused; you get an error, not a completion | yes |
+
+**`none` and `monitor` are not protection.** That is the whole reason this
+section exists. Both return a normal, successful completion, so code written as
+`if (status === 'blocked') { … } else { /* protected */ }` treats them as a
+clean pass — and a caller believes a policy is enforcing something it is not.
+
+The two are different failures and are worth distinguishing:
+
+- `none` means nothing was configured, or the winning assignment at the
+  resolved scope was a disabling one. That is a legitimate resolved outcome
+  (see the previous section), not a broken configuration — but it is also not
+  a control.
+- `monitor` means a chain **did** run, and could not have refused whatever it
+  saw. It is the right setting while you are tuning a rule against real
+  traffic, and the wrong thing to ship believing it enforces.
+
+If your application depends on a guardrail actually being able to refuse, assert
+that:
+
+```ts
+const protectedStatuses = new Set(['pass', 'partial', 'blocked']);
+if (!protectedStatuses.has(res.meta?.guardrails ?? 'none')) {
+  // Nothing could have refused this response. Decide deliberately.
+}
+```
+
+Note that this is a property of the *request*, not of your account: the resolved
+set is per (organization, team, key, phase), so one key can come back `pass`
+while another on the same org comes back `none`.
+
 ## Consequences worth knowing before you debug
 
 - **A winner that is disabled at its scope does not run.** "No guardrails ran" is

@@ -4,6 +4,15 @@ Video is the only **asynchronous** wire nRouter serves. Every other modality
 hands you the product in the response; this one hands you a job, and you collect
 the result over two more calls.
 
+**All three video routes are served by OpenAI only** — generation, the status
+poll and the byte download move together as one capability. This is a provider
+allowlist in the gateway, not a catalogue accident: no other provider declares an
+upstream video path at a path this gateway mounts, so a video call routed to
+Anthropic, AWS Bedrock, Vertex AI, Azure AI Foundry or Alibaba DashScope is
+refused, and a fallback chain entry on any of them is skipped rather than tried.
+The same holds for images, audio and embeddings. Full table:
+[`routing.md`](./routing.md).
+
 | Call | Endpoint | Money |
 |---|---|---|
 | `video(params)` | `POST /v1/videos` | **bills** |
