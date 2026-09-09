@@ -361,7 +361,10 @@ async function* readFrames(
         if (frame === null) continue;
 
         const outcome = interpret(frame, status, meta);
-        if (outcome.kind === 'done') return;
+        if (outcome.kind === 'done') {
+          throwIfAborted(signal);
+          return;
+        }
         if (outcome.kind === 'error') throw outcome.error;
         if (outcome.kind === 'skip') continue;
 
@@ -379,7 +382,10 @@ async function* readFrames(
     // last event.
     for (const frame of parseSSE(buffer)) {
       const outcome = interpret(frame, status, meta);
-      if (outcome.kind === 'done') return;
+      if (outcome.kind === 'done') {
+        throwIfAborted(signal);
+        return;
+      }
       if (outcome.kind === 'error') throw outcome.error;
       if (outcome.kind === 'skip') continue;
 
@@ -388,9 +394,7 @@ async function* readFrames(
     }
 
     // If the caller aborted, cancellation takes precedence over normal termination.
-    if (signal?.aborted) {
-      throw signal.reason ?? new Error('the request was aborted');
-    }
+    throwIfAborted(signal);
 
     // FELL OFF THE END WITHOUT `data: [DONE]`.
     //
@@ -414,15 +418,17 @@ async function* readFrames(
     // An abort takes absolute precedence over any classified or transport failure
     // so retry layers never mistake a cancellation for a transient retryable error.
     if (signal?.aborted || isAbortError(err)) {
-      if (isAbortError(err)) {
-        state.failure = err instanceof Error ? err : new Error(String(err));
-        throw err;
-      }
-      const reason = signal?.aborted ? signal.reason : err;
+      const reason = signal?.aborted
+        ? (signal.reason !== undefined ? signal.reason : err)
+        : err;
+
+      // If the abort reason is already a typed AbortError (e.g. DOMException),
+      // re-throw unwrapped to preserve DOMException identity, code, and call stack.
       if (isAbortError(reason)) {
         state.failure = reason instanceof Error ? reason : new Error(String(reason));
         throw reason;
       }
+
       const msg =
         reason instanceof Error
           ? reason.message

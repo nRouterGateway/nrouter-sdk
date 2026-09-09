@@ -528,7 +528,12 @@ test('an abort error preserves the original custom reason without mutating calle
       body: (async function* () {
         yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
         controller.abort(customReason);
-        throw new Error('socket drop');
+        // Throw a real runtime AbortError (DOMException) as runtime fetch would
+        const abortErr =
+          typeof DOMException !== 'undefined'
+            ? new DOMException('The operation was aborted', 'AbortError')
+            : Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
+        throw abortErr;
       })(),
     }),
   };
@@ -545,6 +550,31 @@ test('an abort error preserves the original custom reason without mutating calle
       const cause = (err as Error & { cause?: unknown }).cause;
       assert.equal(cause, customReason, 'custom reason preserved as cause');
       assert.equal(Object.prototype.propertyIsEnumerable.call(err, 'cause'), false, 'cause must not be enumerable own property');
+      return true;
+    },
+  );
+});
+
+test('an explicit abort takes precedence even if stream completes normally with [DONE] (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: (async function* () {
+        controller.abort();
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n');
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.equal(isAbortError(err), true, 'abort must take precedence over [DONE]');
+      assert.equal(isRetryable(err), false, 'an abort is never retryable');
       return true;
     },
   );
