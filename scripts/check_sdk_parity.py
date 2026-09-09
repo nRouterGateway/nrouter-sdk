@@ -73,17 +73,26 @@ def check_demos() -> list[str]:
     return errors
 
 
+# Dart is the one SDK whose registry dictates this directory's name: pub.dev
+# warns on a plural `docs/`, and `dart pub publish --dry-run` exits non-zero on
+# a warning, so `doc/` is required rather than preferred. Every other SDK keeps
+# `docs/`. The parity rule is that the playbook EXISTS, not that ten unrelated
+# ecosystems agree on a directory name.
+PLAYBOOK_DIR = {"dart": "doc"}
+
+
 def check_playbooks() -> list[str]:
     errors = []
     for sdk in ALL_SDKS:
-        pb_path = ROOT / "sdks" / sdk / "docs" / "validation-playbook.md"
+        rel = f"sdks/{sdk}/{PLAYBOOK_DIR.get(sdk, 'docs')}/validation-playbook.md"
+        pb_path = ROOT / rel
         if not pb_path.is_file():
-            errors.append(f"Missing validation playbook: sdks/{sdk}/docs/validation-playbook.md")
+            errors.append(f"Missing validation playbook: {rel}")
             continue
         content = pb_path.read_text(encoding="utf-8")
         for section in REQUIRED_PLAYBOOK_SECTIONS:
             if section not in content:
-                errors.append(f"sdks/{sdk}/docs/validation-playbook.md missing required section marker: '{section}'")
+                errors.append(f"{rel} missing required section marker: '{section}'")
     return errors
 
 
