@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.1.1
+
+- Tracks the coordinated 3.1.1 nRouter SDK release. No Dart-specific API change;
+  the shared gateway contract in `spec/nrouter-sdk-spec.json` is unchanged for
+  Dart callers.
+- First pub.dev publication since 2.1.1. Versions 2.2.0 through 3.1.0 were built
+  and conformance-tested but not published, so this release skips them.
+
+## 3.1.0
+
+- Tracks the coordinated 3.1.0 release: repository metadata, SCM links and
+  distribution references moved to `nRouterGateway/nrouter-sdk`.
+
 ## 3.0.0
 
 - Advances Dart to the coordinated 3.0.0 major release train.

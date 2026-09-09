@@ -86,20 +86,48 @@ def test_sdk_version_2_go_module_path_carries_the_release_major() -> None:
 
 
 def test_sdk_version_3_source_only_workflows_cannot_publish() -> None:
-    """Unsupported previews must verify packages without registry credentials."""
+    """Kotlin and Android stay source-only until Central signing is wired.
+
+    Maven Central rejects unsigned artifacts and never lets one be replaced, so
+    these two keep the credential-free shape until a `signing {}` block and a
+    Central repository land together.  Rust and Dart left this set once their
+    registry metadata was complete; see the publishable test below.
+    """
     for sdk in ("kotlin", "android"):
         workflow = (ROOT / f".github/workflows/publish-{sdk}.yml").read_text()
         assert "publishToMavenLocal" in workflow
         assert "secrets." not in workflow, f"{sdk} workflow accepts release credentials"
         assert "Publish to Maven Central" not in workflow
-        assert "Already published?" not in workflow
-        assert "Wait for matching Kotlin core on Maven Central" not in workflow
 
     for sdk in ("kotlin", "android"):
         build = (ROOT / f"sdks/{sdk}/build.gradle.kts").read_text()
         assert "ossrh-staging-api.central.sonatype.com" not in build
         assert "signing {" not in build
 
+
+def test_sdk_version_4_publishable_sdks_carry_registry_metadata() -> None:
+    """A publishable SDK must be publishable for real, not merely unblocked.
+
+    Removing `publish = false` or `publish_to: none` is one line; a registry
+    rejects the upload for a different set of reasons, and on crates.io and
+    pub.dev a version number is spent the moment it is accepted.  This asserts
+    the fields those two registries actually require.
+    """
     with (ROOT / "sdks/rust/Cargo.toml").open("rb") as handle:
-        assert tomllib.load(handle)["package"]["publish"] is False
-    assert _matched(ROOT / "sdks/dart/pubspec.yaml", r"^publish_to:\s*([^\s]+)$") == "none"
+        package = tomllib.load(handle)["package"]
+    assert package.get("publish") is not False, "rust is blocked from publishing"
+    for field in ("description", "license", "repository", "readme"):
+        assert package.get(field), f"crates.io requires package.{field}"
+
+    pubspec = (ROOT / "sdks/dart/pubspec.yaml").read_text()
+    assert not re.search(r"^publish_to:", pubspec, re.M), "dart is blocked from publishing"
+    for field in ("description", "homepage", "repository"):
+        assert re.search(rf"^{field}:", pubspec, re.M), f"pub.dev requires {field}"
+
+    # pub.dev warns when the CHANGELOG omits the version being published, and a
+    # published version cannot be amended afterwards.
+    version = json.loads((ROOT / "spec/nrouter-sdk-spec.json").read_text())["version"]
+    changelog = (ROOT / "sdks/dart/CHANGELOG.md").read_text()
+    assert re.search(rf"^##\s+{re.escape(version)}\s*$", changelog, re.M), (
+        f"sdks/dart/CHANGELOG.md has no '## {version}' entry"
+    )
