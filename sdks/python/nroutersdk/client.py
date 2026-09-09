@@ -754,7 +754,7 @@ class _Videos:
     def retrieve(self, video_id: str) -> dict:
         return cast(dict, self._c._nrouter_get(f"/v1/videos/{quote(video_id, safe='')}"))
 
-    def download_content(self, video_id: str) -> bytes:
+    def download_content(self, video_id: str) -> Any:
         return cast(
             bytes,
             self._c._nrouter_get_bytes(f"/v1/videos/{quote(video_id, safe='')}/content"),
@@ -809,7 +809,7 @@ class _AsyncVideos:
             await self._c._nrouter_get(f"/v1/videos/{quote(video_id, safe='')}"),
         )
 
-    async def download_content(self, video_id: str) -> bytes:
+    async def download_content(self, video_id: str) -> Any:
         return cast(
             bytes,
             await self._c._nrouter_get_bytes(f"/v1/videos/{quote(video_id, safe='')}/content"),
@@ -1107,7 +1107,7 @@ class nRouter(_OpenAI):
         self._raise_for_status(r)
         return cast(dict, r.json())
 
-    def _nrouter_get_bytes(self, path: str) -> bytes:
+    def _nrouter_get_bytes(self, path: str) -> Any:
         r = self._client.get(f"{self._nrouter_base}{path}", headers=self._nrouter_headers)
         self._raise_for_status(r)
         return r.content
@@ -1121,11 +1121,11 @@ class nRouter(_OpenAI):
         """Poll a video generation job until completed or failed."""
         return self.videos.wait_for(video_id, poll_interval=poll_interval, timeout=timeout)
 
-    def capabilities(self) -> dict:
+    def capabilities(self) -> Any:
         """Fetch gateway capabilities and served endpoints."""
         return self.nrouter_models.capabilities()
 
-    def providers(self) -> list[str]:
+    def providers(self) -> Any:
         """List the distinct upstream providers available through this gateway."""
         return self.nrouter_models.providers()
 
@@ -1291,7 +1291,7 @@ class AsyncnRouter(_AsyncOpenAI):
         self._raise_for_status(r)
         return cast(dict, r.json())
 
-    async def _nrouter_get_bytes(self, path: str) -> bytes:
+    async def _nrouter_get_bytes(self, path: str) -> Any:
         r = await self._client.get(f"{self._nrouter_base}{path}", headers=self._nrouter_headers)
         self._raise_for_status(r)
         return r.content
@@ -1305,11 +1305,11 @@ class AsyncnRouter(_AsyncOpenAI):
         """Poll a video generation job until completed or failed."""
         return await self.videos.wait_for(video_id, poll_interval=poll_interval, timeout=timeout)
 
-    async def capabilities(self) -> dict:
+    async def capabilities(self) -> Any:
         """Fetch gateway capabilities and served endpoints."""
         return await self.nrouter_models.capabilities()
 
-    async def providers(self) -> list[str]:
+    async def providers(self) -> Any:
         """List the distinct upstream providers available through this gateway."""
         return await self.nrouter_models.providers()
 
