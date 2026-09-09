@@ -180,6 +180,97 @@ function vetExtra(extra: Record<string, unknown>): void {
 }
 
 
+/**
+ * Map the typed tool and structured-output options onto their wire fields.
+ *
+ * The translation to Anthropic already existed (`toolsToAnthropic` /
+ * `toolChoiceToAnthropic` in chat.ts); the only thing missing was a typed way
+ * to GET here without `extra`. Everything below is a refusal rather than a
+ * silent repair, for this file's standing reason: a request the caller believes
+ * carries tools and does not comes back as a normal-looking answer they paid
+ * for.
+ */
+function buildToolFields(opts: NRouterCallOptions): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+
+  if (opts.tools !== undefined) {
+    // `tools: []` is what an uninitialised caller state produces. Some
+    // providers reject a zero-length list outright and the rest answer as if
+    // no tools were offered — a fake success, so refuse it here where the
+    // sentence can name the option.
+    if (!Array.isArray(opts.tools) || opts.tools.length === 0) {
+      throw configurationError(
+        'tools must be a non-empty array when supplied. An empty tool list is ' +
+          'rejected by some providers and silently ignored by the rest, so the ' +
+          'model answers as though no tool existed — omit `tools` instead.',
+      );
+    }
+    const names = new Set<string>();
+    for (const tool of opts.tools) {
+      const name = tool?.function?.name;
+      if (typeof name !== 'string' || name.trim() === '') {
+        throw configurationError(
+          'every entry in `tools` needs a non-empty `function.name`: the name is ' +
+            'the only thing binding a returned tool_call back to your handler.',
+        );
+      }
+      if (names.has(name)) {
+        // A duplicate name makes the returned `tool_calls[].function.name`
+        // ambiguous, so the caller's dispatch picks one handler arbitrarily.
+        throw configurationError(`tools contains two functions named "${name}"; names must be unique.`);
+      }
+      names.add(name);
+    }
+    out.tools = opts.tools;
+  }
+
+  if (opts.toolChoice !== undefined) {
+    if (opts.tools === undefined) {
+      throw configurationError(
+        'toolChoice was set without `tools`. Naming a function the request does ' +
+          'not carry is rejected by every provider.',
+      );
+    }
+    if (
+      typeof opts.toolChoice === 'object' &&
+      opts.toolChoice !== null &&
+      !names_include(opts.tools, opts.toolChoice.function?.name)
+    ) {
+      throw configurationError(
+        `toolChoice names "${String(opts.toolChoice.function?.name)}", which is not in \`tools\`.`,
+      );
+    }
+    out.tool_choice = opts.toolChoice;
+  }
+
+  if (opts.jsonSchema !== undefined) {
+    const spec = opts.jsonSchema;
+    if (!spec || typeof spec.name !== 'string' || spec.name.trim() === '') {
+      throw configurationError('jsonSchema needs a non-empty `name`.');
+    }
+    if (!spec.schema || typeof spec.schema !== 'object' || Array.isArray(spec.schema)) {
+      throw configurationError('jsonSchema.schema must be a JSON Schema object.');
+    }
+    const jsonSchema: Record<string, unknown> = {
+      name: spec.name,
+      // `strict` defaults ON. Asking for a schema and not getting decoding
+      // enforcement is the half-measure that makes `parsed<T>()` fail at the
+      // caller instead of at the provider.
+      strict: spec.strict ?? true,
+      schema: spec.schema,
+    };
+    if (spec.description !== undefined) jsonSchema.description = spec.description;
+    out.response_format = { type: 'json_schema', json_schema: jsonSchema };
+  }
+
+  return out;
+}
+
+function names_include(tools: NRouterCallOptions['tools'], name: unknown): boolean {
+  if (!Array.isArray(tools)) return false;
+  return tools.some((tool) => tool?.function?.name === name);
+}
+
 export function buildFeatureBody(
   body: Record<string, unknown>,
   opts: NRouterFeatureOptions = {},
@@ -240,9 +331,11 @@ function withImages(message: ChatMessage, images: readonly string[]): ChatMessag
  *    an empty system message still costs tokens and can change behaviour);
  *  - explicit `messages` WIN over `prompt`, which is only a single-turn
  *    convenience;
- *  - `images` fold into the LAST user turn, exactly where the playground puts
- *    them, so a multi-turn conversation attaches them to what the user just
- *    said rather than to some earlier turn.
+ *  - `images` fold into the FINAL turn when it is the user's — which is where
+ *    the playground puts them, because a playground conversation always ends on
+ *    the user turn. When the conversation ends on an assistant or tool turn (an
+ *    agent loop), they become a new trailing user turn instead: PGSDK-111, and
+ *    the reasoning is at the fold site below.
  *
  * The caller's `messages` array and its elements are never mutated.
  */
@@ -278,24 +371,37 @@ export function buildMessages(opts: NRouterCallOptions): ChatMessage[] {
   const images = opts.images;
   if (!images || images.length === 0) return out;
 
-  let lastUser = -1;
-  for (let i = out.length - 1; i >= 0; i--) {
-    if (out[i].role === 'user') {
-      lastUser = i;
-      break;
-    }
-  }
-
-  if (lastUser === -1) {
-    // No user turn to attach to (e.g. only a `systemPrompt` was given). Carry
-    // the images in a new user turn rather than dropping them silently — a
-    // dropped attachment is invisible until the model answers as if it never
-    // saw the image, which reads as a model failure, not an SDK one.
-    out.push({ role: 'user', content: imageParts(images) });
+  // PGSDK-111 — attach to the FINAL turn, and only when that turn is the user's.
+  //
+  // This used to walk BACKWARDS for the last `role === 'user'`. That is the same
+  // answer in a user/assistant conversation, where the final turn IS the user's,
+  // and it is wrong the moment tool turns interleave: in an agent loop the newest
+  // turn is a tool RESULT and the last user turn is several turns behind it, so
+  // the image was folded into a question the model had already answered and
+  // arrived BEFORE the tool output it was meant to follow. The request succeeds,
+  // the model answers about the wrong turn, and it reads as a model failure.
+  //
+  // The two rejected alternatives, and why:
+  //   * fold into the last NON-ASSISTANT turn — that is the tool result, and
+  //     image content-parts on a `tool` message is not a shape providers accept;
+  //   * refuse images when the final turn is a tool result — a throw where the
+  //     caller's intent ("this image goes with what just happened") is
+  //     unambiguous and expressible.
+  //
+  // A trailing turn that is not the user's therefore gets a NEW user turn, which
+  // is the same thing the no-user-turn case already did and for the same reason:
+  // never drop an attachment silently.
+  const last = out.length - 1;
+  if (last >= 0 && out[last].role === 'user') {
+    out[last] = withImages(out[last], images);
     return out;
   }
 
-  out[lastUser] = withImages(out[lastUser], images);
+  // Nothing to fold into — only a `systemPrompt`, or the conversation ends on an
+  // assistant or tool turn. Carry the images in their own user turn rather than
+  // dropping them: a dropped attachment is invisible until the model answers as
+  // if it never saw the image.
+  out.push({ role: 'user', content: imageParts(images) });
   return out;
 }
 
@@ -374,6 +480,8 @@ export function buildChatBody(
   if (sampling.top_p !== undefined) {
     body.top_p = sampling.top_p;
   }
+
+  Object.assign(body, buildToolFields(opts));
 
   Object.assign(body, buildExtraBody(opts));
 

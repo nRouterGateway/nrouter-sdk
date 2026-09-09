@@ -381,6 +381,77 @@ test('post-header stalls are bounded while active response bodies remain open', 
   assert.equal((active.body.choices as any[])[0].message.content, 'ok');
 });
 
+// PGSDK-113. A server that went SILENT is not a caller who pressed cancel, and
+// the difference decides whether the SDK is allowed to try again.
+//
+// The backstop used to name its error `TimeoutError`, which is a member of
+// `ABORT_NAMES` because that is what `AbortSignal.timeout()` produces. So
+// `wasAborted` said true, `isRetryable` returned false, and a 130-second
+// upstream stall — the single most retryable failure this transport can see —
+// was reported to the caller as their own cancellation. The name has to be one
+// no runtime hands to an abort.
+test('a body-idle stall is a TRANSPORT failure, never read as the caller cancelling', async () => {
+  let stalled!: ReadableStreamDefaultController<Uint8Array>;
+  const { isAbortLike } = require('../dist/errors');
+  const client = new nRouter({
+    apiKey: TEST_KEY,
+    bodyIdleTimeoutMs: 60,
+    fetch: async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            stalled = controller;
+            controller.enqueue(new TextEncoder().encode('{"choices":'));
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json', 'x-nr-request-id': 'idle-retry' },
+        },
+      ),
+  });
+  try {
+    await assert.rejects(
+      Promise.race([
+        client.nr.chat({ model: 'm', prompt: 'x' }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('body stall was left unbounded')), 1000),
+        ),
+      ]),
+      (err: unknown) => {
+        const error = err as Error & { cause?: unknown; requestId?: string; kind?: string };
+        assert.ok(
+          error instanceof nRouterError,
+          'the stall must surface as a classified nRouterError',
+        );
+        assert.equal(
+          error.kind,
+          'transport',
+          'the request left this process and got no usable answer — that is `transport`',
+        );
+        assert.equal(
+          error.requestId,
+          'idle-retry',
+          'the gateway request id must survive so the stall is traceable',
+        );
+        assert.ok(
+          !isAbortLike(error) && !isAbortLike(error.cause),
+          'a silent server is not a cancellation: naming the backstop `TimeoutError` puts it in ABORT_NAMES',
+        );
+        assert.equal(
+          isRetryable(error),
+          true,
+          'an idle upstream is the most retryable failure this transport sees; ' +
+            'classified as an abort it is permanently non-retryable',
+        );
+        return true;
+      },
+    );
+  } finally {
+    stalled.error(new Error('test cleanup'));
+  }
+});
+
 // Byte bodies must reach the wire as bytes. HISTORY, because the shape of this
 // test changed with the dependency and the reason did not: under openai 4 the
 // client JSON-stringified a Uint8Array into {"0":82,"1":73,…} unless
@@ -1074,6 +1145,35 @@ test('extractTraceHeaders and withTraceContext handle trace headers and sanitiza
   assert.equal(headers['x-nr-trace-id'], 'trace-123');
   assert.equal(headers['x-nr-session-id'], 'sess-456');
   assert.equal(headers['Custom-Header'], undefined); // sanitized CRLF
+});
+
+// PGSDK-118 — a CR/LF in traceId/sessionId used to skip the header silently:
+// no header, no error, no warning, so a developer wiring tracing could not
+// correlate a request with its spend row and had nothing to debug.
+test('a traceId or sessionId containing CR/LF is REFUSED, not silently dropped', () => {
+  for (const [option, opts] of [
+    ['traceId', { traceId: 'tr_bad\r\ninjected' }],
+    ['sessionId', { sessionId: 'sess_bad\ninjected' }],
+  ] as const) {
+    assert.throws(
+      () => new nRouter({ apiKey: TEST_KEY, ...opts }),
+      (err: any) =>
+        err.name === 'nRouterConfigurationError' && String(err.message).includes(option),
+      `${option} with CR/LF must throw a configuration error naming the option`,
+    );
+  }
+
+  for (const [option, ctx] of [
+    ['traceId', { traceId: 'tr_bad\r\ninjected' }],
+    ['sessionId', { sessionId: 'sess_bad\ninjected' }],
+  ] as const) {
+    assert.throws(
+      () => withTraceContext({}, ctx),
+      (err: any) =>
+        err.name === 'nRouterConfigurationError' && String(err.message).includes(option),
+      `withTraceContext must refuse a ${option} with CR/LF`,
+    );
+  }
 });
 
 test('traceId and sessionId are forwarded in pinnedFetch', async () => {

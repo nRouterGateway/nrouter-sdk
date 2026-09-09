@@ -32,6 +32,7 @@ import {
 import { buildSamplingParams } from './sampling';
 import { buildChatBody } from './options';
 import { HEADER_NAMES, type NRouterCallOptions, type NRouterResponse, type ResponseMeta } from './types';
+import type { AbortSignalLike } from './multimodal';
 
 /** The gateway's buffered chat endpoint. Path only — the runner owns the base URL. */
 const CHAT_PATH = '/chat/completions';
@@ -120,7 +121,18 @@ export interface ChatRunnerResponse {
  * learns which.
  */
 export interface ChatRunner {
-  request(path: string, body: unknown): Promise<ChatRunnerResponse>;
+  /**
+   * `init` is OPTIONAL, and that is load-bearing (PGSDK-106). This is a
+   * published interface: a caller's hand-written runner or test fake declares
+   * two parameters, and JavaScript passes a third harmlessly. Making it
+   * required would be a breaking change to every implementor for a field most
+   * of them will never read.
+   */
+  request(
+    path: string,
+    body: unknown,
+    init?: { readonly signal?: AbortSignalLike },
+  ): Promise<ChatRunnerResponse>;
 }
 
 /**
@@ -193,6 +205,7 @@ export async function chat(
     runner,
     messagesWire ? MESSAGES_PATH : CHAT_PATH,
     messagesWire ? toAnthropicMessagesRequest(body).body : body,
+    opts.signal,
   );
   const meta = metaFromHeaders(res.headers);
 
@@ -407,16 +420,30 @@ export function usesMessagesWire(model: string, provider?: string | null): boole
 /**
  * Refuse, before sending, what this wire cannot serve honestly.
  *
- * `n` is the only OpenAI field whose omission changes the ANSWER rather than
+ * `n` is the first of the fields whose omission changes the ANSWER rather than
  * the sampling. Anthropic returns exactly one message and has no `n`, so a
  * dropped `n: 3` comes back as a single choice that reads like a success — and
  * the customer paid for it. The playground refuses the same request for the
  * same reason (route.ts:325-336).
  *
+ * The others are `MATERIAL_ON_MESSAGES_WIRE`. `toAnthropicMessagesRequest`
+ * reports every one of them in `dropped`, but `chat` sends only `.body`, so
+ * before this refusal existed a caller who asked for JSON mode on a Claude
+ * model received free-form prose, was billed for it, and was told nothing.
+ * That is the same fake success `n` and a dropped `tools` list produce.
+ *
  * CONFIGURATION, so `isRetryable` says false: no retry turns a wire without
- * `n` into one that has it, and a caller's generic retry loop must not spin on
- * it. Raised BEFORE the runner, which is the one place a refusal costs nothing.
+ * these fields into one that has them, and a caller's generic retry loop must
+ * not spin on it. Raised BEFORE the runner, which is the one place a refusal
+ * costs nothing.
  */
+const MATERIAL_ON_MESSAGES_WIRE: ReadonlyArray<[string, string]> = [
+  ['response_format', 'Anthropic has no JSON-mode switch on this wire, so the answer would come back as free-form prose'],
+  ['seed', 'Anthropic does not accept a sampling seed, so the run would not be reproducible as asked'],
+  ['logprobs', 'Anthropic returns no token log-probabilities, so the requested data would be absent from a 200'],
+  ['top_logprobs', 'Anthropic returns no token log-probabilities, so the requested data would be absent from a 200'],
+];
+
 export function refuseUnservableOnMessagesWire(body: Record<string, unknown>): void {
   const n = body['n'];
   if (typeof n === 'number' && n > 1) {
@@ -425,6 +452,15 @@ export function refuseUnservableOnMessagesWire(body: Record<string, unknown>): v
         `one completion, so n=${n} cannot be served. Send n=1, or call an ` +
         'OpenAI-wire model. Dropping the field would return one choice and ' +
         'report success for a request that asked for more and was billed.',
+    );
+  }
+  for (const [field, why] of MATERIAL_ON_MESSAGES_WIRE) {
+    if (body[field] === undefined) continue;
+    throw configurationError(
+      `this model answers on the Anthropic Messages wire and cannot carry ` +
+        `${field}: ${why}. Remove ${field}, or call an OpenAI-wire model. ` +
+        'Dropping the field would report success for a request that asked for ' +
+        'something else and was billed.',
     );
   }
 }
@@ -469,7 +505,7 @@ export function toAnthropicMessagesRequest(
   const messages: Record<string, unknown>[] = [];
   const input = Array.isArray(openai['messages']) ? (openai['messages'] as unknown[]) : [];
 
-  for (const raw of input) {
+  for (const [index, raw] of input.entries()) {
     const turn = asObject(raw);
     if (turn === null) continue;
     const role = typeof turn['role'] === 'string' ? turn['role'] : '';
@@ -495,13 +531,26 @@ export function toAnthropicMessagesRequest(
     // never ran, on a conversation the caller is paying to replay.
     if (role === 'tool') {
       const content = turn['content'];
+      const toolCallId = turn['tool_call_id'];
+      // An empty `tool_use_id` is a guaranteed provider rejection this SDK
+      // would be CONSTRUCTING on purpose. Refuse here, naming the turn, so the
+      // caller reads which turn of their history is wrong rather than a 400
+      // about a field they never wrote. CONFIGURATION: no retry adds an id.
+      if (typeof toolCallId !== 'string' || toolCallId === '') {
+        throw configurationError(
+          `messages[${index}] has role 'tool' but no string tool_call_id. The ` +
+            'Anthropic Messages wire replays a tool result as a tool_result ' +
+            'block keyed by tool_use_id, which has no empty form — sending one ' +
+            'is a provider 400. Carry the id from the assistant turn whose ' +
+            'tool_calls produced this result.',
+        );
+      }
       messages.push({
         role: 'user',
         content: [
           {
             type: 'tool_result',
-            tool_use_id:
-              typeof turn['tool_call_id'] === 'string' ? turn['tool_call_id'] : '',
+            tool_use_id: toolCallId,
             content: typeof content === 'string' ? content : JSON.stringify(content ?? ''),
           },
         ],
@@ -509,7 +558,10 @@ export function toAnthropicMessagesRequest(
       continue;
     }
 
-    if (role === 'assistant' && Array.isArray(turn['tool_calls'])) {
+    // An EMPTY tool_calls list means the turn made no tool call, so it must
+    // fall through to the ordinary text path. Taking this branch on `[]`
+    // builds `content: []`, which Anthropic rejects.
+    if (role === 'assistant' && Array.isArray(turn['tool_calls']) && turn['tool_calls'].length > 0) {
       const blocks: Record<string, unknown>[] = [];
       const text = typeof turn['content'] === 'string' ? turn['content'] : '';
       if (text) blocks.push({ type: 'text', text });
@@ -572,10 +624,27 @@ export function toAnthropicMessagesRequest(
   const tools = toolsToAnthropic(openai['tools']);
   if (tools) {
     out['tools'] = tools;
-    const choice = toolChoiceToAnthropic(openai['tool_choice']);
-    if (choice) out['tool_choice'] = choice;
-  } else if (openai['tools'] !== undefined) {
-    dropped.push('tools');
+    // `parallel_tool_calls` is NOT an OpenAI-only field: Anthropic has the same
+    // control, spelled `tool_choice.disable_parallel_tool_use`. It rides on the
+    // tool_choice object, so a body that set the switch without naming a choice
+    // still needs one, and `auto` is what OpenAI defaults to. Only `false` says
+    // anything — parallel calls are Anthropic's default, so `true` is a no-op
+    // and adding a switch for it would change nothing while looking like it did.
+    const serial = openai['parallel_tool_calls'] === false;
+    const choice = toolChoiceToAnthropic(openai['tool_choice']) ?? (serial ? { type: 'auto' } : undefined);
+    if (choice) {
+      if (serial) choice['disable_parallel_tool_use'] = true;
+      out['tool_choice'] = choice;
+    } else if (serial) {
+      // tool_choice: 'none' omits tools entirely, so there is nothing to
+      // serialise the calls of. Report it rather than losing it.
+      dropped.push('parallel_tool_calls');
+    }
+  } else {
+    if (openai['tools'] !== undefined) dropped.push('tools');
+    // No tools means the switch has nothing to act on — but it was still SET,
+    // so it reaches the diagnostic instead of vanishing (PGSDK-108).
+    if (openai['parallel_tool_calls'] !== undefined) dropped.push('parallel_tool_calls');
   }
 
   for (const field of OPENAI_ONLY_FIELDS) {
@@ -781,11 +850,10 @@ function toolsToAnthropic(tools: unknown): Record<string, unknown>[] | undefined
       name: fn['name'],
       ...(typeof fn['description'] === 'string' ? { description: fn['description'] } : {}),
       // Anthropic requires an object schema; OpenAI's `parameters` is the same
-      // JSON Schema under a different key.
-      input_schema:
-        parameters !== null && typeof parameters === 'object'
-          ? parameters
-          : { type: 'object', properties: {} },
+      // JSON Schema under a different key. `asObject` and not a bare `typeof`
+      // check: `typeof [] === 'object'`, and an array forwarded verbatim as an
+      // input_schema is a provider 400.
+      input_schema: asObject(parameters) ?? { type: 'object', properties: {} },
     });
   }
   return out.length > 0 ? out : undefined;
@@ -853,6 +921,62 @@ export function chatText(res: NRouterResponse<Record<string, unknown>>): string 
     return out;
   }
   return '';
+}
+
+/**
+ * The assistant turn decoded as JSON — the companion to `jsonSchema`.
+ *
+ * VALIDATION, not a convenience wrapper around `JSON.parse`, and the reason is
+ * the wire split. `response_format` is on `OPENAI_ONLY_FIELDS` above: Anthropic's
+ * Messages wire has no JSON-mode switch, so a `jsonSchema` request against a
+ * Claude model is TRANSLATED WITH THE SCHEMA DROPPED and the model answers in
+ * whatever shape it likes. On that wire this function is the only thing between
+ * the caller and a `JSON.parse` of prose.
+ *
+ * The refusal is a CONFIGURATION error, and that is deliberate. It is permanent
+ * — the same request produces the same non-conforming answer — so a caller's
+ * ordinary `while (isRetryable(e))` loop must not resend an already-billed POST
+ * hoping for a different shape. It carries `meta`, so the request id joining
+ * this failure to its spend row survives; a bare `SyntaxError` from
+ * `JSON.parse` carries neither, and reads as an SDK bug rather than a model
+ * that did not comply.
+ *
+ * A fenced ```json block is unwrapped first. Models emit one constantly when
+ * the schema was dropped, and refusing an answer that IS the requested object
+ * with three backticks around it would be pedantry that costs the caller a
+ * second billed call.
+ */
+export function parsed<T = unknown>(res: NRouterResponse<Record<string, unknown>>): T {
+  const text = chatText(res);
+  const trimmed = text.trim();
+
+  if (trimmed === '') {
+    throw configurationError(
+      'the assistant returned no text, so there is nothing to parse as JSON. ' +
+        'Use chatTextDiagnostic() to see whether the output budget was spent ' +
+        'on reasoning or the turn carried only tool calls.',
+      { meta: res.meta },
+    );
+  }
+
+  const fenced = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/.exec(trimmed);
+  const candidate = fenced ? fenced[1].trim() : trimmed;
+
+  let value: unknown;
+  try {
+    value = JSON.parse(candidate);
+  } catch (cause) {
+    throw configurationError(
+      'the assistant reply is not valid JSON, so the structured response could ' +
+        'not be decoded. Note that Anthropic\'s Messages wire has no JSON-mode ' +
+        'switch: a `jsonSchema` request is sent there with the schema dropped, ' +
+        'so the model was never constrained. The first 120 characters were: ' +
+        JSON.stringify(candidate.slice(0, 120)),
+      { meta: res.meta, cause },
+    );
+  }
+
+  return value as T;
 }
 
 /**
@@ -1094,9 +1218,14 @@ async function send(
   runner: ChatRunner,
   path: string,
   body: Record<string, unknown>,
+  signal?: AbortSignalLike,
 ): Promise<ChatRunnerResponse> {
   try {
-    return await runner.request(path, body);
+    // The signal rides in `init`, NEVER in `body` — a cancellation token
+    // written into the request body would be forwarded to the provider as an
+    // unknown field. `undefined` is passed through as `undefined` so a runner
+    // cannot tell "no signal" from "a signal that is not aborted".
+    return await runner.request(path, body, { signal });
   } catch (cause) {
     throw normalize(cause);
   }

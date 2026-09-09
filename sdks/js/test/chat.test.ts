@@ -832,3 +832,71 @@ test('toAnthropicMessagesRequest extracts system messages, maps max_completion_t
   assert.deepEqual(body.stop_sequences, ['Human:', 'END']);
 });
 
+// PGSDK-103/109/110 — three places the translator BUILT a body the provider is
+// guaranteed to reject, instead of refusing or falling through. Each one turns
+// a caller mistake this SDK can see into a provider 400 the caller cannot read.
+test('a tool turn with no tool_call_id is REFUSED, not sent with an empty id', () => {
+  assert.throws(
+    () =>
+      toAnthropicMessagesRequest({
+        model: 'claude-sonnet-4-5',
+        messages: [
+          { role: 'user', content: 'weather?' },
+          { role: 'tool', content: '18C' },
+        ],
+      }),
+    (e: any) => {
+      // The turn INDEX is the whole value of the refusal: a long replayed
+      // history has many tool turns and the caller must know which one.
+      assert.match(String(e.message), /tool_call_id/);
+      assert.match(String(e.message), /1/);
+      // CONFIGURATION, so a generic retry loop does not spin on it.
+      assert.equal(isRetryable(e), false);
+      return true;
+    },
+  );
+});
+
+test('an array `parameters` is not forwarded as an Anthropic input_schema', () => {
+  const { body } = toAnthropicMessagesRequest({
+    model: 'claude-sonnet-4-5',
+    messages: [{ role: 'user', content: 'hi' }],
+    tools: [{ type: 'function', function: { name: 'w', parameters: ['not', 'a', 'schema'] } }],
+  }) as any;
+
+  // typeof [] === 'object', so a bare typeof check forwards the array verbatim
+  // and the provider 400s. An array is not a JSON Schema object.
+  assert.deepEqual(body.tools[0].input_schema, { type: 'object', properties: {} });
+});
+
+test('an assistant turn with an EMPTY tool_calls list keeps its text content', () => {
+  const { body } = toAnthropicMessagesRequest({
+    model: 'claude-sonnet-4-5',
+    messages: [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello', tool_calls: [] },
+    ],
+  }) as any;
+
+  // An `Array.isArray` guard sends `content: []` for an empty-text turn, which
+  // Anthropic rejects. An empty list means "no tool calls" and must fall
+  // through to the ordinary text path — identical to omitting the key.
+  const { body: noKey } = toAnthropicMessagesRequest({
+    model: 'claude-sonnet-4-5',
+    messages: [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello' },
+    ],
+  }) as any;
+  assert.deepEqual(body.messages[1], noKey.messages[1]);
+
+  const { body: empty } = toAnthropicMessagesRequest({
+    model: 'claude-sonnet-4-5',
+    messages: [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: '', tool_calls: [] },
+    ],
+  }) as any;
+  assert.notDeepEqual(empty.messages[1].content, []);
+});
+

@@ -5,6 +5,14 @@
 // change here is a compile error everywhere it matters rather than a runtime
 // surprise at one call site.
 
+// TYPE-ONLY, and the only import in this file. `AbortSignalLike` is declared in
+// `multimodal.ts` (structural, because this package compiles with no DOM lib,
+// so naming `AbortSignal` would make the SDK depend on the caller's ambient
+// type environment). Re-declaring it here would give the SDK two cancellation
+// types that happen to match today — exactly the drift this module exists to
+// prevent. A `import type` is erased at compile time, so there is no cycle.
+import type { AbortSignalLike } from './multimodal';
+
 /**
  * Per-request metadata from the gateway's `x-nr-*` response headers.
  *
@@ -196,8 +204,48 @@ export interface NRouterCallOptions extends NRouterFeatureOptions {
   /** Set false to force provider egress. Omitted when true — true is the gateway default. */
   cache?: boolean;
 
+  /**
+   * Cancel this call (PGSDK-106).
+   *
+   * The media helpers have accepted an `AbortSignalLike` since they were
+   * written; `chat()` — the helper an agent loop actually calls in a loop — did
+   * not, so the only way to stop a runaway turn was to swap the runner out.
+   *
+   * It is a money control as much as an ergonomic one: an abandoned agent turn
+   * nobody can stop keeps calling providers and keeps reserving credit.
+   *
+   * The signal reaches the transport and NOTHING else — it is never written
+   * into the request body. An abort surfaces as an `nRouterError` like every
+   * other failure out of `chat()`, and `isRetryable` already declines an
+   * aborted cause, so a cancelled request is not retried as a blip.
+   */
+  signal?: AbortSignalLike;
+
   /** Image attachments as data URLs or https URLs, folded into the user turn. */
   images?: string[];
+
+  /**
+   * Functions the model may call. Mapped to the OpenAI `tools` field and
+   * translated to Anthropic's `tools` by `toAnthropicMessagesRequest`.
+   *
+   * FIRST-CLASS rather than something to push through `extra`: the translation
+   * already existed on both wires, so the only thing missing was the type, and
+   * without it every agent author reached through the untyped escape hatch and
+   * got no checking on the one field a typo silently disarms.
+   */
+  tools?: ChatTool[];
+
+  /** How the model chooses among `tools`. Requires a non-empty `tools`. */
+  toolChoice?: ChatToolChoice;
+
+  /**
+   * Ask for a response conforming to a JSON Schema.
+   *
+   * Mapped to `response_format: { type: 'json_schema', json_schema: … }`. Pair
+   * it with `parsed<T>()` — see `JsonSchemaSpec` for the wire on which this is
+   * a request rather than a guarantee.
+   */
+  jsonSchema?: JsonSchemaSpec;
 
   /** Anything else goes through untouched to the OpenAI-shaped body. */
   extra?: Record<string, unknown>;
@@ -205,10 +253,76 @@ export interface NRouterCallOptions extends NRouterFeatureOptions {
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool' | 'developer';
 
+/**
+ * One tool call the model asked for, on the OpenAI wire.
+ *
+ * This used to be `unknown[]` on `ChatMessage`, which made the single most
+ * important field in an agent conversation untyped at the public boundary:
+ * `msg.tool_calls[0].function.name` did not compile, so every author either
+ * cast to `any` or re-declared this shape by hand and drifted from the wire
+ * silently.
+ *
+ * `arguments` is a STRING and stays one. The provider emits a JSON document,
+ * not an object, and it is emitted incrementally when streaming — so a
+ * partial call carries syntactically invalid JSON. Typing it as a parsed
+ * object here would make every caller's `JSON.parse` look redundant and hide
+ * the one failure mode that actually happens: a truncated or malformed
+ * argument document from a model that ran out of output tokens.
+ */
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
+/** A function the model may call, in the OpenAI `tools` shape. */
+export interface ChatTool {
+  type: 'function';
+  function: {
+    name: string;
+    description?: string;
+    /** A JSON Schema object describing the arguments. */
+    parameters?: Record<string, unknown>;
+    strict?: boolean;
+  };
+}
+
+/**
+ * How the model should choose among the supplied tools.
+ *
+ * `'none'` is expressible and meaningful — it offers the tools without
+ * permitting a call this turn, which is how an author forces a final natural
+ * language answer at the last step of a bounded loop.
+ */
+export type ChatToolChoice =
+  | 'auto'
+  | 'none'
+  | 'required'
+  | { type: 'function'; function: { name: string } };
+
+/**
+ * A JSON Schema the response must conform to (OpenAI `response_format`).
+ *
+ * ⚠️ NOT available on every wire. Anthropic's Messages wire has no JSON-mode
+ * switch, so `response_format` is on this SDK's `OPENAI_ONLY_FIELDS` drop list
+ * (chat.ts) and a Claude model is asked for the schema and answers however it
+ * likes. That is exactly why `parsed<T>()` validates rather than trusting: on
+ * the wires where the schema is enforced the check is free, and on the wire
+ * where it is dropped the check is the only thing standing between the caller
+ * and a `JSON.parse` of prose.
+ */
+export interface JsonSchemaSpec {
+  name: string;
+  schema: Record<string, unknown>;
+  description?: string;
+  /** Defaults to `true` — the strict decoding mode, which is the point of asking. */
+  strict?: boolean;
+}
+
 export interface ChatMessage {
   role: ChatRole;
   content?: string | ChatContentPart[] | null;
-  tool_calls?: unknown[];
+  tool_calls?: ToolCall[];
   tool_call_id?: string;
   name?: string;
   [key: string]: unknown;

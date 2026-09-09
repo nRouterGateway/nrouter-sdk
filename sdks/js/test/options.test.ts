@@ -260,6 +260,54 @@ test('images fold into the LAST user turn as content parts', () => {
   ]);
 });
 
+// PGSDK-111 — the backward walk for `role === 'user'` is correct for a
+// user/assistant conversation and wrong the moment tool turns interleave. In an
+// agent loop the newest turn is a TOOL RESULT, and the last `user` turn is
+// several turns behind it — so an image attached to "look at this screenshot"
+// was folded into a question the model had already answered, arriving before
+// the tool output it was meant to follow. Silent: the request succeeds, the
+// model answers about the wrong turn, and it reads as a model failure.
+test('images attach AFTER a tool result, never to a stale user turn', () => {
+  const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+  const msgs = buildMessages({
+    model: 'm',
+    messages: [
+      { role: 'user', content: 'what is on my screen?' },
+      { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'grab', arguments: '{}' } }] },
+      { role: 'tool', tool_call_id: 'c1', content: 'captured' },
+    ],
+    images: [dataUrl],
+  });
+
+  // The stale user turn is untouched — it is not what the image belongs to.
+  assert.equal(msgs[0].content, 'what is on my screen?');
+  // The tool result keeps its own shape; image parts on a tool message are not
+  // a shape providers accept.
+  assert.equal(msgs[2].content, 'captured');
+  assert.equal(msgs[2].role, 'tool');
+  // The image arrives as a new user turn, last, after the tool output.
+  assert.equal(msgs.length, 4);
+  assert.equal(msgs[3].role, 'user');
+  assert.deepEqual(msgs[3].content, [{ type: 'image_url', image_url: { url: dataUrl } }]);
+});
+
+test('images do not fold into a turn the assistant has already answered', () => {
+  const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+  const msgs = buildMessages({
+    model: 'm',
+    messages: [
+      { role: 'user', content: 'earlier question' },
+      { role: 'assistant', content: 'earlier answer' },
+    ],
+    images: [dataUrl],
+  });
+
+  assert.equal(msgs[0].content, 'earlier question');
+  assert.equal(msgs.length, 3);
+  assert.equal(msgs[2].role, 'user');
+  assert.deepEqual(msgs[2].content, [{ type: 'image_url', image_url: { url: dataUrl } }]);
+});
+
 test('an image-only turn carries no empty text part', () => {
   // Several providers reject a zero-length text block outright, and an empty
   // string is not something the caller asked to send.
