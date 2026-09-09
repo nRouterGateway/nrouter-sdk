@@ -23,16 +23,27 @@ commitment, and every SDK stays subject to the same conformance gate.
 - **Preview registry** — `sdks/r` at `https://nrouterai.r-universe.dev/nrouter`
   as package `nrouter`, built from the `release-r` branch that `publish-r.yml`
   pushes. Preview publication is not a support commitment.
-- **Source-only** — `sdks/{rust,dart,kotlin,android}` are not published from
-  this repo. `tests/test_release_versions.py::test_sdk_version_3_source_only_workflows_cannot_publish`
-  enforces it: `publish = false` in `sdks/rust/Cargo.toml`, `publish_to: none`
-  in `sdks/dart/pubspec.yaml`, and kotlin/android workflows carrying
-  `publishToMavenLocal` and no release credentials.
+- **Registry-published, unsupported** — `sdks/rust` on crates.io as `nrouter`,
+  `sdks/dart` on pub.dev as `nrouter`. Both carry the coordinated version.
+  Publication is not a support commitment.
+- **Source-only** — `sdks/{kotlin,android}` are not published from this repo.
+  `tests/test_release_versions.py::test_sdk_version_3_source_only_workflows_cannot_publish`
+  enforces it: their workflows carry `publishToMavenLocal` and no release
+  credentials, and their Gradle builds declare no `signing {}` block. Maven
+  Central rejects unsigned artifacts and never allows a published one to be
+  replaced, so signing and a Central repository have to land together.
 
-⚠️ **crates.io, pub.dev and Maven Central still serve older 2.x builds of those
-four.** Those artifacts predate the source-only guard and do not implement the
-current `spec/nrouter-sdk-spec.json` contract. Use `sdks/{js,python,java}` for a
-supported package; treat a 2.x `nrouter` crate or pub package as out of date.
+⚠️ **Maven Central still serves 2.1.0 of `nrouter-sdk-kotlin` and
+`nrouter-sdk-android`.** Those predate the source-only guard and do not
+implement the current `spec/nrouter-sdk-spec.json` contract; treat them as out
+of date and use `sdks/{js,python,java}` for a supported package.
+
+⚠️ **rust and dart publish from a maintainer's credentials, not from CI.**
+`publish-rust.yml` and `publish-dart.yml` still contain no publish step, so a
+version bump does NOT reach crates.io or pub.dev on merge the way npm, PyPI and
+Maven do. Until a `CARGO_REGISTRY_TOKEN` and pub.dev automated publishing are
+wired, releasing those two is a manual step that is easy to forget — which is
+how they fell four versions behind before.
 
 **A `publish-*` filename is not evidence a workflow publishes** — `publish-rust.yml`
 and `publish-dart.yml` run verification only, and `publish-kotlin.yml` /
