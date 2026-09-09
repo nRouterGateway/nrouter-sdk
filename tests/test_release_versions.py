@@ -113,11 +113,15 @@ def test_sdk_version_5_kotlin_release_cannot_skip_signing_or_staging() -> None:
     """
     workflow = (ROOT / ".github/workflows/publish-kotlin.yml").read_text()
 
-    assert "publishingType=USER_MANAGED" in workflow, (
-        "kotlin uploads must stage; AUTOMATIC makes the coordinate permanent"
-    )
-    assert "publishingType=AUTOMATIC" not in workflow
+    # Kotlin publishes automatically, like every other lane and like the Java
+    # SDK's <autoPublish>true</autoPublish>. The guards that matter run BEFORE
+    # the upload and are asserted below; a human release step is not a guard,
+    # it is a single point of forgetting.
+    assert "publishingType=AUTOMATIC" in workflow
     assert "Refuse an unsigned bundle" in workflow, "no pre-upload signature check"
+    assert "Verify Central serves it" in workflow, (
+        "a 201 is acceptance for validation, not publication"
+    )
     # Asserting the step's NAME would pass against a step that checks nothing.
     # These two assert the mechanism that makes it non-vacuous: it counts the
     # artifacts first, so an empty staging directory fails instead of reporting
