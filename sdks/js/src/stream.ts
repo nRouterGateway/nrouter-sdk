@@ -404,10 +404,18 @@ async function* readFrames(
       { status, meta },
     );
   } catch (err) {
-    // If the request was explicitly cancelled by the caller via AbortSignal:
+    // An nRouterError is re-thrown UNWRAPPED because it is already classified
+    // (including the billed truncation error above, which preserves status,
+    // requestId, and response meta for auditing).
+    if (err instanceof nRouterError) {
+      state.failure = err;
+      throw err;
+    }
+
+    // If the request was cancelled by the caller via AbortSignal or an AbortError:
     // A cancelled request must never be resent — it was billed (gate 8).
     // An abort takes precedence so no retry layer mistakes a cancellation for
-    // a transient failure or attempts to auto-retry.
+    // a transient transport failure or attempts to auto-retry.
     if (signal?.aborted || isAbortError(err)) {
       const reason = signal?.aborted ? signal.reason : err;
       const msg =
@@ -418,25 +426,27 @@ async function* readFrames(
             : 'the request was aborted';
       const abortErr = new Error(msg);
       abortErr.name = 'AbortError';
+
+      // When the caller aborted and an underlying socket/runtime error occurred,
+      // preserve the real underlying error as `cause` so diagnostic details are not lost.
+      // If the rejection was the caller's custom reason itself, preserve that reason.
       let cause: unknown;
-      if (reason instanceof Error && !isAbortError(reason)) {
-        cause = reason;
-      } else if (err && err !== reason) {
+      if (err && err !== reason) {
         cause = err;
-      } else if (reason instanceof Error) {
+      } else if (reason instanceof Error && !isAbortError(reason)) {
         cause = reason;
       }
+
       if (cause instanceof Error) {
-        (abortErr as { cause?: unknown }).cause = cause;
+        Object.defineProperty(abortErr, 'cause', {
+          value: cause,
+          writable: true,
+          enumerable: false,
+          configurable: true,
+        });
       }
       state.failure = abortErr;
       throw abortErr;
-    }
-
-    // An nRouterError is re-thrown UNWRAPPED because it is already classified.
-    if (err instanceof nRouterError) {
-      state.failure = err;
-      throw err;
     }
 
     // Anything else is a raw socket or runtime failure escaping out of the

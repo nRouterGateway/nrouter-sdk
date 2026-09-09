@@ -486,7 +486,9 @@ test('a socket failure caused by abort is normalized to an AbortError (PGSDK-112
       assert.equal(isAbortError(err), true, 'socket hang up on aborted signal must be recognized as abort');
       assert.equal(isRetryable(err), false, 'an aborted request is never retryable');
       assert.ok(err instanceof Error);
-      assert.equal((err as Error & { cause?: unknown }).cause instanceof Error, true, 'cause preserved');
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.ok(cause instanceof Error, 'cause preserved');
+      assert.equal((cause as Error).message, 'socket hang up', 'underlying socket error preserved as cause');
       return true;
     },
   );
@@ -498,7 +500,7 @@ test('a stream cut off mid-answer preserves requestId and meta on the truncation
       status: 200,
       headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-trunc-456' },
       body: (async function* () {
-        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"part"}}}\n\n');
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"part"}}]}\n\n');
         // connection closes without [DONE]
       })(),
     }),
@@ -512,13 +514,15 @@ test('a stream cut off mid-answer preserves requestId and meta on the truncation
       assert.ok(err instanceof nRouterError);
       assert.equal((err as nRouterError).kind, 'other');
       assert.equal((err as nRouterError).requestId, 'req-trunc-456');
+      assert.ok((err as nRouterError).meta);
+      assert.equal((err as nRouterError).meta?.requestId, 'req-trunc-456');
       assert.equal(isRetryable(err), false, 'retrying issues a new billed request, so it must not auto-retry');
       return true;
     },
   );
 });
 
-test('an abort error preserves the original custom reason as cause without mutating caller reason (PGSDK-112)', async () => {
+test('an abort error preserves the original custom reason without mutating caller reason (PGSDK-112)', async () => {
   const controller = new AbortController();
   const customReason = new Error('caller cancelled');
   const runner = {
@@ -540,8 +544,12 @@ test('an abort error preserves the original custom reason as cause without mutat
     (err: unknown) => {
       assert.equal(isAbortError(err), true, 'must be recognised as AbortError');
       assert.equal(isRetryable(err), false, 'an abort is never retryable');
+      assert.equal((err as Error).message, 'caller cancelled');
       assert.equal(customReason.name, 'Error', 'caller reason must not be mutated');
-      assert.equal((err as Error & { cause?: unknown }).cause, customReason, 'custom reason attached as cause');
+      const cause = (err as Error & { cause?: unknown }).cause;
+      assert.ok(cause instanceof Error, 'underlying socket error preserved as cause');
+      assert.equal((cause as Error).message, 'socket drop');
+      assert.equal(Object.prototype.propertyIsEnumerable.call(err, 'cause'), false, 'cause must not be enumerable own property');
       return true;
     },
   );
@@ -570,6 +578,33 @@ test('a custom non-abort-shaped Error abort reason is normalized to isAbortError
       assert.equal(isAbortError(err), true, 'custom Error reason must be recognized by isAbortError');
       assert.equal(isRetryable(err), false, 'custom Error abort is never retryable');
       assert.equal((err as Error).message, 'too slow');
+      return true;
+    },
+  );
+});
+
+test('an nRouterError on an aborted signal preserves typed error and metadata (PGSDK-112)', async () => {
+  const controller = new AbortController();
+  const runner = {
+    open: async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-nr-request-id': 'req-billed-123' },
+      body: (async function* () {
+        yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"chunk"}}]}\n\n');
+        controller.abort();
+        // Stream fell off end without [DONE], raising billed truncation nRouterError
+      })(),
+    }),
+  };
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
+  await assert.rejects(
+    async () => {
+      for await (const _ of res.chunks) { /* drain */ }
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof nRouterError, 'nRouterError must not be downgraded to bare AbortError');
+      assert.equal(err.requestId, 'req-billed-123');
+      assert.equal(isRetryable(err), false);
       return true;
     },
   );
