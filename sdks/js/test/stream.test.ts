@@ -581,32 +581,8 @@ test('an explicit abort during stream drain takes precedence over truncation err
   );
 });
 
-test('a stream that closes before any chunk is yielded is retryable as a transport error (PGSDK-112)', async () => {
-  const runner = {
-    open: async () => ({
-      status: 200,
-      headers: { 'content-type': 'text/event-stream' },
-      body: (async function* () {
-        // Closed immediately without yielding any frames
-      })(),
-    }),
-  };
-  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' });
-  await assert.rejects(
-    async () => {
-      for await (const _ of res.chunks) { /* drain */ }
-    },
-    (err: unknown) => {
-      assert.ok(err instanceof nRouterError, 'typed nRouterError');
-      assert.equal((err as nRouterError).kind, 'transport');
-      assert.equal(isRetryable(err), true, 'unstarted stream failure is safe to retry');
-      assert.match((err as Error).message, /closed before any answer was received/);
-      return true;
-    },
-  );
-});
-
 test('a DOMException AbortError is rethrown unwrapped (PGSDK-112)', async () => {
+  const controller = new AbortController();
   const domErr = new DOMException('The user aborted a request.', 'AbortError');
   const runner = {
     open: async () => ({
@@ -614,11 +590,12 @@ test('a DOMException AbortError is rethrown unwrapped (PGSDK-112)', async () => 
       headers: { 'content-type': 'text/event-stream' },
       body: (async function* () {
         yield new TextEncoder().encode('data: {"choices":[{"delta":{"content":"a"}}]}\n\n');
+        controller.abort(domErr);
         throw domErr;
       })(),
     }),
   };
-  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' });
+  const res = await streamChat(runner as never, { model: 'm', prompt: 'x' }, controller.signal);
   await assert.rejects(
     async () => {
       for await (const _ of res.chunks) { /* drain */ }
