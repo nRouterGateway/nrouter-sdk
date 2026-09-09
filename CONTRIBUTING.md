@@ -6,6 +6,12 @@ private model/provider names.
 
 ## Development
 
+Please configure git hooks before starting:
+```bash
+git config core.hooksPath .githooks
+```
+
+
 Before opening a pull request:
 
 ```bash
