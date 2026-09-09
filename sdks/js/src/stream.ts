@@ -128,6 +128,27 @@ export interface StreamChunk {
   raw: Record<string, unknown>;
 }
 
+/**
+ * Token counts as the gateway reported them, normalized across both wires.
+ *
+ * A field is `null` when the wire did not report it — NEVER `0`. Zero is a
+ * measurement; absence is not, and rendering absence as zero claims a free
+ * request, which no enabled model is (Rule #28).
+ */
+export interface StreamUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+}
+
+/** One tool call, reassembled from the fragments either wire streams. */
+export interface StreamToolCall {
+  id: string | null;
+  name: string | null;
+  /** The raw JSON arguments string, concatenated in arrival order. */
+  arguments: string;
+}
+
 export interface StreamResult {
   /**
    * Metadata from the response headers, read ONCE before the body was touched.
@@ -163,12 +184,50 @@ export interface StreamResult {
    *    back a partial answer that reads as complete.
    */
   text(): Promise<string>;
+  /**
+   * Token counts, normalized across the OpenAI and Anthropic frame shapes.
+   *
+   * `null` when the stream reported none. Drains whatever is left of `chunks`
+   * first, exactly as `text()` does, because usage arrives in the LAST frames
+   * — an accessor that answered before the stream finished would answer
+   * `null` on every stream that was about to report a figure.
+   */
+  usage(): Promise<StreamUsage | null>;
+  /**
+   * The finish reason, normalized: OpenAI's `choices[0].finish_reason` and
+   * Anthropic's `stop_reason` are the same fact under two names. `null` when
+   * the stream never said — which, on a stream that ended cleanly, is itself
+   * worth surfacing rather than guessing `'stop'`.
+   */
+  finishReason(): Promise<string | null>;
+  /**
+   * Tool calls, reassembled from the fragments either wire streams (OpenAI's
+   * indexed `delta.tool_calls`, Anthropic's `content_block_start` +
+   * `input_json_delta`). Empty when the answer called no tool.
+   *
+   * `arguments` is the raw JSON STRING, not a parsed object: a stream cut
+   * short leaves it incomplete, and parsing it here would either throw on a
+   * truncation the caller can see for themselves or silently hand back a
+   * half-built object.
+   */
+  toolCalls(): Promise<StreamToolCall[]>;
 }
 
 /** Mutable state shared by the iterator and `text()`. */
 interface StreamState {
   text: string;
   failure: nRouterError | Error | null;
+  /**
+   * Absent until a frame reports one. Kept separate from `text` because these
+   * are what a caller reconciles a spend row against, and a client showing
+   * `-` for tokens is a reconciliation gap.
+   */
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  finishReason: string | null;
+  /** Keyed by the wire's own index, so out-of-order fragments still join. */
+  toolCalls: Map<number, StreamToolCall>;
 }
 
 /**
@@ -281,18 +340,68 @@ export async function streamChat(
     });
   }
 
-  const state: StreamState = { text: '', failure: null };
+  const state: StreamState = {
+    text: '',
+    failure: null,
+    promptTokens: null,
+    completionTokens: null,
+    totalTokens: null,
+    finishReason: null,
+    toolCalls: new Map(),
+  };
   const iterator = readFrames(body, state, response.status, meta, signal);
+
+  /** Run the iterator to completion. Idempotent — an exhausted one says done. */
+  const drain = async (): Promise<void> => {
+    for (;;) {
+      const next = await iterator.next();
+      if (next.done === true) break;
+    }
+  };
 
   return {
     meta,
     // One iterator, handed out every time: the body is single-use.
     chunks: { [Symbol.asyncIterator]: () => iterator },
-    async text(): Promise<string> {
-      for (;;) {
-        const next = await iterator.next();
-        if (next.done === true) break;
+    async usage(): Promise<StreamUsage | null> {
+      await drain();
+      if (state.failure !== null) throw state.failure;
+      if (
+        state.promptTokens === null &&
+        state.completionTokens === null &&
+        state.totalTokens === null
+      ) {
+        // NOTHING was reported. `null`, never a zero-filled object — a zero
+        // here reads as a free request (Rule #28).
+        return null;
       }
+      return {
+        promptTokens: state.promptTokens,
+        completionTokens: state.completionTokens,
+        // Derived only when both halves are real figures; two nulls do not
+        // add up to a zero.
+        totalTokens:
+          state.totalTokens ??
+          (state.promptTokens !== null && state.completionTokens !== null
+            ? state.promptTokens + state.completionTokens
+            : null),
+      };
+    },
+    async finishReason(): Promise<string | null> {
+      await drain();
+      if (state.failure !== null) throw state.failure;
+      return state.finishReason;
+    },
+    async toolCalls(): Promise<StreamToolCall[]> {
+      await drain();
+      if (state.failure !== null) throw state.failure;
+      // In index order, which is the order the model emitted them.
+      return [...state.toolCalls.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([, call]) => ({ ...call }));
+    },
+    async text(): Promise<string> {
+      await drain();
       // A failure recorded during iteration is re-thrown on every later read.
       // A truncated answer that looks complete is worse than an error.
       if (state.failure !== null) throw state.failure;
@@ -498,6 +607,7 @@ async function* readFrames(
         if (outcome.kind === 'skip') continue;
 
         state.text += outcome.chunk.delta;
+        absorbMetadata(state, outcome.chunk.raw);
         yield outcome.chunk;
       }
     }
@@ -779,7 +889,12 @@ function interpret(
   // exists to prevent. Both tests are applied: the `event: error` label and a
   // top-level `error` member, because they agree on the gateway's own frame
   // and each catches a shape the other misses.
-  if (frame.event === 'error' || raw.error !== undefined) {
+  //
+  // `!= null`, NOT `!== undefined`: some upstreams stamp an explicit
+  // `"error": null` on every chunk. Under `!== undefined` such a frame takes
+  // this branch, and a billed answer is discarded mid-flight with a message
+  // built from a frame that reported no error at all.
+  if (frame.event === 'error' || raw.error != null) {
     return {
       kind: 'error',
       error: errorFromValue(raw, data, status, meta),
@@ -807,6 +922,104 @@ function interpret(
  * (`choices[0].text`), direct deltas (`delta`), and Anthropic messages
  * (`content_block_delta` carrying `delta.text`).
  */
+/** A finite number, or null. Never coerces, never invents a 0. */
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/** The slot for one tool call, created on first sight of its index. */
+function toolSlot(state: StreamState, index: number): StreamToolCall {
+  let slot = state.toolCalls.get(index);
+  if (slot === undefined) {
+    slot = { id: null, name: null, arguments: '' };
+    state.toolCalls.set(index, slot);
+  }
+  return slot;
+}
+
+/**
+ * Pull usage, finish reason and tool calls out of a frame of EITHER wire.
+ *
+ * The counterpart to `extractDelta`: that normalizes the text, this normalizes
+ * everything else a caller needs and would otherwise write two parsers for.
+ * Every field is LAST-WINS, because both wires report the final figure in a
+ * late frame and neither revises it afterwards.
+ */
+function absorbMetadata(state: StreamState, raw: Record<string, unknown>): void {
+  // ---- usage -------------------------------------------------------------
+  // OpenAI: a terminal chunk with `usage` and (usually) empty `choices`.
+  // Anthropic: `message_start` carries input_tokens, `message_delta` carries
+  // output_tokens — two frames, one figure each.
+  const usage = asObject(raw.usage) ?? asObject(asObject(raw.message)?.usage);
+  if (usage !== null) {
+    const prompt = numberOrNull(usage.prompt_tokens) ?? numberOrNull(usage.input_tokens);
+    const completion = numberOrNull(usage.completion_tokens) ?? numberOrNull(usage.output_tokens);
+    const total = numberOrNull(usage.total_tokens);
+    if (prompt !== null) state.promptTokens = prompt;
+    if (completion !== null) state.completionTokens = completion;
+    if (total !== null) state.totalTokens = total;
+  }
+
+  // ---- finish reason -----------------------------------------------------
+  const choices = raw.choices;
+  if (Array.isArray(choices) && choices.length > 0) {
+    const first = asObject(choices[0]);
+    if (first !== null && typeof first.finish_reason === 'string') {
+      state.finishReason = first.finish_reason;
+    }
+  }
+  const stopReason =
+    asObject(raw.delta)?.stop_reason ?? asObject(raw.message)?.stop_reason ?? raw.stop_reason;
+  if (typeof stopReason === 'string') state.finishReason = stopReason;
+
+  // ---- tool calls, OPENAI: indexed fragments on `delta.tool_calls` --------
+  if (Array.isArray(choices) && choices.length > 0) {
+    const delta = asObject(asObject(choices[0])?.delta);
+    const calls = delta?.tool_calls;
+    if (Array.isArray(calls)) {
+      for (const entry of calls) {
+        const call = asObject(entry);
+        if (call === null) continue;
+        const slot = toolSlot(state, numberOrNull(call.index) ?? state.toolCalls.size);
+        if (typeof call.id === 'string') slot.id = call.id;
+        const fn = asObject(call.function);
+        if (fn !== null) {
+          if (typeof fn.name === 'string') slot.name = fn.name;
+          // Concatenated, never replaced: the arguments arrive in fragments.
+          if (typeof fn.arguments === 'string') slot.arguments += fn.arguments;
+        }
+      }
+    }
+  }
+
+  // ---- tool calls, ANTHROPIC: a tool_use block plus input_json_delta ------
+  if (raw.type === 'content_block_start') {
+    const block = asObject(raw.content_block);
+    if (block !== null && block.type === 'tool_use') {
+      const slot = toolSlot(state, numberOrNull(raw.index) ?? state.toolCalls.size);
+      if (typeof block.id === 'string') slot.id = block.id;
+      if (typeof block.name === 'string') slot.name = block.name;
+    }
+  }
+  if (raw.type === 'content_block_delta') {
+    const delta = asObject(raw.delta);
+    if (delta !== null && delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
+      const index = numberOrNull(raw.index);
+      // Only join onto a slot a `content_block_start` actually opened — a
+      // fragment for a block we never saw start belongs to no tool call.
+      if (index !== null && state.toolCalls.has(index)) {
+        state.toolCalls.get(index)!.arguments += delta.partial_json;
+      }
+    }
+  }
+}
+
 function extractDelta(raw: Record<string, unknown>): string {
   if (typeof raw.delta === 'string') return raw.delta;
   if (typeof raw.delta === 'object' && raw.delta !== null) {

@@ -1433,3 +1433,77 @@ test('an in-band Anthropic error frame still cuts the stream', async () => {
   const err = await rejection(result.text());
   assert.equal(err.name, 'nRouterGuardrailBlockedError');
 });
+
+// ---------------------------------------------------------------------------
+// PGSDK-116 — an explicit `error: null` is NOT an in-band error.
+// ---------------------------------------------------------------------------
+
+test('a frame carrying an explicit error: null is content, not an in-band error', async () => {
+  // Some upstreams stamp `"error": null` on every chunk. `!== undefined` takes
+  // the error branch on it and discards a billed answer mid-flight.
+  const withNullError =
+    `data: ${JSON.stringify({ error: null, choices: [{ delta: { content: 'hi' } }] })}\n\n`;
+  const result = await streamChat(chunkRunner([withNullError, DONE]), { model: 'm', prompt: 'hi' });
+  assert.equal(await result.text(), 'hi');
+});
+
+test('a frame carrying a REAL error object still stops the stream', async () => {
+  const withError =
+    `data: ${JSON.stringify({ error: { type: 'guardrail_blocked', message: 'denied' } })}\n\n`;
+  const result = await streamChat(chunkRunner([withError, DONE]), { model: 'm', prompt: 'hi' });
+  const err = await rejection(result.text());
+  assert.ok(err instanceof nRouterError, `expected a typed error, got ${inspect(err)}`);
+});
+
+// ---------------------------------------------------------------------------
+// PGSDK-117 — usage / finishReason / toolCalls, normalized across both wires.
+// ---------------------------------------------------------------------------
+
+test('usage(), finishReason() and toolCalls() read the OPENAI wire', async () => {
+  const frames = [
+    `data: ${JSON.stringify({ choices: [{ delta: { content: 'hel' } }] })}\n\n`,
+    `data: ${JSON.stringify({
+      choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_1', function: { name: 'get_weather', arguments: '{"city":' } }] } }],
+    })}\n\n`,
+    `data: ${JSON.stringify({
+      choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"Paris"}' } }] }, finish_reason: 'tool_calls' }],
+    })}\n\n`,
+    `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 } })}\n\n`,
+    DONE,
+  ];
+  const result = await streamChat(chunkRunner(frames), { model: 'm', prompt: 'hi' });
+  await result.text();
+
+  assert.deepEqual(await result.usage(), { promptTokens: 11, completionTokens: 7, totalTokens: 18 });
+  assert.equal(await result.finishReason(), 'tool_calls');
+  assert.deepEqual(await result.toolCalls(), [
+    { id: 'call_1', name: 'get_weather', arguments: '{"city":"Paris"}' },
+  ]);
+});
+
+test('usage(), finishReason() and toolCalls() read the ANTHROPIC wire', async () => {
+  const frames = [
+    `data: ${JSON.stringify({ type: 'message_start', message: { usage: { input_tokens: 11 } } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_1', name: 'get_weather' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"city":' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '"Paris"}' } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 7 } })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_stop' })}\n\n`,
+  ];
+  const result = await streamChat(chunkRunner(frames), { model: 'm', prompt: 'hi' });
+  await result.text();
+
+  assert.deepEqual(await result.usage(), { promptTokens: 11, completionTokens: 7, totalTokens: 18 });
+  assert.equal(await result.finishReason(), 'tool_use');
+  assert.deepEqual(await result.toolCalls(), [
+    { id: 'toolu_1', name: 'get_weather', arguments: '{"city":"Paris"}' },
+  ]);
+});
+
+test('a stream that reported no usage says null, never zero', async () => {
+  const result = await streamChat(chunkRunner([frame('hi'), DONE]), { model: 'm', prompt: 'hi' });
+  await result.text();
+  assert.equal(await result.usage(), null, 'zero tokens would be a measurement we never took');
+  assert.equal(await result.finishReason(), null);
+  assert.deepEqual(await result.toolCalls(), []);
+});
