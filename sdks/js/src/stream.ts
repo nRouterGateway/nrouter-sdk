@@ -894,7 +894,12 @@ function interpret(
   // `"error": null` on every chunk. Under `!== undefined` such a frame takes
   // this branch, and a billed answer is discarded mid-flight with a message
   // built from a frame that reported no error at all.
-  if (frame.event === 'error' || raw.error != null) {
+  //
+  // `!== false` for the same reason pointed at the other sentinel: `false`
+  // is the OTHER way an upstream says "no error on this chunk", and
+  // `false != null` is TRUE in JavaScript, so the nullish guard alone still
+  // cuts a billed stream on a frame that reported success.
+  if (frame.event === 'error' || (raw.error != null && raw.error !== false)) {
     return {
       kind: 'error',
       error: errorFromValue(raw, data, status, meta),
@@ -944,6 +949,34 @@ function toolSlot(state: StreamState, index: number): StreamToolCall {
 }
 
 /**
+ * The slot an OPENAI-shaped tool-call fragment belongs to when the wire omits
+ * `index`.
+ *
+ * `state.toolCalls.size` was the fallback and it SHARDED: the first fragment
+ * opened slot 0, which made the size 1, so the very next fragment of the SAME
+ * call opened slot 1. One call's arguments landed in two slots as two
+ * un-parseable halves, the second with a null id and a null name — a tool the
+ * caller cannot invoke and JSON they cannot parse.
+ *
+ * Fragments of an unindexed call therefore join the slot most recently opened.
+ * A fragment announcing a DIFFERENT `id` opens the next one, because the id is
+ * the only call boundary an unindexed wire gives us; joining across it would
+ * concatenate two calls' arguments into one broken string.
+ */
+function unindexedToolSlot(state: StreamState, id: unknown): number {
+  let last: number | null = null;
+  for (const key of state.toolCalls.keys()) {
+    if (last === null || key > last) last = key;
+  }
+  if (last === null) return 0;
+
+  const open = state.toolCalls.get(last);
+  const startsANewCall =
+    typeof id === 'string' && open !== undefined && open.id !== null && open.id !== id;
+  return startsANewCall ? last + 1 : last;
+}
+
+/**
  * Pull usage, finish reason and tool calls out of a frame of EITHER wire.
  *
  * The counterpart to `extractDelta`: that normalizes the text, this normalizes
@@ -986,7 +1019,7 @@ function absorbMetadata(state: StreamState, raw: Record<string, unknown>): void 
       for (const entry of calls) {
         const call = asObject(entry);
         if (call === null) continue;
-        const slot = toolSlot(state, numberOrNull(call.index) ?? state.toolCalls.size);
+        const slot = toolSlot(state, numberOrNull(call.index) ?? unindexedToolSlot(state, call.id));
         if (typeof call.id === 'string') slot.id = call.id;
         const fn = asObject(call.function);
         if (fn !== null) {

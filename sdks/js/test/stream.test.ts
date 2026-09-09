@@ -1447,6 +1447,16 @@ test('a frame carrying an explicit error: null is content, not an in-band error'
   assert.equal(await result.text(), 'hi');
 });
 
+test('a frame carrying an explicit error: false is content, not an in-band error', async () => {
+  // `false != null` is TRUE in JavaScript, so the nullish guard took the error
+  // branch on a frame that reported NO error, discarding a billed answer
+  // mid-flight and handing the caller the whole raw frame as the message.
+  const withFalseError =
+    `data: ${JSON.stringify({ error: false, choices: [{ delta: { content: 'hi' } }] })}\n\n`;
+  const result = await streamChat(chunkRunner([withFalseError, DONE]), { model: 'm', prompt: 'hi' });
+  assert.equal(await result.text(), 'hi');
+});
+
 test('a frame carrying a REAL error object still stops the stream', async () => {
   const withError =
     `data: ${JSON.stringify({ error: { type: 'guardrail_blocked', message: 'denied' } })}\n\n`;
@@ -1478,6 +1488,51 @@ test('usage(), finishReason() and toolCalls() read the OPENAI wire', async () =>
   assert.equal(await result.finishReason(), 'tool_calls');
   assert.deepEqual(await result.toolCalls(), [
     { id: 'call_1', name: 'get_weather', arguments: '{"city":"Paris"}' },
+  ]);
+});
+
+test('OPENAI tool-call fragments that omit index join ONE call, never shard', async () => {
+  // Some OpenAI-compatible upstreams omit `index` entirely. The fallback was
+  // `state.toolCalls.size`, which is 0 for the first fragment and 1 for the
+  // second — so ONE call's arguments landed in two slots as two un-parseable
+  // halves, the second with a null id and a null name. A caller cannot invoke
+  // that, and `JSON.parse` on either half throws.
+  const frames = [
+    `data: ${JSON.stringify({
+      choices: [{ delta: { tool_calls: [{ id: 'call_1', function: { name: 'get_weather', arguments: '{"city":' } }] } }],
+    })}\n\n`,
+    `data: ${JSON.stringify({
+      choices: [{ delta: { tool_calls: [{ function: { arguments: '"Paris"}' } }] }, finish_reason: 'tool_calls' }],
+    })}\n\n`,
+    DONE,
+  ];
+  const result = await streamChat(chunkRunner(frames), { model: 'm', prompt: 'hi' });
+  await result.text();
+
+  assert.deepEqual(await result.toolCalls(), [
+    { id: 'call_1', name: 'get_weather', arguments: '{"city":"Paris"}' },
+  ]);
+});
+
+test('an unindexed fragment carrying a NEW id opens the NEXT tool-call slot', async () => {
+  // Joining is only correct for fragments of the SAME call. Without an index
+  // the id is the one boundary the wire gives us, so a fragment announcing a
+  // different id must not be concatenated onto the previous call's arguments.
+  const frames = [
+    `data: ${JSON.stringify({
+      choices: [{ delta: { tool_calls: [{ id: 'call_1', function: { name: 'a', arguments: '{"x":1}' } }] } }],
+    })}\n\n`,
+    `data: ${JSON.stringify({
+      choices: [{ delta: { tool_calls: [{ id: 'call_2', function: { name: 'b', arguments: '{"y":2}' } }] } }],
+    })}\n\n`,
+    DONE,
+  ];
+  const result = await streamChat(chunkRunner(frames), { model: 'm', prompt: 'hi' });
+  await result.text();
+
+  assert.deepEqual(await result.toolCalls(), [
+    { id: 'call_1', name: 'a', arguments: '{"x":1}' },
+    { id: 'call_2', name: 'b', arguments: '{"y":2}' },
   ]);
 });
 
