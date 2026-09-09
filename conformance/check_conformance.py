@@ -500,7 +500,12 @@ def js_chat_route_present(root: Path) -> bool:
         )
         is not None
         and handoff_call is not None
-        and re.search(r"runner\.request\(path,\s*body\)", handoff_call) is not None
+        # `path` and `body` must be the first two arguments, in that order — that
+        # is the handoff this gate exists to prove. The arity is NOT pinned: the
+        # runner takes an optional third argument (per-call transport options,
+        # e.g. `{ signal }` for cancellation), and freezing `)` here made adding
+        # one look like a broken route chain rather than a new parameter.
+        and re.search(r"runner\.request\(path,\s*body\s*[,)]", handoff_call) is not None
         and re.search(
             r"typeof\s+pathOrReq\s*===\s*'string'.*?"
             r"\?\s*\{\s*method:\s*'POST',\s*path:\s*pathOrReq,",
@@ -1099,6 +1104,71 @@ def check_swift_manifests(root: Path = ROOT) -> list[str]:
     return failures
 
 
+# --------------------------------------------------------------------------
+# README parity — the routing section, and the retry default it must not arm
+# --------------------------------------------------------------------------
+
+ROUTING_HEADING = "## How guardrails, budgets and routing work"
+ROUTING_LINK = "nrouter.ai/docs/guides/router-settings"
+
+# A retry count set on the CLIENT applies to every method, chat completions
+# included, and a retry on a text wire is a second provider call and a second
+# BILL (§4f gate 8). `README` examples are copied verbatim into production
+# code, so an example arming N retries arms N+1 bills for one answer.
+_ARMED_RETRIES = re.compile(r"max_?[Rr]etries\s*[:=]\s*([1-9]\d*)")
+
+# A PER-CALL override is the recommended shape, not the defect: it names the
+# one method it applies to, so a customer can arm retries on an idempotent GET
+# without arming them on the chat wire. Only a CLIENT-WIDE value is flagged.
+_PER_CALL_OVERRIDE = re.compile(r"with_?[Oo]ptions\s*\(")
+
+
+def check_readme_parity(root: Path = ROOT) -> list[str]:
+    """Every shipped SDK README carries the routing section, and none arms retries.
+
+    ROUTDOC-012 — nine of the ten READMEs carried an identical "How guardrails,
+    budgets and routing work" section; the Python one, the flagship, carried no
+    routing prose at all and no `router-settings` link anywhere. A customer
+    reading the flagship README learned that Smart Router aliases exist from
+    nowhere. Ported prose drifts unless something gates it, which is what this
+    is — the nine agreed only because they were written in one pass.
+
+    ROUTDOC-007 — the same README's enterprise-proxy example passed
+    `max_retries=3` to the constructor. `DEFAULT_MAX_RETRIES = 0` is the
+    deliberate, tested default (`sdks/python/tests/test_retry_policy.py`), and
+    `_apply_transport_defaults` uses `setdefault`, so an explicit value WINS:
+    the example armed up to four provider bills for one answer on the chat wire,
+    with no warning beside it. Python cannot split retries by method the way
+    `sdks/js/src/client.ts` does, so a constructor value is the whole client.
+    A retry example belongs on a GET — `client.with_options(max_retries=2).models.list()`.
+    """
+    failures: list[str] = []
+    readmes = sorted(root.glob("sdks/*/README.md"))
+    if len(readmes) < 2:
+        # Never pass by finding nothing. A glob that stops matching is the
+        # "gate prints green while checking nothing" shape.
+        return [f"readme parity: found {len(readmes)} SDK READMEs under sdks/*/README.md"]
+
+    for path in readmes:
+        sdk = path.parent.name
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if ROUTING_HEADING not in text:
+            failures.append(f"{sdk}: README is missing the {ROUTING_HEADING!r} section")
+        if ROUTING_LINK not in text:
+            failures.append(f"{sdk}: README links nowhere to {ROUTING_LINK}")
+        for line in text.splitlines():
+            if _PER_CALL_OVERRIDE.search(line):
+                continue
+            armed = _ARMED_RETRIES.search(line)
+            if armed:
+                failures.append(
+                    f"{sdk}: README example arms {armed.group(1)} client-wide retries "
+                    f"({armed.group(0)!r}) — on a text wire a retry is a second "
+                    f"provider bill; use 0, or put the example on a GET"
+                )
+    return failures
+
+
 def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
     """Return a list of failure strings; empty means conformant."""
     spec = spec or load_spec()
@@ -1227,6 +1297,9 @@ def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
     # count gate and leaving the fourteen-item lists in place, which is a
     # STRONGER false claim than the count it replaced.
     failures.extend(check_doc_header_enumeration(root))
+    # ROUTDOC-012 / ROUTDOC-007 — the ten READMEs are one contract surface: the
+    # routing section, and no example arming client-wide retries.
+    failures.extend(check_readme_parity(root))
     return failures
 
 
@@ -1319,6 +1392,14 @@ def self_test() -> int:
         fake_root = Path(tmp)
         copied_paths = {r for paths in SDK_SOURCES.values() for r in paths}
         copied_paths.update(RELEASE_METADATA_PATHS)
+        # `check_readme_parity` reads the ten SDK READMEs. Leaving them out of
+        # the fixture makes the "an unmodified copy passes" control fail on an
+        # EMPTY tree rather than on anything this self-test is testing — and the
+        # only other way to make that green would be to let the parity check
+        # pass when it finds no READMEs, which is the gate-checks-nothing shape.
+        copied_paths.update(
+            str(p.relative_to(ROOT)) for p in ROOT.glob("sdks/*/README.md")
+        )
         for rel in copied_paths:
             src = ROOT / rel
             if not src.exists():

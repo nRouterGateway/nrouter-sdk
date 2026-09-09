@@ -351,11 +351,19 @@ http_client = httpx.Client(
     timeout=httpx.Timeout(60.0, connect=10.0),
 )
 
-with nRouter(http_client=http_client, max_retries=3) as client:
+# `max_retries` is deliberately left at its default of 0. A retry on a text wire
+# is a second provider call and a second BILL for one answer, and a value set on
+# the client applies to every method — this SDK cannot split retries by method
+# the way the JS one does.
+with nRouter(http_client=http_client) as client:
     response = client.chat.completions.create(
         model="gpt-5.4-mini",
         messages=[{"role": "user", "content": "Hello behind enterprise proxy!"}],
     )
+
+# Retries are safe on idempotent GETs, so ask for them per call rather than
+# arming them client-wide:
+#     client.with_options(max_retries=2).models.list()
 ```
 
 ---
@@ -381,9 +389,41 @@ All endpoints route through `https://api.nrouter.ai/v1`:
 
 ---
 
+## How guardrails, budgets and routing work
+
+They are configured in the dashboard and enforced at the **gateway**, not in
+this package. The useful guarantee is not that they are always on — it is that
+**whatever you have enabled cannot be bypassed by a client**, this one
+included, and behaves identically from every nRouter SDK and from raw `curl`.
+
+- [Guardrails](https://nrouter.ai/docs/guides/guardrails) — PII redaction,
+  injection protection, secret and keyword scanning, pre-call and post-call.
+  Which ones run is resolved per request: the organization's guardrail switch
+  first, then the narrowest applicable assignment wins across
+  key > team > org > default, and a winner disabled at that scope does not run.
+- [Budget controls](https://nrouter.ai/docs/guides/budget-controls) — spend
+  limits per key, team and organization.
+- [Observability](https://nrouter.ai/docs/guides/observability) — cost and usage
+  on billable calls. Free routes are genuinely free and carry no
+  `x-nr-request-cost`: `/v1/messages/count_tokens`, and video polling and
+  content retrieval.
+
+[Smart Router aliases and fallback chains](https://nrouter.ai/docs/guides/router-settings)
+carry two conditions worth knowing before you rely on failover you have not
+enabled:
+
+- **Opt-in by what you put in `model`.** An alias gets the strategy and its
+  chain; a concrete model is never re-routed and inherits no hidden fallback.
+- **Text wires only** — chat completions, responses, messages and legacy
+  completions. Audio, image and video calls take a single-provider route and
+  are not cross-provider Smart Router wires.
+
+---
+
 ## Documentation & Resources
 
 * [nRouter Documentation](https://nrouter.ai/docs)
+* [Smart Router: aliases, strategies and fallback chains](https://nrouter.ai/docs/guides/router-settings)
 * [API Reference](https://nrouter.ai/docs/api-reference)
 * [Python Quickstart Guide](https://nrouter.ai/docs/sdks/python)
 * [Live Model Catalog](https://nrouter.ai/models)
