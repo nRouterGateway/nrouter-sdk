@@ -1115,12 +1115,49 @@ ROUTING_LINK = "nrouter.ai/docs/guides/router-settings"
 # included, and a retry on a text wire is a second provider call and a second
 # BILL (§4f gate 8). `README` examples are copied verbatim into production
 # code, so an example arming N retries arms N+1 bills for one answer.
-_ARMED_RETRIES = re.compile(r"max_?[Rr]etries\s*[:=]\s*([1-9]\d*)")
+#
+# TEN languages spell the knob three ways, and a scan that knows only one of
+# them is the silent half of a money gate: Go and the .NET-shaped SDKs write
+# `MaxRetries: 3`, Java and Rust arm it as a builder CALL — `.maxRetries(3)`,
+# `.max_retries(3)` — so the leading letter is either case and the separator is
+# `(` as often as `:` or `=`. `0` is never armed, so the digit class excludes it.
+_ARMED_RETRIES = re.compile(r"[Mm]ax_?[Rr]etries\s*[:=(]\s*([1-9]\d*)")
 
 # A PER-CALL override is the recommended shape, not the defect: it names the
 # one method it applies to, so a customer can arm retries on an idempotent GET
 # without arming them on the chat wire. Only a CLIENT-WIDE value is flagged.
 _PER_CALL_OVERRIDE = re.compile(r"with_?[Oo]ptions\s*\(")
+
+
+def _override_spans(text: str) -> list[tuple[int, int]]:
+    """Character ranges enclosed by a per-call `with_options(...)` call.
+
+    The exemption has to be POSITIONAL, not line-based. A line-based skip is
+    wrong in both directions and the recommended example is what it breaks:
+    a formatter wrapping `client.with_options(max_retries=2).models.list()`
+    across lines leaves `max_retries=2,` alone on its own line, which then reads
+    as a client-wide value and fails the gate — teaching the next author to
+    delete the SAFE example. Pointed the other way, a client constructor sharing
+    a line with a comment that merely mentions `with_options(...)` is waved
+    through, which is the silent direction.
+    """
+    spans: list[tuple[int, int]] = []
+    for match in _PER_CALL_OVERRIDE.finditer(text):
+        depth, i = 0, match.end() - 1  # the '(' the pattern ends on
+        while i < len(text):
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        else:
+            # Unbalanced: exempt that line only, never the rest of the file.
+            i = text.find("\n", match.end())
+            i = len(text) if i == -1 else i
+        spans.append((match.start(), i))
+    return spans
 
 
 def check_readme_parity(root: Path = ROOT) -> list[str]:
@@ -1144,10 +1181,17 @@ def check_readme_parity(root: Path = ROOT) -> list[str]:
     """
     failures: list[str] = []
     readmes = sorted(root.glob("sdks/*/README.md"))
-    if len(readmes) < 2:
-        # Never pass by finding nothing. A glob that stops matching is the
-        # "gate prints green while checking nothing" shape.
-        return [f"readme parity: found {len(readmes)} SDK READMEs under sdks/*/README.md"]
+    # Never pass by finding nothing, and never pass by finding SOME. The claim
+    # is parity across the shipped SDKs, so the floor is one README per SDK in
+    # `SDK_SOURCES`; a "more than one" floor lets eight be deleted unnoticed,
+    # which is the "gate prints green while checking nothing" shape wearing a
+    # count.
+    missing = sorted(set(SDK_SOURCES) - {p.parent.name for p in readmes})
+    if len(readmes) < len(SDK_SOURCES):
+        return [
+            f"readme parity: found {len(readmes)} SDK READMEs under sdks/*/README.md, "
+            f"expected one per shipped SDK ({len(SDK_SOURCES)}) — missing {missing}"
+        ]
 
     for path in readmes:
         sdk = path.parent.name
@@ -1156,16 +1200,15 @@ def check_readme_parity(root: Path = ROOT) -> list[str]:
             failures.append(f"{sdk}: README is missing the {ROUTING_HEADING!r} section")
         if ROUTING_LINK not in text:
             failures.append(f"{sdk}: README links nowhere to {ROUTING_LINK}")
-        for line in text.splitlines():
-            if _PER_CALL_OVERRIDE.search(line):
+        exempt = _override_spans(text)
+        for armed in _ARMED_RETRIES.finditer(text):
+            if any(start <= armed.start() < end for start, end in exempt):
                 continue
-            armed = _ARMED_RETRIES.search(line)
-            if armed:
-                failures.append(
-                    f"{sdk}: README example arms {armed.group(1)} client-wide retries "
-                    f"({armed.group(0)!r}) — on a text wire a retry is a second "
-                    f"provider bill; use 0, or put the example on a GET"
-                )
+            failures.append(
+                f"{sdk}: README example arms {armed.group(1)} client-wide retries "
+                f"({armed.group(0)!r}) — on a text wire a retry is a second "
+                f"provider bill; use 0, or put the example on a GET"
+            )
     return failures
 
 
@@ -1442,6 +1485,84 @@ def self_test() -> int:
 
         if check(root=fake_root):
             problems.append("an unmodified copy of the tree did not pass")
+
+        # --- check_readme_parity: prove every arm of it bites -----------------
+        # ROUTDOC-007/012 is only worth its docstring if each arm goes red, and
+        # the retry arm has to bite in TEN languages rather than one. Go writes
+        # `MaxRetries: 3`, Java `.maxRetries(3)`: a scan anchored on a lowercase
+        # `max` and a `:`/`=` separator reads both as clean while the example
+        # arms N+1 provider bills for one answer (§4f gate 8). The negative case
+        # matters as much — flagging the RECOMMENDED per-call shape because a
+        # formatter wrapped it teaches the next author to delete the safe
+        # example.
+        victim = fake_root / "sdks/go/README.md"
+        readme = victim.read_text(encoding="utf-8")
+
+        for label, planted, must_flag in (
+            (
+                "a python-style client-wide value",
+                "```python\nclient = nRouter(max_retries=3)\n```",
+                True,
+            ),
+            (
+                "a Go PascalCase field",
+                "```go\nclient := nrouter.New(nrouter.Options{MaxRetries: 3})\n```",
+                True,
+            ),
+            (
+                "a Java builder call",
+                "```java\nNRouter.builder().maxRetries(3).build();\n```",
+                True,
+            ),
+            (
+                "a per-call override split over lines",
+                "```python\nclient.with_options(\n    max_retries=2,\n).models.list()\n```",
+                False,
+            ),
+        ):
+            victim.write_text(
+                _mutate(
+                    readme,
+                    ROUTING_HEADING,
+                    f"{planted}\n\n{ROUTING_HEADING}",
+                    problems,
+                    f"readme retry case: {label}",
+                ),
+                encoding="utf-8",
+            )
+            armed = [f for f in check(root=fake_root) if "go: README example arms" in f]
+            if must_flag and not armed:
+                problems.append(
+                    f"a README arming retries as {label} did not fail the check"
+                )
+            if not must_flag and armed:
+                problems.append(
+                    f"{label} was wrongly flagged as a client-wide retry: {armed}"
+                )
+
+        # Both prose arms too: the section, and the link it must carry.
+        victim.write_text(
+            _mutate(readme, ROUTING_HEADING, "## Removed", problems, "readme heading"),
+            encoding="utf-8",
+        )
+        if not any("go: README is missing" in f for f in check(root=fake_root)):
+            problems.append("deleting a README's routing section did not fail the check")
+
+        victim.write_text(
+            _mutate(
+                readme, ROUTING_LINK, "docs/guides/removed", problems, "readme link"
+            ),
+            encoding="utf-8",
+        )
+        if not any("go: README links nowhere" in f for f in check(root=fake_root)):
+            problems.append("deleting a README's router-settings link did not fail the check")
+
+        # A DELETED SDK README must not pass by leaving nine behind. The floor
+        # is one README per shipped SDK, not "more than one".
+        victim.unlink()
+        if not any("readme parity: found" in f for f in check(root=fake_root)):
+            problems.append("deleting an entire SDK README did not fail the check")
+        victim.write_text(readme, encoding="utf-8")
 
         # A package-version drift must stop every publish workflow that invokes
         # this gate, before any registry credential becomes reachable.
