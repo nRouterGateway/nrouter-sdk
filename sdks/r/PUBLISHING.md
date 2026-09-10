@@ -62,7 +62,7 @@ roxygenise rather than hand-editing.
 No review queue, and it builds binaries for macOS and Windows. Direct package page:
 [https://nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter)
 
-The registry configuration lives at: `https://github.com/nRouterAI/nroutergateway.r-universe.dev`
+The registry configuration lives at: `https://github.com/nRouterGateway/nroutergateway.r-universe.dev`
 
 Its `packages.json` maps package `nrouter` to this repository with
 `"subdir": "sdks/r"`. Users install with:
