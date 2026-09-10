@@ -4,25 +4,30 @@ Ten SDKs for the nRouter gateway, and the gate that keeps them speaking one
 contract. **The only PUBLIC repo in the workspace** — everything committed here
 is world-readable. Treat every file as published.
 
-## ⛔ SUPPORT SCOPE: npm, PyPI and Maven — owner decision 2026-08-29, reviewed monthly
+## All Ten SDKs Supported
 
-**Ten SDKs exist here; THREE are supported.** Work that ships as a supported
-package goes to `sdks/{js,python,java}`. Distribution does not add a support
-commitment, and every SDK stays subject to the same conformance gate.
+**Ten SDKs exist here; all ten are supported.** All ten SDKs adhere to the identical gateway wire contract, share coordinated release version **`3.1.2`**, and stay subject to the same conformance gate.
 
-| supported | registry | package |
-|---|---|---|
-| `sdks/js` | npm | `@nrouter_ai/sdk` |
-| `sdks/python` | PyPI | `nrouter-sdk` |
-| `sdks/java` | Maven Central | `ai.nrouter:nrouter-sdk` |
+| SDK | Registry / Distribution | Package | Version |
+|---|---|---|---|
+| `sdks/js` | npm | `@nrouter_ai/sdk` | 3.1.2 |
+| `sdks/python` | PyPI | `nrouter-sdk` | 3.1.2 |
+| `sdks/java` | Maven Central | `ai.nrouter:nrouter-sdk` | 3.1.2 |
+| `sdks/kotlin` | Maven Central | `ai.nrouter:nrouter-sdk-kotlin` | 3.1.2 |
+| `sdks/android` | Maven Central | `ai.nrouter:nrouter-sdk-android` | 3.1.2 |
+| `sdks/go` | Go Modules (`proxy.golang.org`) | `github.com/nRouterGateway/nrouter-sdk/sdks/go/v3` | 3.1.2 |
+| `sdks/rust` | crates.io | `nrouter` | 3.1.2 |
+| `sdks/swift` | Swift Package Manager | `github.com/nRouterGateway/nrouter-sdk` | 3.1.2 |
+| `sdks/dart` | pub.dev | `nrouter` | 3.1.2 |
+| `sdks/r` | R-universe / CRAN | `nrouter` | 3.1.2 |
 
-**The other seven are in three different distribution states, not one.**
+### Distribution Mechanisms
 
 - **Tag-distributed** — `sdks/go` via `proxy.golang.org` on the `sdks/go/vN.N.N`
   tag; `sdks/swift` via SPM on the repo tag.
 - **Preview registry** — `sdks/r` at `https://nroutergateway.r-universe.dev/nrouter`
   as package `nrouter`, built from the `release-r` branch that `publish-r.yml`
-  pushes. Preview publication is not a support commitment.
+  pushes.
 - **Registry-published, unsupported** — `sdks/rust` on crates.io as `nrouter`,
   `sdks/dart` on pub.dev as `nrouter`. Both carry the coordinated version.
   Publication is not a support commitment.

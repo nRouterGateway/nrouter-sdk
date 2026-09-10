@@ -11,22 +11,22 @@
 
 SDK and code examples for the [nRouter](https://nrouter.ai) LLM gateway.
 
-## Supported today: JavaScript/TypeScript, Python, and Java
+## All Ten SDKs Supported
 
-**Three SDKs are supported.** npm, PyPI and Maven Central carry those three.
-The rest are distributed but not supported: Kotlin and Android on Maven Central,
-Rust on crates.io, Dart / Flutter on pub.dev and R on R-universe are
-**registry-distributed public previews**, and Swift and Go resolve immutable git
-tags. Every SDK here is held to the same conformance and security gates.
-**Distribution does not broaden the support commitment.**
+All ten SDKs are officially maintained, tested against the identical gateway wire contract, and share the single coordinated release version **`3.1.2`** under [Rule #14](https://github.com/nRouterGateway/nrouter-sdk#the-one-rule-that-matters-here). Every package manifest, lockfile, documentation, and installation snippet is synchronized to `3.1.2`.
 
-All ten SDKs share the single coordinated release version **`3.1.2`** under [Rule #14](https://github.com/nRouterGateway/nrouter-sdk#the-one-rule-that-matters-here). Every package manifest, lockfile, documentation, and installation snippet is synchronized to `3.1.2`.
-
-| SDK | Registry | Registry URL | Package | Version |
+| SDK | Registry / Distribution | Registry URL | Package | Version |
 |---|---|---|---|---|
 | JavaScript / TypeScript | npm | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | `@nrouter_ai/sdk` | 3.1.2 |
 | Python | PyPI | [pypi.org/project/nrouter-sdk](https://pypi.org/project/nrouter-sdk/) | `nrouter-sdk` | 3.1.2 |
 | Java | Maven Central | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | `ai.nrouter:nrouter-sdk` | 3.1.2 |
+| Kotlin | Maven Central | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin) | `ai.nrouter:nrouter-sdk-kotlin` | 3.1.2 |
+| Android | Maven Central | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android) | `ai.nrouter:nrouter-sdk-android` | 3.1.2 |
+| Go | Go Modules (`proxy.golang.org`) | [pkg.go.dev](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | `github.com/nRouterGateway/nrouter-sdk/sdks/go/v3` | 3.1.2 |
+| Rust | crates.io | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | `nrouter` | 3.1.2 |
+| Swift | Swift Package Manager | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | `nrouter-sdk` | 3.1.2 |
+| Dart / Flutter | pub.dev | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | `nrouter` | 3.1.2 |
+| R | R-universe / CRAN | [nroutergateway.r-universe.dev](https://nroutergateway.r-universe.dev/nrouter) | `nrouter` | 3.1.2 |
 
 All ten SDKs are held to the same public wire contract. The conformance gate
 accounts for all 150 route-ownership cells (15 routes × 10 SDKs): seven
