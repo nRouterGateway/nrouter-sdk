@@ -26,24 +26,14 @@ commitment, and every SDK stays subject to the same conformance gate.
 - **Registry-published, unsupported** — `sdks/rust` on crates.io as `nrouter`,
   `sdks/dart` on pub.dev as `nrouter`. Both carry the coordinated version.
   Publication is not a support commitment.
-- **Source-only** — `sdks/{kotlin,android}` are not published from this repo.
-  `tests/test_release_versions.py::test_sdk_version_3_source_only_workflows_cannot_publish`
-  enforces it: their workflows carry `publishToMavenLocal` and no release
-  credentials, and their Gradle builds declare no `signing {}` block. Maven
-  Central rejects unsigned artifacts and never allows a published one to be
-  replaced, so signing and a Central repository have to land together.
-
-⚠️ **Maven Central still serves 2.1.0 of `nrouter-sdk-kotlin` and
-`nrouter-sdk-android`.** Those predate the source-only guard and do not
-implement the current `spec/nrouter-sdk-spec.json` contract; treat them as out
-of date and use `sdks/{js,python,java}` for a supported package.
+- **Maven Central previews** — `sdks/{kotlin,android}` publish to Maven Central via
+  GitHub Actions under coordinated version `3.1.2`.
+  `test_sdk_version_3_android_cannot_publish_ahead_of_its_kotlin_core` enforces that
+  Android cannot publish ahead of its Kotlin core on Central.
 
 ⚠️ **rust and dart publish from a maintainer's credentials, not from CI.**
-`publish-rust.yml` and `publish-dart.yml` still contain no publish step, so a
-version bump does NOT reach crates.io or pub.dev on merge the way npm, PyPI and
-Maven do. Until a `CARGO_REGISTRY_TOKEN` and pub.dev automated publishing are
-wired, releasing those two is a manual step that is easy to forget — which is
-how they fell four versions behind before.
+`publish-rust.yml` and `publish-dart.yml` run verification; registry publication
+is done with maintainer credentials under coordinated release `3.1.2`.
 
 **A `publish-*` filename is not evidence a workflow publishes** — `publish-rust.yml`
 and `publish-dart.yml` run verification only, and `publish-kotlin.yml` /

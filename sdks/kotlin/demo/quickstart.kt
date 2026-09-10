@@ -6,7 +6,7 @@
 // 3. Typed error handling (NRouterError)
 // 4. Prompt variables and custom configuration
 //
-// Maven: ai.nrouter:nrouter-sdk-kotlin:2.1.0
+// Maven: ai.nrouter:nrouter-sdk-kotlin:3.1.2
 
 package ai.nrouter.examples
 

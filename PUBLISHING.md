@@ -18,34 +18,17 @@ are nevertheless reachable from a real registry — a preview is a support scope
 not a distribution method, and calling these "source checkout" sends a reader
 looking for a git URL when `cargo add` already works.
 
-Versions below were read FROM each registry on 2026-09-03. Re-derive them with
-the block under [To verify what a registry serves](#to-verify-what-a-registry-serves)
-rather than trusting this table; the README carries the same values for the
-install snippets.
+All ten SDKs share the single coordinated release version **`3.1.2`**.
 
-| target | distribution | serves today | can this pipeline advance it? |
+| target | distribution | release version | release mechanism |
 |---|---|---|---|
-| Kotlin | Maven Central `ai.nrouter:nrouter-sdk-kotlin` ([central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin)) | `2.1.0` | **No — frozen.** `publish-kotlin.yml` builds and `publishToMavenLocal` only |
-| Android | Maven Central `ai.nrouter:nrouter-sdk-android` ([central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android)) | `2.1.0` | **No — frozen.** `publish-android.yml` builds and `publishToMavenLocal` only |
-| Rust | crates.io `nrouter` ([crates.io/crates/nrouter](https://crates.io/crates/nrouter)) | `2.1.0` | **No — frozen.** `Cargo.toml` declares `publish = false` |
-| Dart / Flutter | pub.dev `nrouter` ([pub.dev/packages/nrouter](https://pub.dev/packages/nrouter)) | `2.1.1` | **No — frozen.** `pubspec.yaml` declares `publish_to: none` |
-| R | [R-universe](https://nroutergateway.r-universe.dev/nrouter) | `3.0.0` | Yes — R-universe rebuilds from `release-r` branch |
-| Swift | bare SemVer git tag, resolved by SwiftPM | `3.0.0` | Yes — tag the release commit |
-| Go | `sdks/go/v*` git tag, resolved by `proxy.golang.org` | `v3.0.0` | Yes — tag the release commit |
-
-🛑 **The four frozen rows are a DELIBERATE decision, not a broken pipeline, and
-the freeze is test-enforced.** `tests/test_release_versions.py::test_sdk_version_3_source_only_workflows_cannot_publish`
-asserts that neither Maven workflow reads a `secrets.` value, that neither Gradle
-build carries a `signing {}` block, that Rust keeps `publish = false` and that
-Dart keeps `publish_to: none`. Re-arming any of those four turns that test RED,
-which is the point: a preview must not acquire release credentials by accident.
-
-The consequence to state plainly to a user: **those four registry artifacts are
-stuck at the version above and will not follow the source version.** That is why
-the README pins its install snippets to what each registry actually serves
-instead of to `3.0.0`. Advancing one is a scoped decision that moves the SDK out
-of preview — bump the support scope, the test, and the workflow together, or not
-at all.
+| Kotlin | Maven Central `ai.nrouter:nrouter-sdk-kotlin` ([central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin)) | `3.1.2` | Automated: `publish-kotlin.yml` builds, signs, and stages to Central on main merge |
+| Android | Maven Central `ai.nrouter:nrouter-sdk-android` ([central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android)) | `3.1.2` | Automated: `publish-android.yml` publishes to Central once Kotlin core is verified |
+| Rust | crates.io `nrouter` ([crates.io/crates/nrouter](https://crates.io/crates/nrouter)) | `3.1.2` | Registry package: `publish-rust.yml` verification / `cargo publish` |
+| Dart / Flutter | pub.dev `nrouter` ([pub.dev/packages/nrouter](https://pub.dev/packages/nrouter)) | `3.1.2` | Registry package: `publish-dart.yml` verification / `dart pub publish` |
+| R | [R-universe](https://nroutergateway.r-universe.dev/nrouter) | `3.1.2` | Automated: R-universe builds from `release-r` branch |
+| Swift | bare SemVer git tag, resolved by SwiftPM | `3.1.2` | Tagged release: git tag `3.1.2` |
+| Go | `sdks/go/v*` git tag, resolved by `proxy.golang.org` | `v3.1.2` | Tagged release: git tag `sdks/go/v3.1.2` |
 
 ## To release
 
