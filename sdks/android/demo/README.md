@@ -8,7 +8,7 @@ Add the dependency to your app's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("ai.nrouter:nrouter-sdk-android:3.1.0")
+    implementation("ai.nrouter:nrouter-sdk-android:3.1.2")
 }
 ```
 

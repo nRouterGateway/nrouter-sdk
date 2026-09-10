@@ -8,7 +8,7 @@ One API key for models across six provider clouds. There is no official OpenAI
 SDK for R, so this package calls the gateway's HTTP API directly via `httr`.
 
 **Registry & Package URL:** [https://nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter)  
-**Registry Status:** 🧪 Public Preview on R-universe (Package `nrouter` v3.1.0)
+**Registry Status:** 🧪 Public Preview on R-universe (Package `nrouter` v3.1.2)
 
 ```r
 # Public preview from R-universe.
@@ -182,7 +182,7 @@ request you were billed for.
 
 ```bash
 cd sdks
-R CMD build r && R CMD check nrouter_3.0.0.tar.gz --as-cran   # Status: OK
+R CMD build r && R CMD check nrouter_3.1.2.tar.gz --as-cran   # Status: OK
 ```
 
 Publishing: [PUBLISHING.md](PUBLISHING.md).
@@ -217,3 +217,20 @@ enabled:
   are not cross-provider Smart Router wires.
 - [API reference](https://nrouter.ai/docs/api-reference) — the wire
   contract every SDK here implements.
+
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Quickstart Demo](demo/quickstart.R) — demonstrates R client initialization, chat completions, streaming, and metadata inspection.
+- [Demo Documentation](demo/README.md) — R execution instructions.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](docs/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)

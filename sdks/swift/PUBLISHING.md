@@ -60,8 +60,8 @@ test -f Package.swift
 
 ```bash
 git ls-remote --tags origin
-git tag 3.1.0                  # bare semver, no `v` — see the trap below
-git push origin 3.1.0
+git tag 3.1.2                  # bare semver, no `v` — see the trap below
+git push origin 3.1.2
 ```
 
 The `test -f Package.swift` is the guard for exactly the mistake above: it fails
@@ -72,7 +72,7 @@ Use SSH URLs throughout. HTTPS git fails from the nRouter workspace.
 ## Consumers
 
 ```swift
-.package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.0")
+.package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.2")
 ```
 
 Or in Xcode: **File → Add Package Dependencies** and paste that URL.

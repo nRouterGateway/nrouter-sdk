@@ -13,7 +13,7 @@ audio, images and video.
 ## Installation
 
 ```bash
-go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.0
+go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.2
 ```
 
 ## Authentication & Setup
@@ -221,3 +221,20 @@ enabled:
   are not cross-provider Smart Router wires.
 - [Go quickstart](https://nrouter.ai/docs/sdks/go) and the
   [API reference](https://nrouter.ai/docs/api-reference).
+
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Quickstart Demo](demo/quickstart.go) — demonstrates Go client creation, streaming, and error handling.
+- [Demo Documentation](demo/README.md) — run instructions.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](docs/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)

@@ -72,6 +72,15 @@ does not follow that every registry holds that version — the source-only four 
 not publish at all, and every registry is immutable, so a published artifact is
 never corrected in place. Read the version from the registry, never from source.
 
+### Release Automation & Guidance
+
+Release guidance is owned privately in `nrouter-infra-cicd` because this repository is public:
+- Dedicated skill: [`deploy-nrouter-sdk`](../nrouter-infra-cicd/skills/deploy-nrouter-sdk/SKILL.md)
+- Dedicated command: [`/deploy-nrouter-sdk`](../nrouter-infra-cicd/commands/deploy-nrouter-sdk.md)
+- In-repo release notes: [`PUBLISHING.md`](PUBLISHING.md)
+
+Never create, move, or copy internal release runbooks into `nrouter-sdk/skills/` (it is world-readable).
+
 Independent repo, own remote, nested in `nrouter-brain`, gitignored by it.
 **Edit in place; commit and push here.** Rule #20: `git pull --ff-only` → edit →
 focused tests → review → push, never force.
@@ -98,7 +107,7 @@ Package.swift        # the SHIPPING Swift manifest — SwiftPM reads the REPO RO
 spec/                # nrouter-sdk-spec.json — the SoT under Rule #14
 conformance/         # the cross-SDK gate; run it before every release
 docs/                # validation-playbook-template.md & cross-SDK documentation
-skills/              # nrouter-sdk-parity skill enforcing cross-SDK alignment
+skills/              # 3 SDK skills: nrouter-sdk-parity, nrouter-sdk-testing, nrouter-sdk-hardening
 sdks/{python,js,java,kotlin,android,swift,rust,dart,r,go}/
   ├── demo/          # runnable SDK demonstrations and quickstarts
   └── docs/          # validation-playbook.md for each technology
@@ -112,9 +121,10 @@ gateway** — never the other way round. Base URL, `NROUTER_API_KEY`, the
 SDK and the spec disagree, the SDK is wrong.
 
 ```bash
-python3 conformance/check_conformance.py             # all ten agree?
-python3 conformance/check_conformance.py --self-test # prove the gate bites
-python3 scripts/check_sdk_parity.py                   # check demos, playbooks & versions
+python3 scripts/check_sdk_parity.py --self-test       # prove cross-SDK parity gate bites
+python3 scripts/check_sdk_parity.py                   # check demos, playbooks, manifests, READMEs & conformance
+python3 conformance/check_conformance.py --self-test # prove the conformance gate bites
+python3 conformance/check_conformance.py             # all ten agree on spec
 ```
 
 Each SDK's own suite proves it is self-consistent; the gate proves they agree

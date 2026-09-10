@@ -16,7 +16,7 @@ cd ../android && ./gradlew clean build publishToMavenLocal
 // app/build.gradle.kts
 repositories { mavenLocal() }
 dependencies {
-    implementation("ai.nrouter:nrouter-sdk-android:3.0.0")
+    implementation("ai.nrouter:nrouter-sdk-android:3.1.2")
 }
 ```
 
@@ -146,3 +146,20 @@ enabled:
   are not cross-provider Smart Router wires.
 - [API reference](https://nrouter.ai/docs/api-reference) — the wire
   contract every SDK here implements.
+
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Quickstart Demo](demo/QuickstartDemo.kt) — demonstrates Android lifecycle initialization, coroutines integration, chat completions, and response metadata extraction.
+- [Demo Documentation](demo/README.md) — execution instructions and app setup.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](docs/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)

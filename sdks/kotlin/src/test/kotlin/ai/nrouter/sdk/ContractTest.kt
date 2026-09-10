@@ -1003,16 +1003,47 @@ class ContractTest {
             validateAudioFormat("unsupported_fmt")
         }
 
+        val client = clientFor(server)
+
+        // Empty ID is rejected
+        assertFailsWith<NRouterError.Configuration> {
+            client.waitForVideo("")
+        }
+        assertFailsWith<NRouterError.Configuration> {
+            client.waitForVideo("   ")
+        }
+
+        // Sub-1s poll interval is rejected
+        assertFailsWith<NRouterError.Configuration> {
+            client.waitForVideo("vid_123", pollIntervalMillis = 999L)
+        }
+
+        // Timeout shorter than poll interval is rejected
+        assertFailsWith<NRouterError.Configuration> {
+            client.waitForVideo("vid_123", pollIntervalMillis = 2000L, timeoutMillis = 1000L)
+        }
+
+        // Successful poll
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
                 .setHeader("content-type", "application/json")
                 .setBody("""{"id":"vid_123","status":"completed","output":"https://example.com/out.mp4"}""")
         )
-
-        val client = clientFor(server)
-        val resp = client.waitForVideo("vid_123", pollIntervalMillis = 10, timeoutMillis = 1000)
+        val resp = client.waitForVideo("vid_123", pollIntervalMillis = 1000L, timeoutMillis = 2000L)
         assertEquals("completed", resp.body.getString("status"))
+
+        // Terminal failure status throws Service error
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("content-type", "application/json")
+                .setBody("""{"id":"vid_fail","status":"failed"}""")
+        )
+        val err = assertFailsWith<NRouterError.Service> {
+            client.waitForVideo("vid_fail", pollIntervalMillis = 1000L, timeoutMillis = 2000L)
+        }
+        assertEquals("video_failed", err.body?.code)
     }
 
     @Test

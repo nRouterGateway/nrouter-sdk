@@ -86,7 +86,8 @@ impl NRouterError {
     ///    the only signal present — classifying every 400 as a request error
     ///    would make [`NRouterError::GuardrailBlocked`] unreachable, telling a
     ///    caller to fix a body that was never the problem.
-    pub fn from_code(body: ErrorBody) -> Self {
+    pub fn from_code(mut body: ErrorBody) -> Self {
+        body.message = redact_keys(&body.message);
         let boxed = Box::new(body);
         let body = boxed;
         match body.code.as_deref() {
@@ -134,6 +135,13 @@ impl NRouterError {
                     }
                 }
                 Some(429) => Self::RateLimit(body),
+                Some(502) | Some(504) => {
+                    if body.message.to_lowercase().contains("too large") {
+                        Self::Other(body)
+                    } else {
+                        Self::Service(body)
+                    }
+                }
                 Some(503) => Self::Service(body),
                 _ => Self::Other(body),
             },

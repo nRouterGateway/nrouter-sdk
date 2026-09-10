@@ -54,17 +54,9 @@ public sealed class NRouterError(
      * The request left this process and got no answer — DNS, TLS, a dropped
      * connection, a timeout. Retryable.
      */
-    public class Transport(message: String) : NRouterError(message)
+    public class Transport(message: String) : NRouterError(redactKeys(message))
 
-    /**
-     * The SDK refused before sending anything: no key, or a key that is not
-     * shaped like an nRouter key.
-     *
-     * Separate from [Transport] on purpose. Both are raised locally, but this
-     * one is PERMANENT — a caller retrying on [isRetryable] would spin forever
-     * without ever making a request.
-     */
-    public class Configuration(message: String) : NRouterError(message)
+    public class Configuration(message: String) : NRouterError(redactKeys(message))
 
     /**
      * Whether retrying the identical request could plausibly succeed.
@@ -128,6 +120,11 @@ public sealed class NRouterError(
                     Other(body)
                 }
                 429 -> RateLimit(body)
+                502, 504 -> if (body.message.contains("too large", ignoreCase = true)) {
+                    Other(body)
+                } else {
+                    Service(body)
+                }
                 503 -> Service(body)
                 else -> Other(body)
             }

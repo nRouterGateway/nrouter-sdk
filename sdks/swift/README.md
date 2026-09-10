@@ -6,7 +6,7 @@ URLSession and async/await only.
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.0")
+    .package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.2")
 ]
 ```
 
@@ -21,7 +21,7 @@ Or in Xcode: **File → Add Package Dependencies** and paste the URL.
 > You can use the package in Xcode immediately, without waiting for indexing:
 > 1. Select **File → Add Package Dependencies...**
 > 2. Paste `https://github.com/nRouterGateway/nrouter-sdk.git`
-> 3. Select version `3.1.0`
+> 3. Select version `3.1.2`
 > 4. Add the `NRouter` product.
 >
 > Swift Package Index is only a discovery and compatibility-testing service; the package itself already comes directly from GitHub.
@@ -216,3 +216,20 @@ enabled:
   are not cross-provider Smart Router wires.
 - [API reference](https://nrouter.ai/docs/api-reference) — the wire
   contract every SDK here implements.
+
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Quickstart Demo](demo/quickstart.swift) — demonstrates Swift client initialization, async/await chat completions, streaming, and metadata.
+- [Demo Documentation](demo/README.md) — run instructions.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](docs/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)

@@ -470,6 +470,25 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
             type=error_type,
         ) from err
 
+    if status in (502, 504):
+        # 502 & 504 are ordinary gateway outcomes for upstream/sandbox timeouts.
+        # "upstream response was too large to process" is permanent and stays base class.
+        if "too large" in message.lower():
+            raise nRouterError(
+                message,
+                request_id=request_id,
+                status_code=status,
+                param=param,
+                type=error_type,
+            ) from err
+        raise nRouterServiceError(
+            message,
+            request_id=request_id,
+            status_code=status,
+            param=param,
+            type=error_type,
+        ) from err
+
     if status == 500 or status == 503:
         raise nRouterServiceError(
             message,

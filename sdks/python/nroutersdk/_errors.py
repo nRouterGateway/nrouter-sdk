@@ -353,8 +353,18 @@ class nRouterServiceError(nRouterError):
 def is_retryable(err: Exception | Any) -> bool:
     """Whether retrying could plausibly succeed.
 
-    True for rate limits, service errors, and transient HTTP status codes (408, 425, 429, 502, 503, 504).
+    True for rate limits, service errors, and transient HTTP status codes (408, 425, 429, 502, 503, 504),
+    except when cancelled/aborted, configuration errors, or when response was too large.
     """
+    err_cls = getattr(err, "__class__", None)
+    cls_name = err_cls.__name__ if err_cls else ""
+    if "cancel" in cls_name.lower() or "abort" in cls_name.lower():
+        return False
+
+    msg = getattr(err, "message", None) or str(err)
+    if "too large" in str(msg).lower():
+        return False
+
     if isinstance(err, (nRouterRateLimitError, nRouterServiceError)):
         return True
     status = getattr(err, "status_code", None)

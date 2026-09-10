@@ -9,6 +9,16 @@ Dates are the registry upload date, which is the only date a consumer can
 observe. Versions are immutable once published; nothing here is ever rewritten
 to correct a release, only appended to.
 
+## Coordinated SDK release — 3.1.2 — 2026-09-10
+
+- Coordinated release 3.1.2 across all ten SDKs.
+- 50 hardening fixes across all ten SDKs:
+  - Error classification parity: Unified HTTP 502 Bad Gateway and 504 Gateway Timeout handling across Python, JS, Go, Rust, Java, Kotlin, Android, Swift, Dart, and R with the canonical "response too large" carve-out (mapped to non-retryable error).
+  - Retry policy hardening: Enforced that retry predicates reject cancelled/aborted operations and "too large" error conditions across SDKs.
+  - Secret redaction at construction: Hardened exception and condition initializers across Swift (`NRouterErrorBody`), Dart (`errorBodyFrom`), Go (`configErr`), R, and Java to guarantee immediate `sk-nrouter-*` redaction before logging or formatting.
+  - Cross-SDK parity & documentation: Updated all 10 manifests, lockfiles, READMEs, playbooks, and demos to canonical release version 3.1.2.
+  - Tooling: Hardened `scripts/check_sdk_parity.py` to enforce active cross-SDK parity on all open-source assets.
+
 ## Coordinated SDK release — 3.1.1 — 2026-09-07
 
 - Coordinated release 3.1.1 across all ten SDKs.

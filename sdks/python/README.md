@@ -420,6 +420,28 @@ enabled:
 
 ---
 
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Core Demos](demo/) — quickstart, async concurrency, streaming, Anthropic messages, tool calling, structured outputs, memory, embeddings, and multimodal vision.
+- [Autonomous Agents](demo/agent.py) — complete native agents with multi-turn memory, tools, and telemetry.
+- [Multi-Agent Workflow](demo/13_multi_agent_workflow.py) — role-based collaboration.
+- [Framework Integrations](demo/frameworks/) — LangChain, LlamaIndex, CrewAI, AutoGen, and Instructor.
+- [Demo Documentation](demo/README.md) — complete execution instructions.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](docs/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)
+
+---
+
 ## Documentation & Resources
 
 * [nRouter Documentation](https://nrouter.ai/docs)

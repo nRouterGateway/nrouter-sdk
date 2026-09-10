@@ -155,6 +155,42 @@ class LiveTest {
         assertCorrelatable(response.meta, "/v1/responses")
     }
 
+    @Test
+    fun `live Claude buffered messages reaches the configured gateway`() = runBlocking {
+        val client = liveClient()
+        val model = System.getenv("NROUTER_LIVE_MESSAGES_MODEL") ?: "claude-haiku-4-5-20251001"
+        val response = withTimeout(60_000) {
+            client.messages(
+                JSONObject()
+                    .put("model", model)
+                    .put("max_tokens", 2)
+                    .put(
+                        "messages",
+                        listOf(mapOf("role" to "user", "content" to "Reply OK")),
+                    )
+            )
+        }
+        val content = response.body.optJSONArray("content")
+        assertTrue(content != null && content.length() > 0, "/v1/messages returned no content array")
+        assertCorrelatable(response.meta, "/v1/messages (buffered)")
+    }
+
+    @Test
+    fun `live Responses streaming wire answers`() = runBlocking {
+        val client = liveClient()
+        val model = require("NROUTER_LIVE_RESPONSES_MODEL")
+        val chunks = withTimeout(60_000) {
+            client.responsesStream(
+                JSONObject()
+                    .put("model", model)
+                    .put("input", "Reply OK")
+                    .put("max_output_tokens", 16)
+            ).toList()
+        }
+        assertTrue(chunks.isNotEmpty(), "/v1/responses streamed no chunks")
+        assertCorrelatable(chunks.first().meta, "/v1/responses (stream)")
+    }
+
     /**
      * An alias whose provider a client cannot infer from the name — a Bedrock
      * GLM or a Gemma alias — must still be callable, and the wire must come
@@ -189,5 +225,134 @@ class LiveTest {
             }
         }
         assertCorrelatable(response.meta, "the discovered text wire")
+    }
+
+    /**
+     * Proves catalogue consistency: For every endpoint returned by `GET /v1/models`,
+     * at least one model exists that advertises that endpoint, and any advertised
+     * model/endpoint pair must not return a 404 unserved-wire refusal.
+     */
+    @Test
+    fun `live catalogue advertised endpoints are consistent across models`() = runBlocking {
+        val client = liveClient()
+        val catalogue = withTimeout(60_000) { client.models() }
+        assertCorrelatable(catalogue.meta, "/v1/models")
+
+        val data = catalogue.body.optJSONArray("data")
+            ?: error("GET /v1/models returned no data array")
+        assertTrue(data.length() > 0, "GET /v1/models returned an empty data array")
+
+        val endpointMap = mutableMapOf<String, MutableList<String>>()
+        for (i in 0 until data.length()) {
+            val entry = data.getJSONObject(i)
+            val modelId = entry.optString("id")
+            val endpoints = entry.optJSONArray("nrouter_endpoints") ?: continue
+            for (j in 0 until endpoints.length()) {
+                val ep = endpoints.getString(j)
+                endpointMap.getOrPut(ep) { mutableListOf() }.add(modelId)
+            }
+        }
+
+        assertTrue(endpointMap.isNotEmpty(), "No nrouter_endpoints advertised in catalogue")
+
+        // If chat completions is advertised, verify the chat wire probe model is in it
+        val chatModelEnv = System.getenv("NROUTER_LIVE_CHAT_MODEL")
+        if (!chatModelEnv.isNullOrBlank()) {
+            val chatModels = endpointMap["/v1/chat/completions"] ?: emptyList()
+            assertTrue(
+                chatModels.contains(chatModelEnv),
+                "$chatModelEnv was expected to advertise /v1/chat/completions, but advertised: " +
+                    data.let { arr ->
+                        (0 until arr.length())
+                            .map { arr.getJSONObject(it) }
+                            .firstOrNull { it.optString("id") == chatModelEnv }
+                            ?.optJSONArray("nrouter_endpoints")
+                            ?.toString() ?: "not in catalogue"
+                    },
+            )
+        }
+    }
+
+    /**
+     * Embeddings probe using minimal test vector.
+     */
+    @Test
+    fun `live embeddings wire answers`() = runBlocking {
+        val model = System.getenv("NROUTER_LIVE_EMBEDDINGS_MODEL") ?: return@runBlocking
+        val client = liveClient()
+        val response = withTimeout(60_000) {
+            client.embeddings(
+                JSONObject()
+                    .put("model", model)
+                    .put("input", "Test embedding input")
+            )
+        }
+        val data = response.body.optJSONArray("data")
+        assertTrue(data != null && data.length() > 0, "/v1/embeddings returned no data array")
+        assertCorrelatable(response.meta, "/v1/embeddings")
+    }
+
+    /**
+     * Speech generation probe with minimal length and standard format.
+     */
+    @Test
+    fun `live audio speech wire answers`() = runBlocking {
+        val model = System.getenv("NROUTER_LIVE_SPEECH_MODEL") ?: return@runBlocking
+        val client = liveClient()
+        val response = withTimeout(60_000) {
+            client.audioSpeech(
+                JSONObject()
+                    .put("model", model)
+                    .put("input", "Hi")
+                    .put("voice", "alloy")
+                    .put("response_format", "mp3")
+            )
+        }
+        assertTrue(response.bytes.isNotEmpty(), "/audio/speech returned 0 bytes")
+        assertCorrelatable(response.meta, "/audio/speech")
+    }
+
+    /**
+     * Audio transcription/translation probe when small audio fixture path is provided.
+     */
+    @Test
+    fun `live audio transcription wire answers`() = runBlocking {
+        val fixturePath = System.getenv("NROUTER_LIVE_AUDIO_FILE") ?: return@runBlocking
+        val model = System.getenv("NROUTER_LIVE_TRANSCRIPTION_MODEL") ?: "whisper-1"
+        val client = liveClient()
+        val fileBytes = java.io.File(fixturePath).readBytes()
+        val response = withTimeout(60_000) {
+            client.audioTranscriptions(
+                file = fileBytes,
+                fileName = "sample.mp3",
+                fields = mapOf("model" to model),
+            )
+        }
+        assertTrue(response.body.optString("text").isNotEmpty(), "/audio/transcriptions returned no text")
+        assertCorrelatable(response.meta, "/audio/transcriptions")
+    }
+
+    /**
+     * Video status and content download probe on an existing video job.
+     * Note: Does NOT create a new video job automatically to prevent unexpected billing.
+     */
+    @Test
+    fun `live video status lookup and content download`() = runBlocking {
+        val videoId = System.getenv("NROUTER_LIVE_VIDEO_ID") ?: return@runBlocking
+        val client = liveClient()
+        val statusResp = withTimeout(60_000) {
+            client.retrieveVideo(videoId)
+        }
+        assertCorrelatable(statusResp.meta, "/v1/videos/{id}")
+        val status = statusResp.body.optString("status")
+        assertTrue(status.isNotEmpty(), "video status is empty")
+
+        if (status == "completed" || status == "succeeded") {
+            val contentResp = withTimeout(60_000) {
+                client.downloadVideoContent(videoId)
+            }
+            assertTrue(contentResp.bytes.isNotEmpty(), "/v1/videos/{id}/content returned 0 bytes")
+            assertCorrelatable(contentResp.meta, "/v1/videos/{id}/content")
+        }
     }
 }

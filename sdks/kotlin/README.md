@@ -16,7 +16,7 @@ cd sdks/kotlin
 ```kotlin
 repositories { mavenLocal() }
 dependencies {
-    implementation("ai.nrouter:nrouter-sdk-kotlin:3.0.0")
+    implementation("ai.nrouter:nrouter-sdk-kotlin:3.1.2")
 }
 ```
 
@@ -177,12 +177,16 @@ request you were billed for.
 
 ## Build and test
 
+Ensure `JAVA_HOME` points to a JDK 11 or higher (e.g. JDK 17):
+
 ```bash
+export JAVA_HOME=/path/to/jdk-17
 ./gradlew build      # compile + tests
 ./gradlew test
 ```
 
 Publishing: [PUBLISHING.md](PUBLISHING.md).
+
 
 ## How guardrails, budgets and routing work
 
@@ -214,3 +218,20 @@ enabled:
   are not cross-provider Smart Router wires.
 - [API reference](https://nrouter.ai/docs/api-reference) — the wire
   contract every SDK here implements.
+
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Quickstart Demo](demo/quickstart.kt) — demonstrates Kotlin coroutine client initialization, streaming, and metadata inspection.
+- [Demo Documentation](demo/README.md) — compilation and execution instructions.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](docs/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)

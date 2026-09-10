@@ -82,7 +82,10 @@ def status_error(
         (404, "video not found: vid_123", nRouterError),
         (429, "rate limit exceeded", nRouterRateLimitError),
         (500, "a backend service is temporarily unavailable", nRouterServiceError),
+        (502, "upstream provider error", nRouterServiceError),
+        (502, "the upstream response was too large to process", nRouterError),
         (503, "authentication is temporarily unavailable", nRouterServiceError),
+        (504, "gateway timeout", nRouterServiceError),
     ],
 )
 def test_each_status_maps_to_its_typed_error(status, message, expected):

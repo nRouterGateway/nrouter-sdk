@@ -122,7 +122,7 @@ async function handleApi(req, res, pathname) {
       hasKey: Boolean(process.env.NROUTER_API_KEY),
       defaultModel: DEFAULT_MODEL,
       baseURL: process.env.NROUTER_BASE_URL || 'https://api.nrouter.ai/v1',
-      version: '3.1.1',
+      version: '3.1.2',
     });
     return;
   }

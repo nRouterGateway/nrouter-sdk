@@ -2,10 +2,17 @@
 
 One API key for models across six provider clouds.
 
-## Source installation
+## Installation
 
-Rust is a source preview and declares `publish = false`. From an application
-beside a checkout of this repository, use a path dependency:
+Add `nrouter` to your `Cargo.toml`:
+
+```toml
+[dependencies]
+nrouter = "3.1.2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or for development from a local repository checkout:
 
 ```toml
 [dependencies]
@@ -206,3 +213,20 @@ enabled:
   are not cross-provider Smart Router wires.
 - [API reference](https://nrouter.ai/docs/api-reference) — the wire
   contract every SDK here implements.
+
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Quickstart Demo](demo/quickstart.rs) — demonstrates Rust client initialization, streaming, and metadata inspection.
+- [Demo Documentation](demo/README.md) — cargo run instructions.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](docs/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)

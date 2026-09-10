@@ -90,6 +90,10 @@ nrouter_condition <- function(message, code = NULL, status = NULL,
       # A 404 is also a missing video job, MCP server or agent run; calling
       # those model_not_found is a wrong answer with a confident code on it.
       "nrouter_other_error"
+    } else if (as.character(status) %in% c("502", "504") &&
+               grepl("too large", message, ignore.case = TRUE)) {
+      # UpstreamBodyTooLarge is permanent and must not be retried.
+      "nrouter_other_error"
     } else {
       unname(NROUTER_STATUS_CLASSES[as.character(status)])
     }
@@ -132,7 +136,7 @@ nrouter_condition <- function(message, code = NULL, status = NULL,
 nrouter_configuration_condition <- function(message) {
   structure(
     class = c("nrouter_configuration_error", "nrouter_error", "error", "condition"),
-    list(message = message, call = NULL, code = NULL, status = NULL,
+    list(message = nrouter_redact_keys(message), call = NULL, code = NULL, status = NULL,
          request_id = NULL, limit_source = NULL, auth_reason = NULL)
   )
 }
@@ -145,7 +149,7 @@ nrouter_configuration_condition <- function(message) {
 nrouter_transport_condition <- function(message) {
   structure(
     class = c("nrouter_transport_error", "nrouter_error", "error", "condition"),
-    list(message = message, call = NULL, code = NULL, status = NULL,
+    list(message = nrouter_redact_keys(message), call = NULL, code = NULL, status = NULL,
          request_id = NULL, limit_source = NULL, auth_reason = NULL)
   )
 }

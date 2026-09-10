@@ -47,15 +47,15 @@ public final class NRouterException extends RuntimeException {
     }
 
     static NRouterException transport(String message) {
-        return new NRouterException(Kind.TRANSPORT, message, null, null, null, 0, null, null);
+        return new NRouterException(Kind.TRANSPORT, redactKeys(message), null, null, null, 0, null, null);
     }
 
     static NRouterException transport(String message, int status, NRouterResponseMeta meta) {
-        return new NRouterException(Kind.TRANSPORT, message, null, null, null, status, meta, null);
+        return new NRouterException(Kind.TRANSPORT, redactKeys(message), null, null, null, status, meta, null);
     }
 
     static NRouterException configuration(String message) {
-        return new NRouterException(Kind.CONFIGURATION, message, "configuration_error", null, null, 400, null, null);
+        return new NRouterException(Kind.CONFIGURATION, redactKeys(message), "configuration_error", null, null, 400, null, null);
     }
 
     private static Kind classify(String code, String message, int status) {
@@ -83,8 +83,9 @@ public final class NRouterException extends RuntimeException {
             case 425: return Kind.SERVICE;
             case 429: return Kind.RATE_LIMIT;
             case 502:
-            case 503:
-            case 504: return Kind.SERVICE;
+            case 504:
+                return lower.contains("too large") ? Kind.OTHER : Kind.SERVICE;
+            case 503: return Kind.SERVICE;
             default: return Kind.OTHER;
         }
     }

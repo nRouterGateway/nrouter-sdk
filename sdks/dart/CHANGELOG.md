@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.2
+
+- Tracks the coordinated 3.1.2 nRouter SDK release.
+- Hardened 502/504 error classification with permanent "too large" carve-out.
+- Enforced secret redaction at construction in error bodies and diagnostics.
+
 ## 3.1.1
 
 - Tracks the coordinated 3.1.1 nRouter SDK release. No Dart-specific API change;

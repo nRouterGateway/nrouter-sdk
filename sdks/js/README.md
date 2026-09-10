@@ -327,3 +327,24 @@ enabled:
   are not cross-provider Smart Router wires.
 - [Node.js / TypeScript quickstart](https://nrouter.ai/docs/sdks/nodejs) and the
   [API reference](https://nrouter.ai/docs/api-reference).
+
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Quickstart TS](demo/quickstart.ts) / [Quickstart JS](demo/quickstart.js) — basic client and chat completion.
+- [Voice Agent](demo/voice-agent/) — speech, transcription, and multimodal agent.
+- [Chat Agent](demo/chat-agent/) — conversation memory, tools, and streaming.
+- [Image Agent](demo/image-agent/) — image generation and cost tracking.
+- [Video Agent](demo/video-agent/) — video generation lifecycle.
+- [Demo Documentation](demo/README.md) — execution runbooks.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](docs/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)

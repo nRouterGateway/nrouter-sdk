@@ -31,7 +31,9 @@ docs/validation-playbook-template.md
 
 ## Cross-SDK Parity Contract
 
-When any validation step, gate, or invariant is added or revised:
-1. Update `docs/validation-playbook-template.md`.
+When any feature, wire, validation step, demo, or document is added or revised:
+1. Update `docs/validation-playbook-template.md` if verification steps changed.
 2. Propagate the corresponding implementation across all 10 `sdks/<tech>/docs/validation-playbook.md` files.
-3. Validate using `python3 scripts/check_sdk_parity.py`.
+3. Synchronize `sdks/<tech>/demo/` examples and their `README.md`.
+4. Synchronize `sdks/<tech>/README.md` to ensure installation version, features, demo links, and playbook links are current.
+5. Validate using `python3 scripts/check_sdk_parity.py --self-test` and `python3 scripts/check_sdk_parity.py`.

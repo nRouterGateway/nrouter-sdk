@@ -3,10 +3,24 @@
 One API key for models across six provider clouds. One dependency (`http`), so
 the same code runs on Flutter mobile, desktop, **web**, and the plain Dart VM.
 
-## Source installation
+## Installation
 
-Dart is a source preview and declares `publish_to: none`. Use a path dependency
-from an application beside a checkout of this repository:
+Add `nrouter` to your `pubspec.yaml`:
+
+```bash
+dart pub add nrouter
+# or for Flutter:
+flutter pub add nrouter
+```
+
+Or specify directly in `pubspec.yaml`:
+
+```yaml
+dependencies:
+  nrouter: ^3.1.2
+```
+
+For development from a local repository checkout:
 
 ```yaml
 dependencies:
@@ -206,3 +220,20 @@ enabled:
   are not cross-provider Smart Router wires.
 - [API reference](https://nrouter.ai/docs/api-reference) — the wire
   contract every SDK here implements.
+
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Quickstart Demo](demo/quickstart.dart) — demonstrates Dart client initialization, chat completions, streaming, and metadata.
+- [Demo Documentation](demo/README.md) — run instructions.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](doc/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)

@@ -88,6 +88,10 @@ public enum NRouterError: Error, Equatable {
                     ? .notFound(body)
                     : .other(body)
             case 429: return .rateLimit(body)
+            case 502, 504:
+                return body.message.lowercased().contains("too large")
+                    ? .other(body)
+                    : .service(body)
             case 503: return .service(body)
             default: return .other(body)
             }
@@ -149,7 +153,7 @@ public struct NRouterErrorBody: Equatable, Sendable {
         authReason: String? = nil,
         retryAfter: UInt64? = nil
     ) {
-        self.message = message
+        self.message = redactKeys(message)
         self.code = code
         self.param = param
         self.type = type

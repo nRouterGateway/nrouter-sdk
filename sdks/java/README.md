@@ -9,7 +9,7 @@ around the official `openai-java` client — same API surface, pre-configured fo
 <dependency>
     <groupId>ai.nrouter</groupId>
     <artifactId>nrouter-sdk</artifactId>
-    <version>3.1.0</version>
+    <version>3.1.2</version>
 </dependency>
 ```
 
@@ -175,3 +175,20 @@ enabled:
   are not cross-provider Smart Router wires.
 - [Java quickstart](https://nrouter.ai/docs/sdks/java) and the
   [API reference](https://nrouter.ai/docs/api-reference).
+
+## Demos & Examples
+
+Runnable demonstrations live in [`demo/`](demo/):
+- [Quickstart Demo](demo/QuickstartDemo.java) — demonstrates Java client creation, chat completions, streaming, and metadata inspection.
+- [Demo Documentation](demo/README.md) — Maven/Java run instructions.
+
+## Validation Playbook
+
+This SDK maintains a repeatable 18-step verification process:
+- [Validation Playbook](docs/validation-playbook.md) — comprehensive end-to-end verification runbook.
+
+## Open-Source Standards & License
+
+- **License:** [MIT License](../../LICENSE)
+- **Repository:** [nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk)
+- **Issue Tracker:** [GitHub Issues](https://github.com/nRouterGateway/nrouter-sdk/issues)

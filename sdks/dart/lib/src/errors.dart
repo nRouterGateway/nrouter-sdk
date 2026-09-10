@@ -73,6 +73,11 @@ sealed class NRouterError implements Exception {
                 : NRouterOtherError(body);
           case 429:
             return NRouterRateLimitError(body);
+          case 502:
+          case 504:
+            return body.message.toLowerCase().contains('too large')
+                ? NRouterOtherError(body)
+                : NRouterServiceError(body);
           case 503:
             return NRouterServiceError(body);
           default:

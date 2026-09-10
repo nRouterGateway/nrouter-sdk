@@ -806,7 +806,7 @@ class NRouter {
     final param = node['param'];
     final type = node['type'];
     return NRouterErrorBody(
-      message: message is String ? message : 'nRouter request failed',
+      message: message is String ? redactKeys(message) : 'nRouter request failed',
       code: code is String ? code : null,
       param: param is String ? param : null,
       type: type is String ? type : null,

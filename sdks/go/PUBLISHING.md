@@ -10,8 +10,8 @@ This module lives in a subdirectory of a multi-module repo, so Go requires the
 tag to carry the subdirectory prefix:
 
 ```
-sdks/go/v3.1.0        ✅  resolves github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.0
-v3.1.0                ❌  resolves the repo ROOT, which is not a Go module
+sdks/go/v3.1.2        ✅  resolves github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.2
+v3.1.2                ❌  resolves the repo ROOT, which is not a Go module
 ```
 
 Getting this wrong does not fail loudly — `go get` reports the module as

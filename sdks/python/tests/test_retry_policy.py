@@ -197,3 +197,14 @@ def test_the_typed_error_translation_still_fires_with_retries_off():
             post(client)
     assert str(caught.value) == "budget exceeded for team"
     assert counter.attempts == 1
+
+
+def test_is_retryable_respects_abort_and_too_large():
+    import asyncio
+    from nroutersdk import is_retryable, nRouterServiceError, nRouterError
+
+    assert not is_retryable(asyncio.CancelledError("cancelled"))
+    assert not is_retryable(nRouterError("the upstream response was too large to process", status_code=502))
+    assert is_retryable(nRouterServiceError("upstream exploded", status_code=502))
+    assert is_retryable(nRouterServiceError("gateway timeout", status_code=504))
+

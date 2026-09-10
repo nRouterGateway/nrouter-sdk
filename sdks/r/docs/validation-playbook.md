@@ -66,7 +66,7 @@ Inspect `nrouter_*.tar.gz`:
 In a fresh R session:
 
 ```R
-install.packages("path/to/nrouter_3.1.0.tar.gz", repos = NULL, type = "source")
+install.packages("path/to/nrouter_3.1.2.tar.gz", repos = NULL, type = "source")
 library(nrouter)
 client <- nrouter_client()
 ```
