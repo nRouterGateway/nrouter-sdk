@@ -4,6 +4,40 @@ Ten SDKs for the nRouter gateway, and the gate that keeps them speaking one
 contract. **The only PUBLIC repo in the workspace** — everything committed here
 is world-readable. Treat every file as published.
 
+## Client Architecture & Gateway Interaction Flow
+
+All ten SDKs connect to the Rust gateway (`api.nrouter.ai/v1/*`). The gateway coordinates preflight validation, credit reservations in Supabase DB, content evaluation via Cortex, and upstream provider calls.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor SDK as Customer Application (SDK)
+    participant GW as nrouter-rust-gateway (Port 4000)
+    participant Cortex as nrouter-cortex (Sidecar)
+    participant DB as Supabase DB
+    participant LLM as Upstream Provider (OpenAI/Anthropic)
+
+    SDK->>GW: POST /v1/chat/completions (Bearer sk-nrouter-*)
+    Note over GW: Phase 1: In-memory auth, ACL & token bounds
+    Note over GW: Phase 2: RPM/TPM rate limiting
+    GW->>Cortex: Phase 3: gRPC TransformRequest(prompt, Ops[COMPRESS, INSPECT])
+
+    alt Injection Detected (Cortex returns prompt_injection)
+        Cortex-->>GW: TransformResponse: OpResult(FAILED, "prompt_injection")
+        Note over GW: 🛑 Halts before Phase 4
+        Note over DB: 🛡️ Supabase DB untouched: Zero credits reserved
+        Note over LLM: 🛡️ Provider untouched: Zero token egress
+        GW-->>SDK: HTTP 400 Bad Request (x-nr-guardrails: blocked)
+    else Clean Prompt (Normal Execution)
+        Cortex-->>GW: TransformResponse: OpResult(OK, compressed_prompt)
+        GW->>DB: Phase 4: nrouter.reserve_credits()
+        GW->>LLM: Forward transformed request
+        LLM-->>GW: Stream tokens / Completion response
+        GW->>DB: nrouter.settle_spend(org_id, actual_cost)
+        GW-->>SDK: 200 OK + Stream Response
+    end
+```
+
 ## All Ten SDKs Supported
 
 **Ten SDKs exist here; all ten are supported.** All ten SDKs adhere to the identical gateway wire contract, share coordinated release version **`3.1.2`**, and stay subject to the same conformance gate.
