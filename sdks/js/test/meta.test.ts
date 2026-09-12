@@ -70,6 +70,8 @@ const FIXTURE: Record<string, string> = {
   'x-nr-budget-warning': 'org soft_budget 80.00/100.00',
   // Posture only — one of the five tokens, matched case-sensitively.
   'x-nr-guardrails': 'pass',
+  'x-nr-funding-source': 'allowance',
+  'x-nr-allowance-reset': '86400',
 };
 
 test('HEADER_NAMES and this test fixture agree in BOTH directions', () => {
@@ -298,3 +300,12 @@ test('parseBudgetWarning, isCacheHit, isCacheMiss helpers', () => {
   assert.equal(isCacheMiss(missMeta), true);
 });
 
+
+test('fundingSource and allowanceReset are parsed', () => {
+  const m = metaFromHeaders({
+    'x-nr-funding-source': 'allowance',
+    'x-nr-allowance-reset': '86400',
+  });
+  assert.equal(m.fundingSource, 'allowance');
+  assert.equal(m.allowanceReset, 86400);
+});

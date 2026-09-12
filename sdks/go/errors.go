@@ -275,7 +275,7 @@ func classify(code, message string, status int) Kind {
 		return KindGuardrailBlocked
 	case "invalid_api_key":
 		return KindAuthentication
-	case "insufficient_credits":
+	case "insufficient_credits", "plan_allowance_exhausted", "plan_required":
 		return KindCredit
 	case "model_not_found":
 		return KindNotFound

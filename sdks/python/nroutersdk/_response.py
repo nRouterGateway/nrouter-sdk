@@ -68,6 +68,8 @@ class nRouterResponseMeta:
     auth_reason: str | None = None
     response_cache: str | None = None
     response_cache_age: int | None = None
+    funding_source: str | None = None
+    allowance_reset: int | None = None
 
     #: Every response header this SDK reads, exactly as
     #: ``spec/nrouter-sdk-spec.json`` names them. Published so a caller (and the
@@ -95,6 +97,8 @@ class nRouterResponseMeta:
         "x-nr-auth-reason",
         "x-nr-response-cache",
         "x-nr-response-cache-age",
+        "x-nr-funding-source",
+        "x-nr-allowance-reset",
     )
 
     @classmethod
@@ -150,6 +154,8 @@ class nRouterResponseMeta:
             auth_reason=norm.get("x-nr-auth-reason"),
             response_cache=norm.get("x-nr-response-cache"),
             response_cache_age=optional_int("x-nr-response-cache-age"),
+            funding_source=norm.get("x-nr-funding-source"),
+            allowance_reset=optional_int("x-nr-allowance-reset"),
         )
 
     @property

@@ -129,7 +129,9 @@ class NRouterHttpClientTest {
                 "x-nr-guardrails",
                 "x-nr-auth-reason",
                 "x-nr-response-cache",
-                "x-nr-response-cache-age");
+                "x-nr-response-cache-age",
+                "x-nr-funding-source",
+                "x-nr-allowance-reset");
         assertEquals(expected.size(), NRouterResponseMeta.HEADER_NAMES.size());
         assertEquals(
                 (long) expected.size(),
@@ -929,6 +931,33 @@ class NRouterHttpClientTest {
             server.stop(0);
         }
     }
+    @Test
+    void parsesFundingSourceAndAllowanceReset() {
+        NRouterResponseMeta meta = NRouterResponseMeta.fromHeaders(HttpHeaders.of(
+            Map.of(
+                "x-nr-funding-source", List.of("allowance"),
+                "x-nr-allowance-reset", List.of("86400")
+            ),
+            (name, value) -> true
+        ));
+        assertEquals("allowance", meta.fundingSource());
+        assertEquals(Long.valueOf(86400L), meta.allowanceReset());
+    }
+
+    @Test
+    void planLimitsMapToCreditError() {
+        NRouterResponseMeta meta1 = NRouterResponseMeta.fromHeaders(HttpHeaders.of(Map.of("x-nr-limit-source", List.of("plan_allowance_exhausted")), (n,v) -> true));
+        NRouterException err1 = NRouterException.gateway("msg", null, 402, meta1);
+        assertEquals(NRouterException.Kind.CREDIT, err1.kind());
+        assertEquals("plan_allowance_exhausted", err1.code());
+
+        NRouterResponseMeta meta2 = NRouterResponseMeta.fromHeaders(HttpHeaders.of(Map.of("x-nr-limit-source", List.of("plan_required")), (n,v) -> true));
+        NRouterException err2 = NRouterException.gateway("msg", null, 402, meta2);
+        assertEquals(NRouterException.Kind.CREDIT, err2.kind());
+        assertEquals("plan_required", err2.code());
+
+        NRouterException oldErr = NRouterException.gateway("msg", null, 402, null);
+        assertEquals(NRouterException.Kind.CREDIT, oldErr.kind());
+        // Code stays null if not specified, which is fine, but it classifies correctly.
+    }
 }
-
-

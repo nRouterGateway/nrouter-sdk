@@ -61,6 +61,8 @@ export const EMPTY_META: ResponseMeta = Object.freeze({
   authReason: null,
   responseCache: null,
   responseCacheAge: null,
+  fundingSource: null,
+  allowanceReset: null,
 });
 
 /**
@@ -180,6 +182,8 @@ export function metaFromLookup(get: (name: string) => string | null | undefined)
     authReason: text(get('x-nr-auth-reason')),
     responseCache: text(get('x-nr-response-cache')),
     responseCacheAge: count(get('x-nr-response-cache-age')),
+    fundingSource: text(get('x-nr-funding-source')),
+    allowanceReset: count(get('x-nr-allowance-reset')),
   };
 }
 

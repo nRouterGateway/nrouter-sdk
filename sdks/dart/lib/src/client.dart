@@ -805,9 +805,13 @@ class NRouter {
     final code = node['code'];
     final param = node['param'];
     final type = node['type'];
+    var parsedCode = code is String ? code : null;
+    if (parsedCode == null && status == 402 && (meta.limitSource == 'plan_allowance_exhausted' || meta.limitSource == 'plan_required')) {
+      parsedCode = meta.limitSource;
+    }
     return NRouterErrorBody(
       message: message is String ? redactKeys(message) : 'nRouter request failed',
-      code: code is String ? code : null,
+      code: parsedCode,
       param: param is String ? param : null,
       type: type is String ? type : null,
       status: status,

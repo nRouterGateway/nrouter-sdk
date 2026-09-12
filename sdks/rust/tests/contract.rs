@@ -471,3 +471,43 @@ fn test_trace_routing_and_context() {
     assert!(with_trace_context(&orig, Some("tr\nbad"), None).is_err());
     assert!(with_trace_context(&orig, None, Some("ses\rbad")).is_err());
 }
+
+#[test]
+fn test_parses_funding_source_and_allowance_reset() {
+    let get = |name: &str| -> Option<String> {
+        match name {
+            "x-nr-funding-source" => Some("allowance".into()),
+            "x-nr-allowance-reset" => Some("86400".into()),
+            _ => None,
+        }
+    };
+    let meta = nrouter::meta::ResponseMeta::from_lookup(get);
+    assert_eq!(meta.funding_source.as_deref(), Some("allowance"));
+    assert_eq!(meta.allowance_reset, Some(86400));
+}
+
+#[test]
+fn test_plan_limits_map_to_credit_error() {
+    use nrouter::errors::{ErrorBody, NRouterError};
+    
+    let mut body1 = ErrorBody::default();
+    body1.status = Some(402);
+    body1.limit_source = Some("plan_allowance_exhausted".into());
+    // Simulate what http::error_body does
+    body1.code = body1.limit_source.clone();
+    let err1 = NRouterError::from_code(body1);
+    match err1 {
+        NRouterError::Credit(b) => assert_eq!(b.code.as_deref(), Some("plan_allowance_exhausted")),
+        _ => panic!("Expected Credit error"),
+    }
+
+    let mut body2 = ErrorBody::default();
+    body2.status = Some(402);
+    body2.limit_source = Some("plan_required".into());
+    body2.code = body2.limit_source.clone();
+    let err2 = NRouterError::from_code(body2);
+    match err2 {
+        NRouterError::Credit(b) => assert_eq!(b.code.as_deref(), Some("plan_required")),
+        _ => panic!("Expected Credit error"),
+    }
+}

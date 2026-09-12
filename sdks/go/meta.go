@@ -90,6 +90,12 @@ type ResponseMeta struct {
 	// ResponseCacheAge is whole seconds since a cached response was produced.
 	// Set on hits only.
 	ResponseCacheAge *uint64
+
+	// FundingSource is how this response was funded.
+	FundingSource string
+
+	// AllowanceReset is when the current usage allowance resets.
+	AllowanceReset *uint64
 }
 
 // HeaderNames lists every response header this SDK reads, exactly as the
@@ -113,6 +119,8 @@ var HeaderNames = []string{
 	"x-nr-auth-reason",
 	"x-nr-response-cache",
 	"x-nr-response-cache-age",
+	"x-nr-funding-source",
+	"x-nr-allowance-reset",
 }
 
 // MetaFromLookup builds ResponseMeta from any lowercase-name header lookup.
@@ -155,6 +163,8 @@ func MetaFromLookup(get func(string) string) ResponseMeta {
 		AuthReason:       get("x-nr-auth-reason"),
 		ResponseCache:    get("x-nr-response-cache"),
 		ResponseCacheAge: num("x-nr-response-cache-age"),
+		FundingSource:    get("x-nr-funding-source"),
+		AllowanceReset:   num("x-nr-allowance-reset"),
 	}
 	if raw := get("x-nr-request-cost"); raw != "" {
 		if v, err := strconv.ParseFloat(raw, 64); err == nil && isBillableAmount(v) {

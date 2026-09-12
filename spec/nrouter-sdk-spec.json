@@ -65,14 +65,20 @@
     },
     "x-nr-limit-source": {
       "type": "string",
-      "description": "Limit source on 429 responses",
+      "description": "Limit source on 429 and 402 responses",
       "always": false,
       "values": [
         "key",
         "plan",
         "team",
         "user",
-        "budget"
+        "budget",
+        "plan_window_h8",
+        "plan_window_day",
+        "plan_window_week",
+        "capacity",
+        "plan_allowance_exhausted",
+        "plan_required"
       ]
     },
     "x-nr-budget-warning": {
@@ -130,6 +136,21 @@
       "type": "integer",
       "description": "Age in seconds of a response-cache hit",
       "always": false
+    },
+    "x-nr-funding-source": {
+      "type": "string",
+      "description": "Which balance paid for this request: the plan's usage allowance or credits",
+      "always": false,
+      "values": [
+        "allowance",
+        "credits"
+      ]
+    },
+    "x-nr-allowance-reset": {
+      "type": "integer",
+      "description": "Seconds until the tightest usage-allowance window resets",
+      "always": false,
+      "format": "int64"
     }
   },
   "error_envelope": {
@@ -198,6 +219,16 @@
       "http": 503,
       "class": "nRouterServiceError",
       "description": "A required gateway dependency is unavailable"
+    },
+    "plan_allowance_exhausted": {
+      "http": 402,
+      "class": "nRouterCreditError",
+      "description": "The plan's usage allowance for this billing period is used up. It resets at the next billing period (see x-nr-allowance-reset)."
+    },
+    "plan_required": {
+      "http": 402,
+      "class": "nRouterCreditError",
+      "description": "Only plan subscribers can use nrouter/auto, or the plan's usage allowance is paused pending payment. Named models are paid from credits."
     }
   },
   "supported_endpoints": [

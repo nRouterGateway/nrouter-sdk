@@ -810,9 +810,13 @@ public class NRouter @JvmOverloads constructor(
             meta: NRouterResponseMeta,
         ): NRouterErrorBody {
             val node = payload.optJSONObject("error") ?: payload
+            var code = node.optString("code").ifEmpty { null }
+            if (code == null && status == 402 && (meta.limitSource == "plan_allowance_exhausted" || meta.limitSource == "plan_required")) {
+                code = meta.limitSource
+            }
             return NRouterErrorBody(
                 message = node.optString("message").ifEmpty { "nRouter request failed" },
-                code = node.optString("code").ifEmpty { null },
+                code = code,
                 param = node.optString("param").ifEmpty { null },
                 type = node.optString("type").ifEmpty { null },
                 status = status,

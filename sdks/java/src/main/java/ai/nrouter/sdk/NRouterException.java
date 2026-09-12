@@ -43,6 +43,12 @@ public final class NRouterException extends RuntimeException {
     }
 
     static NRouterException gateway(String message, String code, String param, String type, int status, NRouterResponseMeta meta, Long retryAfter) {
+        if (code == null && status == 402 && meta != null) {
+            String ls = meta.limitSource();
+            if ("plan_allowance_exhausted".equals(ls) || "plan_required".equals(ls)) {
+                code = ls;
+            }
+        }
         return new NRouterException(classify(code, message, status), message, code, param, type, status, meta, retryAfter);
     }
 
@@ -64,7 +70,9 @@ public final class NRouterException extends RuntimeException {
                 case "invalid_request": return Kind.REQUEST;
                 case "guardrail_blocked": return Kind.GUARDRAIL_BLOCKED;
                 case "invalid_api_key": return Kind.AUTHENTICATION;
-                case "insufficient_credits": return Kind.CREDIT;
+                case "insufficient_credits":
+                case "plan_allowance_exhausted":
+                case "plan_required": return Kind.CREDIT;
                 case "model_not_found": return Kind.NOT_FOUND;
                 case "rate_limit_exceeded":
                 case "tpm_limit_exceeded": return Kind.RATE_LIMIT;

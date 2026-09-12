@@ -39,6 +39,8 @@ sealed class NRouterError implements Exception {
       case 'invalid_api_key':
         return NRouterAuthenticationError(body);
       case 'insufficient_credits':
+      case 'plan_allowance_exhausted':
+      case 'plan_required':
         return NRouterCreditError(body);
       case 'model_not_found':
         return NRouterNotFoundError(body);

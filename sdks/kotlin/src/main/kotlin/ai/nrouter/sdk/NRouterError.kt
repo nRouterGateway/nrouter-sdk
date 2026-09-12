@@ -92,7 +92,7 @@ public sealed class NRouterError(
             "invalid_request" -> Request(body)
             "guardrail_blocked" -> GuardrailBlocked(body)
             "invalid_api_key" -> Authentication(body)
-            "insufficient_credits" -> Credit(body)
+            "insufficient_credits", "plan_allowance_exhausted", "plan_required" -> Credit(body)
             "model_not_found" -> NotFound(body)
             "rate_limit_exceeded", "tpm_limit_exceeded" -> RateLimit(body)
             "credit_check_failed", "service_unavailable" -> Service(body)

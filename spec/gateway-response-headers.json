@@ -1,6 +1,6 @@
 {
   "source": "nrouter-rust-gateway/src/http/nr_headers.rs::all_emitted_names",
-  "source_commit": "b006bae692c93e4aa6e91ccc3c911bf2060d7fe0",
+  "source_commit": "pending-L4",
   "headers": [
     "x-nr-request-id",
     "x-nr-latency-ms",
@@ -17,6 +17,8 @@
     "x-nr-budget-warning",
     "x-nr-guardrails",
     "x-nr-auth-reason",
+    "x-nr-funding-source",
+    "x-nr-allowance-reset",
     "x-nr-response-cache",
     "x-nr-response-cache-age"
   ]

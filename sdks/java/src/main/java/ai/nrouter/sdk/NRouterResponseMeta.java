@@ -23,7 +23,9 @@ public final class NRouterResponseMeta {
             "x-nr-guardrails",
             "x-nr-auth-reason",
             "x-nr-response-cache",
-            "x-nr-response-cache-age");
+            "x-nr-response-cache-age",
+            "x-nr-funding-source",
+            "x-nr-allowance-reset");
 
     private final String requestId;
     private final Long latencyMs;
@@ -42,6 +44,8 @@ public final class NRouterResponseMeta {
     private final String authReason;
     private final String responseCache;
     private final Long responseCacheAge;
+    private final String fundingSource;
+    private final Long allowanceReset;
 
     private NRouterResponseMeta(HttpHeaders headers) {
         requestId = value(headers, "x-nr-request-id");
@@ -64,6 +68,8 @@ public final class NRouterResponseMeta {
         authReason = value(headers, "x-nr-auth-reason");
         responseCache = value(headers, "x-nr-response-cache");
         responseCacheAge = integer(headers, "x-nr-response-cache-age");
+        fundingSource = value(headers, "x-nr-funding-source");
+        allowanceReset = integer(headers, "x-nr-allowance-reset");
     }
 
     public static NRouterResponseMeta fromHeaders(HttpHeaders headers) {
@@ -124,6 +130,8 @@ public final class NRouterResponseMeta {
     public String authReason() { return authReason; }
     public String responseCache() { return responseCache; }
     public Long responseCacheAge() { return responseCacheAge; }
+    public String fundingSource() { return fundingSource; }
+    public Long allowanceReset() { return allowanceReset; }
     public boolean isPriced() { return cost != null && "exact".equals(costStatus); }
     public boolean isCacheHit() { return "hit".equals(responseCache); }
     public boolean isCacheMiss() { return "miss".equals(responseCache); }

@@ -803,9 +803,13 @@ public struct NRouter: Sendable {
         meta: NRouterResponseMeta
     ) -> NRouterErrorBody {
         let node = (payload["error"] as? [String: Any]) ?? payload
+        var code = node["code"] as? String
+        if code == nil && status == 402 && (meta.limitSource == "plan_allowance_exhausted" || meta.limitSource == "plan_required") {
+            code = meta.limitSource
+        }
         return NRouterErrorBody(
             message: node["message"] as? String ?? "nRouter request failed",
-            code: node["code"] as? String,
+            code: code,
             param: node["param"] as? String,
             type: node["type"] as? String,
             status: status,

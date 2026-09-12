@@ -86,6 +86,10 @@ export interface ResponseMeta {
   responseCache: string | null;
   /** Whole seconds since a cached response was produced. Hits only. */
   responseCacheAge: number | null;
+  /** Which balance paid for this request: allowance or credits. */
+  fundingSource: string | null;
+  /** Seconds until the tightest usage-allowance window resets. */
+  allowanceReset: number | null;
 }
 
 /**
@@ -111,6 +115,8 @@ export const HEADER_NAMES = [
   'x-nr-auth-reason',
   'x-nr-response-cache',
   'x-nr-response-cache-age',
+  'x-nr-funding-source',
+  'x-nr-allowance-reset',
 ] as const;
 
 export type HeaderName = (typeof HEADER_NAMES)[number];

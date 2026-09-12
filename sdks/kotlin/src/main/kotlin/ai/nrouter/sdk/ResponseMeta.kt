@@ -65,6 +65,10 @@ public data class NRouterResponseMeta(
     val responseCache: String? = null,
     /** Age in seconds of a response-cache hit. */
     val responseCacheAge: Long? = null,
+    /** How this response was funded. */
+    val fundingSource: String? = null,
+    /** When the current usage allowance resets. */
+    val allowanceReset: Long? = null,
 ) {
     /** True when the gateway priced this request exactly. */
     val isPriced: Boolean get() = costStatus == "exact" && cost != null
@@ -111,6 +115,8 @@ public data class NRouterResponseMeta(
             "x-nr-auth-reason",
             "x-nr-response-cache",
             "x-nr-response-cache-age",
+            "x-nr-funding-source",
+            "x-nr-allowance-reset",
         )
 
         /**
@@ -143,6 +149,8 @@ public data class NRouterResponseMeta(
                 authReason = lookup("x-nr-auth-reason"),
                 responseCache = lookup("x-nr-response-cache"),
                 responseCacheAge = num("x-nr-response-cache-age"),
+                fundingSource = lookup("x-nr-funding-source"),
+                allowanceReset = num("x-nr-allowance-reset"),
             )
         }
     }

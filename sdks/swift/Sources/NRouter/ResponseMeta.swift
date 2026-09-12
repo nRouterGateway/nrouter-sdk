@@ -53,6 +53,10 @@ public struct NRouterResponseMeta: Equatable, Sendable {
     public var responseCache: String?
     /// Age in seconds of a response-cache hit.
     public var responseCacheAge: Int?
+    /// How this response was funded.
+    public var fundingSource: String?
+    /// When the current usage allowance resets.
+    public var allowanceReset: Int?
 
     /// Every header this SDK reads, exactly as the spec names them.
     public static let headerNames: [String] = [
@@ -73,6 +77,8 @@ public struct NRouterResponseMeta: Equatable, Sendable {
         "x-nr-auth-reason",
         "x-nr-response-cache",
         "x-nr-response-cache-age",
+        "x-nr-funding-source",
+        "x-nr-allowance-reset",
     ]
 
     public init() {}
@@ -103,6 +109,8 @@ public struct NRouterResponseMeta: Equatable, Sendable {
         authReason = lookup("x-nr-auth-reason")
         responseCache = lookup("x-nr-response-cache")
         responseCacheAge = int("x-nr-response-cache-age")
+        fundingSource = lookup("x-nr-funding-source")
+        allowanceReset = int("x-nr-allowance-reset")
     }
 
     /// Parse from an `HTTPURLResponse`.

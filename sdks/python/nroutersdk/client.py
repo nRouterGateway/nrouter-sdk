@@ -441,6 +441,9 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         # up. The gateway's own wording is the only discriminator it gives us,
         # and it is stable — `GatewayError::{BudgetExceeded, ScopedBudgetExceeded}`
         # both start their Display with "budget".
+        limit_source = headers.get("x-nr-limit-source")
+        if limit_source in ("plan_allowance_exhausted", "plan_required"):
+            raise nRouterCreditError(message, request_id=request_id, code=limit_source, param=param, type=error_type) from err
         if message.lstrip().lower().startswith("budget"):
             raise nRouterBudgetExceededError(message, request_id=request_id, param=param, type=error_type) from err
         raise nRouterCreditError(message, request_id=request_id, param=param, type=error_type) from err

@@ -932,13 +932,21 @@ fn error_body(
     retry_after: Option<u64>,
 ) -> ErrorBody {
     let node = body.get("error").unwrap_or(body);
+    let mut code = node.get("code").and_then(Value::as_str).map(str::to_owned);
+    if code.is_none() && status == 402 {
+        if let Some(ls) = &meta.limit_source {
+            if ls == "plan_allowance_exhausted" || ls == "plan_required" {
+                code = Some(ls.clone());
+            }
+        }
+    }
     ErrorBody {
         message: node
             .get("message")
             .and_then(Value::as_str)
             .unwrap_or("nRouter request failed")
             .to_string(),
-        code: node.get("code").and_then(Value::as_str).map(str::to_owned),
+        code,
         param: node.get("param").and_then(Value::as_str).map(str::to_owned),
         error_type: node.get("type").and_then(Value::as_str).map(str::to_owned),
         status: Some(status),

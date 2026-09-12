@@ -814,6 +814,9 @@ func gatewayError(res *http.Response, meta ResponseMeta, raw []byte) *Error {
 		message = "nRouter request failed"
 	}
 	code, _ := node["code"].(string)
+	if code == "" && res.StatusCode == 402 && (meta.LimitSource == "plan_allowance_exhausted" || meta.LimitSource == "plan_required") {
+		code = meta.LimitSource
+	}
 	param, _ := node["param"].(string)
 	errType, _ := node["type"].(string)
 

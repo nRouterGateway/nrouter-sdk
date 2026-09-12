@@ -1168,6 +1168,31 @@ class ContractTest {
             NRouter.withTraceContext(emptyMap(), "bad\r\ntrace", "sess")
         }
     }
+    @Test
+    fun `parses fundingSource and allowanceReset`() {
+        val meta = NRouterResponseMeta.fromLookup { name ->
+            when (name) {
+                "x-nr-funding-source" -> "allowance"
+                "x-nr-allowance-reset" -> "86400"
+                else -> null
+            }
+        }
+        assertEquals("allowance", meta.fundingSource)
+        assertEquals(86400L, meta.allowanceReset)
+    }
+
+    @Test
+    fun `plan limits map to Credit`() {
+        val meta1 = NRouterResponseMeta.fromLookup { if (it == "x-nr-limit-source") "plan_allowance_exhausted" else null }
+        val err1 = NRouter.errorBody(402, org.json.JSONObject(), meta1)
+        val nrouterErr1 = NRouterError.fromCode(err1)
+        assertTrue(nrouterErr1 is NRouterError.Credit)
+        assertEquals("plan_allowance_exhausted", err1.code)
+
+        val meta2 = NRouterResponseMeta.fromLookup { if (it == "x-nr-limit-source") "plan_required" else null }
+        val err2 = NRouter.errorBody(402, org.json.JSONObject(), meta2)
+        val nrouterErr2 = NRouterError.fromCode(err2)
+        assertTrue(nrouterErr2 is NRouterError.Credit)
+        assertEquals("plan_required", err2.code)
+    }
 }
-
-

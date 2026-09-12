@@ -60,7 +60,7 @@ public enum NRouterError: Error, Equatable {
         case "invalid_request": return .request(body)
         case "guardrail_blocked": return .guardrailBlocked(body)
         case "invalid_api_key": return .authentication(body)
-        case "insufficient_credits": return .credit(body)
+        case "insufficient_credits", "plan_allowance_exhausted", "plan_required": return .credit(body)
         case "model_not_found": return .notFound(body)
         case "rate_limit_exceeded", "tpm_limit_exceeded": return .rateLimit(body)
         case "credit_check_failed", "service_unavailable": return .service(body)

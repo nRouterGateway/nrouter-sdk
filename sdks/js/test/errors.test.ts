@@ -43,10 +43,13 @@ const SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8')) as {
 // Case 3 — the nine spec codes, asserted against the spec file.
 // ---------------------------------------------------------------------------
 
-test('the spec still declares exactly nine error codes', () => {
-  // If the gateway grows a tenth, this fails and every table below is revisited
-  // deliberately rather than silently under-covering the new one.
-  assert.equal(Object.keys(SPEC.errors).length, 9);
+test('the spec still declares exactly eleven error codes', () => {
+  // If the spec grew one, this file and ERROR_CLASS_BY_CODE must grow too.
+  assert.strictEqual(
+    Object.keys(SPEC.errors).length,
+    11,
+    'The gateway shipped a new code. Map it in ERROR_CLASS_BY_CODE and add it here.',
+  );
 });
 
 test('every spec code maps to the class the spec names, at the status it names', () => {
@@ -694,4 +697,14 @@ test('no doc comment points at a note that does not exist in this file', () => {
     !/SDK-026 note above/.test(source),
     'errors.ts cites an "SDK-026 note above" that is nowhere in the file',
   );
+});
+
+test('a 402 with plan limit-source maps to credit error with that code', () => {
+  const err1 = createError('plan required', { status: 402, limitSource: 'plan_required' });
+  assert.equal(err1.name, 'nRouterCreditError');
+  assert.equal(err1.code, 'plan_required');
+
+  const err2 = createError('plan allowance exhausted', { status: 402, limitSource: 'plan_allowance_exhausted' });
+  assert.equal(err2.name, 'nRouterCreditError');
+  assert.equal(err2.code, 'plan_allowance_exhausted');
 });

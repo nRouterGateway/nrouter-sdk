@@ -26,7 +26,7 @@ final class ContractTests: XCTestCase {
             "x-nr-input-tokens", "x-nr-output-tokens", "x-nr-total-tokens",
             "x-nr-cache-read-tokens", "x-nr-cache-write-tokens", "x-nr-limit-source",
             "x-nr-auth-reason", "x-nr-response-cache", "x-nr-response-cache-age",
-            "x-nr-budget-warning", "x-nr-guardrails",
+            "x-nr-budget-warning", "x-nr-guardrails", "x-nr-funding-source", "x-nr-allowance-reset",
         ]
         XCTAssertEqual(NRouterResponseMeta.headerNames.count, expected.count)
         for name in expected {
@@ -1147,4 +1147,35 @@ final class StubProtocol: URLProtocol {
     }
 
     override func stopLoading() { Self.stopped = true }
+    func testParsesFundingSourceAndAllowanceReset() {
+        let meta = NRouterResponseMeta { name in
+            switch name {
+            case "x-nr-funding-source": return "allowance"
+            case "x-nr-allowance-reset": return "86400"
+            default: return nil
+            }
+        }
+        XCTAssertEqual("allowance", meta.fundingSource)
+        XCTAssertEqual(86400, meta.allowanceReset)
+    }
+
+    func testPlanLimitsMapToCreditError() {
+        let meta1 = NRouterResponseMeta { name in name == "x-nr-limit-source" ? "plan_allowance_exhausted" : nil }
+        let err1Body = NRouter.errorBody(status: 402, payload: [:], meta: meta1)
+        let err1 = NRouterError.fromCode(err1Body)
+        if case let .credit(b) = err1 {
+            XCTAssertEqual("plan_allowance_exhausted", b.code)
+        } else {
+            XCTFail("Expected .credit")
+        }
+
+        let meta2 = NRouterResponseMeta { name in name == "x-nr-limit-source" ? "plan_required" : nil }
+        let err2Body = NRouter.errorBody(status: 402, payload: [:], meta: meta2)
+        let err2 = NRouterError.fromCode(err2Body)
+        if case let .credit(b) = err2 {
+            XCTAssertEqual("plan_required", b.code)
+        } else {
+            XCTFail("Expected .credit")
+        }
+    }
 }

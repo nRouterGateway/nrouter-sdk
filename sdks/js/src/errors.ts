@@ -341,6 +341,8 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   tpm_limit_exceeded: nRouterRateLimitError,
   credit_check_failed: nRouterServiceError,
   service_unavailable: nRouterServiceError,
+  plan_allowance_exhausted: nRouterCreditError,
+  plan_required: nRouterCreditError,
 });
 
 /** The HTTP status the spec pairs with each code. */
@@ -354,6 +356,8 @@ export const ERROR_STATUS_BY_CODE: Readonly<Record<string, number>> = Object.fre
   tpm_limit_exceeded: 429,
   credit_check_failed: 503,
   service_unavailable: 503,
+  plan_allowance_exhausted: 402,
+  plan_required: 402,
 });
 
 /**
@@ -423,8 +427,15 @@ export function classifyErrorClass(
 
 /** Build the right error instance for one refusal. The factory form of `classifyError`. */
 export function createError(message: string, options: nRouterErrorOptions = {}): nRouterError {
-  const ErrorClass = classifyErrorClass(options.code, message, options.status);
-  return new ErrorClass(message, options);
+  let code = options.code;
+  if (!code && options.status === 402) {
+    const limitSource = options.limitSource ?? options.meta?.limitSource;
+    if (limitSource === 'plan_allowance_exhausted' || limitSource === 'plan_required') {
+      code = limitSource;
+    }
+  }
+  const ErrorClass = classifyErrorClass(code, message, options.status);
+  return new ErrorClass(message, { ...options, code });
 }
 
 /** The SDK refused before sending anything. Permanent — never retried. */

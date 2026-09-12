@@ -18,9 +18,11 @@ NULL
 NROUTER_ERROR_CLASSES <- c(
   invalid_request      = "nrouter_request_error",
   guardrail_blocked    = "nrouter_guardrail_blocked_error",
-  invalid_api_key      = "nrouter_authentication_error",
-  insufficient_credits = "nrouter_credit_error",
-  model_not_found      = "nrouter_not_found_error",
+  invalid_api_key          = "nrouter_authentication_error",
+  insufficient_credits     = "nrouter_credit_error",
+  plan_allowance_exhausted = "nrouter_credit_error",
+  plan_required            = "nrouter_credit_error",
+  model_not_found          = "nrouter_not_found_error",
   rate_limit_exceeded  = "nrouter_rate_limit_error",
   tpm_limit_exceeded   = "nrouter_rate_limit_error",
   credit_check_failed  = "nrouter_service_error",
@@ -65,6 +67,11 @@ nrouter_condition <- function(message, code = NULL, status = NULL,
                               request_id = NULL, limit_source = NULL,
                               auth_reason = NULL, retry_after = NULL,
                               param = NULL, type = NULL) {
+  if (is.null(code) && identical(as.character(status), "402") && !is.null(limit_source)) {
+    if (limit_source == "plan_allowance_exhausted" || limit_source == "plan_required") {
+      code <- limit_source
+    }
+  }
   specific <- NULL
   if (!is.null(code) && nzchar(code)) {
     specific <- unname(NROUTER_ERROR_CLASSES[code])

@@ -581,3 +581,32 @@ test_that("propagates trace context and rejects crlf", {
 })
 
 
+
+test_that("parses funding_source and allowance_reset", {
+  meta <- nrouter_meta(list(
+    "x-nr-funding-source" = "allowance",
+    "x-nr-allowance-reset" = "86400"
+  ))
+  expect_equal(meta$funding_source, "allowance")
+  expect_equal(meta$allowance_reset, 86400)
+})
+
+test_that("plan limits map to credit error", {
+  err1 <- nrouter_condition(
+    message = "msg",
+    code = NULL,
+    status = "402",
+    limit_source = "plan_allowance_exhausted"
+  )
+  expect_s3_class(err1, "nrouter_credit_error")
+  expect_equal(err1$code, "plan_allowance_exhausted")
+
+  err2 <- nrouter_condition(
+    message = "msg",
+    code = NULL,
+    status = "402",
+    limit_source = "plan_required"
+  )
+  expect_s3_class(err2, "nrouter_credit_error")
+  expect_equal(err2$code, "plan_required")
+})

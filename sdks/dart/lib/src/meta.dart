@@ -25,6 +25,8 @@ class NRouterResponseMeta {
     this.authReason,
     this.responseCache,
     this.responseCacheAge,
+    this.fundingSource,
+    this.allowanceReset,
   });
 
   /// Present on every response; the join key for a spend row or a log line.
@@ -85,6 +87,11 @@ class NRouterResponseMeta {
   /// Age in seconds of a response-cache hit.
   final int? responseCacheAge;
 
+  /// How this response was funded.
+  final String? fundingSource;
+  /// When the current usage allowance resets.
+  final int? allowanceReset;
+
   /// Every header this SDK reads, exactly as the spec names them.
   static const List<String> headerNames = [
     'x-nr-request-id',
@@ -104,6 +111,8 @@ class NRouterResponseMeta {
     'x-nr-auth-reason',
     'x-nr-response-cache',
     'x-nr-response-cache-age',
+    'x-nr-funding-source',
+    'x-nr-allowance-reset',
   ];
 
   /// Parse from a header map keyed by lowercase name.
@@ -136,6 +145,8 @@ class NRouterResponseMeta {
       authReason: get('x-nr-auth-reason'),
       responseCache: get('x-nr-response-cache'),
       responseCacheAge: asInt('x-nr-response-cache-age'),
+      fundingSource: get('x-nr-funding-source'),
+      allowanceReset: asInt('x-nr-allowance-reset'),
     );
   }
 

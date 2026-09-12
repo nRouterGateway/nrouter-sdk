@@ -43,6 +43,8 @@ void main() {
         'x-nr-response-cache-age',
         'x-nr-budget-warning',
         'x-nr-guardrails',
+        'x-nr-funding-source',
+        'x-nr-allowance-reset',
       ];
       expect(NRouterResponseMeta.headerNames.length, expected.length);
       for (final name in expected) {
@@ -1101,7 +1103,35 @@ void main() {
         throwsA(isA<NRouterConfigurationError>()),
       );
     });
+    test('parses fundingSource and allowanceReset', () {
+      final meta = NRouterResponseMeta.fromHeaders({
+        'x-nr-funding-source': 'allowance',
+        'x-nr-allowance-reset': '86400',
+      });
+      expect(meta.fundingSource, 'allowance');
+      expect(meta.allowanceReset, 86400);
+    });
+
+    test('plan limits map to CreditError', () {
+      final meta1 = NRouterResponseMeta.fromHeaders({'x-nr-limit-source': 'plan_allowance_exhausted'});
+      final err1 = NRouterError.fromCode(NRouterErrorBody(
+        message: 'msg',
+        code: meta1.limitSource,
+        status: 402,
+        limitSource: meta1.limitSource,
+      ));
+      expect(err1, isA<NRouterCreditError>());
+      expect(err1.body?.code, 'plan_allowance_exhausted');
+
+      final meta2 = NRouterResponseMeta.fromHeaders({'x-nr-limit-source': 'plan_required'});
+      final err2 = NRouterError.fromCode(NRouterErrorBody(
+        message: 'msg',
+        code: meta2.limitSource,
+        status: 402,
+        limitSource: meta2.limitSource,
+      ));
+      expect(err2, isA<NRouterCreditError>());
+      expect(err2.body?.code, 'plan_required');
+    });
   });
 }
-
-

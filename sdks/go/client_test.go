@@ -265,6 +265,8 @@ func TestEveryDeclaredHeaderIsRead(t *testing.T) {
 		"x-nr-response-cache-age": "12",
 		"x-nr-budget-warning":     "org soft_budget 80.00/100.00",
 		"x-nr-guardrails":         "pass",
+		"x-nr-funding-source":     "allowance",
+		"x-nr-allowance-reset":    "86400",
 	}
 	if len(headers) != len(HeaderNames) {
 		t.Fatalf("this test covers %d headers, HeaderNames declares %d", len(headers), len(HeaderNames))
@@ -304,6 +306,9 @@ func TestEveryDeclaredHeaderIsRead(t *testing.T) {
 	}
 	if m.LimitSource != "key" || m.AuthReason != "unauthorized" || m.ResponseCache != "hit" || m.BudgetWarning != "org soft_budget 80.00/100.00" || m.Guardrails != "pass" {
 		t.Fatalf("classification headers not parsed: %+v", m)
+	}
+	if m.FundingSource != "allowance" || m.AllowanceReset == nil || *m.AllowanceReset != 86400 {
+		t.Fatalf("funding headers not parsed: %+v", m)
 	}
 	if !m.IsPriced() {
 		t.Fatal("an exact cost should report IsPriced")
@@ -1542,5 +1547,38 @@ func TestTraceRoutingAndContext(t *testing.T) {
 
 	if _, err := WithTraceContext(orig, "tr\nbad", "ses"); err == nil {
 		t.Fatal("expected WithTraceContext to reject CRLF in traceID")
+	}
+}
+
+func TestParsesFundingSourceAndAllowanceReset(t *testing.T) {
+	meta := MetaFromLookup(func(name string) string {
+		switch name {
+		case "x-nr-funding-source":
+			return "allowance"
+		case "x-nr-allowance-reset":
+			return "86400"
+		default:
+			return ""
+		}
+	})
+	if meta.FundingSource != "allowance" {
+		t.Errorf("expected allowance, got %v", meta.FundingSource)
+	}
+	if meta.AllowanceReset == nil || *meta.AllowanceReset != 86400 {
+		t.Errorf("expected 86400, got %v", meta.AllowanceReset)
+	}
+}
+
+func TestPlanLimitsMapToCreditError(t *testing.T) {
+	meta1 := ResponseMeta{LimitSource: "plan_allowance_exhausted"}
+	err1 := gatewayError(&http.Response{StatusCode: 402}, meta1, []byte("{}"))
+	if !errors.Is(err1, ErrCredit) || err1.Code != "plan_allowance_exhausted" {
+		t.Errorf("expected ErrCredit with plan_allowance_exhausted, got %v, code %s", err1.Kind, err1.Code)
+	}
+
+	meta2 := ResponseMeta{LimitSource: "plan_required"}
+	err2 := gatewayError(&http.Response{StatusCode: 402}, meta2, []byte("{}"))
+	if !errors.Is(err2, ErrCredit) || err2.Code != "plan_required" {
+		t.Errorf("expected ErrCredit with plan_required, got %v, code %s", err2.Kind, err2.Code)
 	}
 }
