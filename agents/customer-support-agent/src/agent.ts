@@ -15,6 +15,7 @@ import { callHook } from './hooks.js';
 import { toSafeError } from './errors.js';
 import { toSSE } from './sse.js';
 import { validateFeedback } from './feedback.js';
+import { maskPii } from './pii.js';
 
 export function createSupportAgent(config: SupportAgentConfig): SupportAgent {
   const cfg = resolveConfig(config);
@@ -70,7 +71,13 @@ export function createSupportAgent(config: SupportAgentConfig): SupportAgent {
       let costEvent;
       
       async function executePhase(sysPrompt: string) {
-         const msgs = [{ role: 'system' as const, content: sysPrompt }, ...history];
+         let msgs = [{ role: 'system' as const, content: sysPrompt }, ...history];
+         if (cfg.maskPii) {
+           msgs = msgs.map(m => ({
+             ...m,
+             content: typeof m.content === 'string' ? maskPii(m.content) : m.content
+           }));
+         }
          const phaseEvents: AgentEvent[] = [];
          const tResult = await runToolPhase(cfg, msgs as unknown as import('@nrouter_ai/sdk').ChatMessage[], (ev) => {
             phaseEvents.push({ type: 'tool_call', tool: ev.tool, title: ev.title, status: ev.status });
@@ -93,7 +100,8 @@ export function createSupportAgent(config: SupportAgentConfig): SupportAgent {
             model: cfg.model,
             messages: tResult.messages,
             maxTokens: cfg.maxTokens,
-            signal: validatedReq.signal
+            signal: validatedReq.signal,
+            maskPii: cfg.maskPii
          });
          
          return { phaseEvents, sResult };

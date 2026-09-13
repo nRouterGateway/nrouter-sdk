@@ -3,6 +3,7 @@ import { nRouter, isPriced } from '@nrouter_ai/sdk';
 import type { ChatMessage, ResponseMeta } from '@nrouter_ai/sdk';
 import type { CostEvent } from './types.js';
 import { SupportAgentError } from './errors.js';
+import { maskPii } from './pii.js';
 
 export function createClient(apiKey: string, baseURL?: string): nRouter {
   if (!apiKey || apiKey.trim() === '') {
@@ -18,11 +19,13 @@ export async function embed(
   input: string[],
   dimensions: number,
   signal?: AbortSignal,
+  opts?: { maskPii?: boolean },
 ): Promise<number[][]> {
   if (!input || input.length === 0) {
     return [];
   }
-  const res = await client.embeddings.create({ model, input, dimensions }, { signal });
+  const textsToEmbed = opts?.maskPii !== false ? input.map(t => maskPii(t)) : input;
+  const res = await client.embeddings.create({ model, input: textsToEmbed, dimensions }, { signal });
   const data = res.data.sort((a, b) => a.index - b.index);
   if (data.length !== input.length) {
     throw new SupportAgentError('upstream_error', 'Embedding count mismatch');
@@ -47,11 +50,15 @@ export interface StreamedAnswer {
 /** Stream a chat completion via the SDK's nr.stream. */
 export async function streamChat(
   client: nRouter,
-  opts: { model: string; messages: ChatMessage[]; maxTokens: number; signal?: AbortSignal },
+  opts: { model: string; messages: ChatMessage[]; maxTokens: number; signal?: AbortSignal; maskPii?: boolean },
 ): Promise<StreamedAnswer> {
+  const messages = opts.maskPii !== false
+    ? opts.messages.map(m => (typeof m.content === 'string' ? { ...m, content: maskPii(m.content) } : m))
+    : opts.messages;
+
   const result = await client.nr.stream({
     model: opts.model,
-    messages: opts.messages,
+    messages,
     maxTokens: opts.maxTokens
   }, opts.signal);
 

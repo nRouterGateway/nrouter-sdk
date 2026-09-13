@@ -49,6 +49,7 @@ export async function POST(req: Request) {
 | `knowledge` | `KnowledgeStore` or `KnowledgeIndex` JSON |
 | `webSearch` | Optional web search provider |
 | `memoryStore` | Optional `(sessionId) => MemoryStore` from `@nrouter_ai/sdk`. When set and the host passes `ctx.sessionId`, the stored history is authoritative: only the latest user turn from the request is appended, and earlier turns in the request body are ignored |
+| `maskPii` | Mask emails and phone numbers before text leaves the process (default `true`) |
 
 ## Usage
 
@@ -63,6 +64,16 @@ The agent streams events as Server-Sent Events (`text/event-stream`). Events inc
 
 ## Hooks
 Configure `hooks` to intercept feedback, gaps (low confidence questions), tool calls, and cost events.
+
+## PII and Gateway Guardrails
+
+When a virtual key enforces a PII redact guardrail, the gateway refuses pre-call content containing PII (pre-call redact == refuse). To ensure reliable operation:
+
+- **Automatic Pre-call Masking:** Enabled by default (`maskPii: true`). Email addresses are masked as `[email]` and phone numbers (7+ digits with standard delimiters) are masked as `[phone]` at the gateway egress boundary (`streamChat` and `embed`). Non-PII numbers such as ISO dates, versions (e.g. `1.2.3`), prices, and short numbers (e.g. `402`, `7731`) are preserved.
+- **Knowledge Base Build Recovery:** During `build-kb`, if the gateway refuses an embeddings batch with `guardrail_blocked`:
+  - **Refuse-and-Name (default):** Re-embeds one chunk at a time to identify the offending documents and throws `SupportAgentError('guardrail_blocked', 'the gateway refused N document(s) under a guardrail: <url1>, <url2>')`, naming up to 10 unique document URLs.
+  - **Skip Blocked (`--skip-blocked`):** Drops all chunks belonging to refused documents, invokes `onSkip({ title, url, reason })` once per skipped document, and builds the index from the remaining documents.
+- **Disabling Masking:** Set `maskPii: false` in config or pass `--no-mask-pii` to the `build-kb` CLI if pre-call masking is not desired.
 
 ## Knowledge per Organisation
 Maintain one index and one agent per organisation. Audiences are entitlement tags from the host's auth via `TrustedContext`, never the body. Audiences are never a tenancy boundary.

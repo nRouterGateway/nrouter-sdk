@@ -64,4 +64,59 @@ describe('cli', () => {
     expect(spyErr).not.toHaveBeenCalledWith(expect.stringContaining('sk-nrouter-secretkey123'));
     spyErr.mockRestore();
   });
+
+  it('supports --skip-blocked and --no-mask-pii flags and logs skipped docs with redaction', async () => {
+    const spyLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const buildModule = await import('../src/knowledge/build.js');
+    let capturedOpts: any = null;
+    (buildModule.buildKnowledgeIndex as any).mockImplementationOnce(async (opts: any) => {
+      capturedOpts = opts;
+      if (opts.onSkip) {
+        opts.onSkip({
+          title: 'Blocked Doc',
+          url: 'http://example.com/blocked',
+          reason: 'PII detected in key sk-nrouter-test1234'
+        });
+      }
+      return {
+        version: 1,
+        embeddingModel: 'test',
+        dimensions: 10,
+        createdAt: '2026-09-12T00:00:00Z',
+        chunks: []
+      };
+    });
+
+    const code = await runCliWith(
+      ['build-kb', '--docs', 'dir', '--out', 'out.json', '--skip-blocked', '--no-mask-pii'],
+      { NROUTER_API_KEY: 'sk-nrouter-fake' },
+      {}
+    );
+
+    expect(code).toBe(0);
+    expect(capturedOpts.skipBlocked).toBe(true);
+    expect(capturedOpts.maskPii).toBe(false);
+    expect(spyLog).toHaveBeenCalledWith('skipped: http://example.com/blocked (PII detected in key [redacted])');
+    spyLog.mockRestore();
+  });
+
+  it('names refused URLs in failure message when guardrail blocks', async () => {
+    const spyErr = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const buildModule = await import('../src/knowledge/build.js');
+    (buildModule.buildKnowledgeIndex as any).mockRejectedValueOnce(
+      new Error('the gateway refused 1 document(s) under a guardrail: http://example.com/refused')
+    );
+
+    const code = await runCliWith(
+      ['build-kb', '--docs', 'dir', '--out', 'out.json'],
+      { NROUTER_API_KEY: 'sk-nrouter-fake' },
+      {}
+    );
+
+    expect(code).toBe(1);
+    expect(spyErr).toHaveBeenCalledWith(
+      'Error: the gateway refused 1 document(s) under a guardrail: http://example.com/refused'
+    );
+    spyErr.mockRestore();
+  });
 });

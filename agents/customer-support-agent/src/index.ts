@@ -10,3 +10,4 @@ export { fetchSeedPages, isSafeUrl } from './knowledge/fetch.js';
 export { createWebSearchTool, WEB_SEARCH_TOOL_ID } from './web-search.js';
 export { toSSE, encodeEvent } from './sse.js';
 export { validateFeedback } from './feedback.js';
+export { maskPii } from './pii.js';

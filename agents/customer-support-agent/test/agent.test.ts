@@ -266,6 +266,44 @@ describe('SupportAgent', () => {
     const msgs = await store.load();
     expect(msgs.map(m => m.content)).toEqual(['user1', 'token1token2', 'user2', 'token1token2']);
   });
+
+  it('PII MASKING: masks messages to runToolPhase and passes maskPii to streamChat', async () => {
+    const { runToolPhase } = await import('../src/tools.js');
+    let capturedToolMessages: any[] = [];
+    vi.mocked(runToolPhase).mockImplementation(async (cfg, msgs, cb) => {
+      capturedToolMessages = msgs;
+      return { messages: msgs, ranTools: false };
+    });
+
+    const { streamChat } = await import('../src/client.js');
+    let capturedStreamOpts: any = null;
+    vi.mocked(streamChat).mockImplementation(async (client, opts) => {
+      capturedStreamOpts = opts;
+      async function* chunks() { yield 'answer'; }
+      return { cost: { costUsd: null, status: 'unpriced' }, chunks: chunks() };
+    });
+
+    const agent = createSupportAgent({
+      client: fakeClient,
+      model: 'm',
+      knowledge: fakeIndex,
+      maskPii: true
+    });
+
+    for await (const _ of agent.chat({
+      messages: [{ role: 'user', content: 'Contact me at admin@corp.com or 555-123-4567' }]
+    })) {
+      // iterate
+    }
+
+    // runToolPhase received masked messages
+    const userMsgInTool = capturedToolMessages.find(m => m.role === 'user');
+    expect(userMsgInTool?.content).toBe('Contact me at [email] or [phone]');
+
+    // streamChat received maskPii: true
+    expect(capturedStreamOpts.maskPii).toBe(true);
+  });
 });
+
 
 

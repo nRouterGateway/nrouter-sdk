@@ -129,4 +129,95 @@ describe('buildKnowledgeIndex', () => {
     expect(index.chunks[0]?.embedding).toEqual([0.1, 0.1]);
     expect(index.chunks[1]?.embedding).toEqual([0.2, 0.2]);
   });
+
+  it('guardrail refusal with skipBlocked: false re-embeds 1-by-1 and throws naming refused doc', async () => {
+    const client = {
+      embeddings: {
+        create: vi.fn().mockImplementation(async (opts: any) => {
+          // If batch contains bad content, throw guardrail error
+          if (opts.input.length > 1) {
+            const err = new Error('request blocked by a guardrail: PII detected');
+            (err as any).status = 400;
+            throw err;
+          }
+          // Individual chunk calls:
+          if (opts.input[0] === 'Bad Content') {
+            const err = new Error('request blocked by a guardrail: PII detected');
+            (err as any).status = 400;
+            throw err;
+          }
+          return { data: [{ index: 0, embedding: [0.5, 0.5] }] };
+        })
+      }
+    } as any;
+
+    const docs = [
+      { title: 'Good Doc', url: 'http://example.com/good', content: 'Good Content' },
+      { title: 'Bad Doc', url: 'http://example.com/bad', content: 'Bad Content' }
+    ];
+
+    await expect(buildKnowledgeIndex({ docs, client, dimensions: 2, skipBlocked: false }))
+      .rejects.toThrow('the gateway refused 1 document(s) under a guardrail: http://example.com/bad');
+  });
+
+  it('guardrail refusal with skipBlocked: true drops refused doc and calls onSkip', async () => {
+    const client = {
+      embeddings: {
+        create: vi.fn().mockImplementation(async (opts: any) => {
+          if (opts.input.length > 1) {
+            const err = new Error('request blocked by a guardrail: PII detected');
+            (err as any).status = 400;
+            throw err;
+          }
+          if (opts.input[0] === 'Bad Content') {
+            const err = new Error('request blocked by a guardrail: PII detected');
+            (err as any).status = 400;
+            throw err;
+          }
+          return { data: [{ index: 0, embedding: [0.5, 0.5] }] };
+        })
+      }
+    } as any;
+
+    const docs = [
+      { title: 'Good Doc', url: 'http://example.com/good', content: 'Good Content' },
+      { title: 'Bad Doc', url: 'http://example.com/bad', content: 'Bad Content' }
+    ];
+
+    const skipped: any[] = [];
+    const index = await buildKnowledgeIndex({
+      docs,
+      client,
+      dimensions: 2,
+      skipBlocked: true,
+      onSkip: (d) => skipped.push(d)
+    });
+
+    expect(skipped).toEqual([
+      {
+        title: 'Bad Doc',
+        url: 'http://example.com/bad',
+        reason: 'request blocked by a guardrail: PII detected'
+      }
+    ]);
+    expect(index.chunks).toHaveLength(1);
+    expect(index.chunks[0]?.url).toBe('http://example.com/good');
+  });
+
+  it('passes maskPii option to embed calls', async () => {
+    let capturedOpts: any;
+    const client = {
+      embeddings: {
+        create: vi.fn().mockImplementation(async (opts: any) => {
+          capturedOpts = opts;
+          return { data: [{ index: 0, embedding: [0.1, 0.1] }] };
+        })
+      }
+    } as any;
+
+    const docs = [{ title: 'Doc', url: 'http://example.com', content: 'Contact me at test@example.com' }];
+    await buildKnowledgeIndex({ docs, client, dimensions: 2, maskPii: false });
+    // When maskPii is false, input is not masked
+    expect(capturedOpts.input).toEqual(['Contact me at test@example.com']);
+  });
 });

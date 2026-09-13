@@ -75,9 +75,112 @@ describe('client', () => {
 
       await expect(embed(client, 'test-model', ['a'], 2)).rejects.toThrow(SupportAgentError);
     });
+
+    it('masks PII by default when opts is omitted', async () => {
+      const client = Object.create(nRouter.prototype);
+      let receivedInput: string[] = [];
+      client.embeddings = {
+        create: async (opts: any) => {
+          receivedInput = opts.input;
+          return {
+            data: [{ index: 0, embedding: [1, 2] }]
+          };
+        }
+      };
+
+      await embed(client, 'test-model', ['Contact support@example.com or 555-123-4567'], 2);
+      expect(receivedInput).toEqual(['Contact [email] or [phone]']);
+    });
+
+    it('masks PII when opts.maskPii is true', async () => {
+      const client = Object.create(nRouter.prototype);
+      let receivedInput: string[] = [];
+      client.embeddings = {
+        create: async (opts: any) => {
+          receivedInput = opts.input;
+          return {
+            data: [{ index: 0, embedding: [1, 2] }]
+          };
+        }
+      };
+
+      await embed(client, 'test-model', ['Email info@test.com'], 2, undefined, { maskPii: true });
+      expect(receivedInput).toEqual(['Email [email]']);
+    });
+
+    it('preserves PII when opts.maskPii is false', async () => {
+      const client = Object.create(nRouter.prototype);
+      let receivedInput: string[] = [];
+      client.embeddings = {
+        create: async (opts: any) => {
+          receivedInput = opts.input;
+          return {
+            data: [{ index: 0, embedding: [1, 2] }]
+          };
+        }
+      };
+
+      await embed(client, 'test-model', ['Contact support@example.com'], 2, undefined, { maskPii: false });
+      expect(receivedInput).toEqual(['Contact support@example.com']);
+    });
   });
 
   describe('streamChat', () => {
+    it('masks message string contents by default (maskPii not false)', async () => {
+      const client = Object.create(nRouter.prototype);
+      let receivedMessages: any[] = [];
+      client.nr = {
+        stream: async (opts: any) => {
+          receivedMessages = opts.messages;
+          async function* chunks() {
+            yield { delta: 'ok' };
+          }
+          return {
+            meta: { cost: null, costStatus: 'unpriced' },
+            chunks: chunks()
+          };
+        }
+      };
+
+      await streamChat(client, {
+        model: 'm',
+        messages: [{ role: 'user', content: 'Reach me at user@test.com or 555-123-4567' } as any],
+        maxTokens: 10
+      });
+
+      expect(receivedMessages).toEqual([
+        { role: 'user', content: 'Reach me at [email] or [phone]' }
+      ]);
+    });
+
+    it('preserves message string contents when maskPii is false', async () => {
+      const client = Object.create(nRouter.prototype);
+      let receivedMessages: any[] = [];
+      client.nr = {
+        stream: async (opts: any) => {
+          receivedMessages = opts.messages;
+          async function* chunks() {
+            yield { delta: 'ok' };
+          }
+          return {
+            meta: { cost: null, costStatus: 'unpriced' },
+            chunks: chunks()
+          };
+        }
+      };
+
+      await streamChat(client, {
+        model: 'm',
+        messages: [{ role: 'user', content: 'Reach me at user@test.com' } as any],
+        maxTokens: 10,
+        maskPii: false
+      });
+
+      expect(receivedMessages).toEqual([
+        { role: 'user', content: 'Reach me at user@test.com' }
+      ]);
+    });
+
     it('streams non-empty chunks and maps cost', async () => {
       const client = Object.create(nRouter.prototype);
       client.nr = {

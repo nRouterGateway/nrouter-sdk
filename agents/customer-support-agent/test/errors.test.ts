@@ -91,5 +91,56 @@ describe('errors', () => {
       const err = new Error('some internals sk-nrouter-123');
       expect(toSafeError(err)).toEqual({ code: 'internal_error', message: 'An internal error occurred.' });
     });
+
+    it('classifies non-nRouterError with status (OpenAI APIError shape)', () => {
+      // Guardrail blocked via status 400 + guardrail in message
+      const guardrailErr = { status: 400, message: 'request blocked by a guardrail: PII detected in PreCall content' };
+      expect(toSafeError(guardrailErr)).toEqual({
+        code: 'guardrail_blocked',
+        message: 'request blocked by a guardrail: PII detected in PreCall content'
+      });
+
+      // 401 Auth failed
+      const authErr = { status: 401, message: 'invalid api key' };
+      expect(toSafeError(authErr)).toEqual({
+        code: 'auth_failed',
+        message: 'invalid api key'
+      });
+
+      // 402 Credit error
+      const creditErr = { status: 402, message: 'insufficient credits' };
+      expect(toSafeError(creditErr)).toEqual({
+        code: 'insufficient_credit',
+        message: 'insufficient credits'
+      });
+
+      // 402 Budget error
+      const budgetErr = { status: 402, message: 'budget exceeded for tenant' };
+      expect(toSafeError(budgetErr)).toEqual({
+        code: 'insufficient_credit',
+        message: 'budget exceeded for tenant'
+      });
+
+      // 429 Rate limit
+      const rateLimitErr = { status: 429, message: 'rate limit reached' };
+      expect(toSafeError(rateLimitErr)).toEqual({
+        code: 'rate_limited',
+        message: 'rate limit reached'
+      });
+
+      // Other status (e.g. 500, 502) -> upstream_error
+      const upstreamErr = { status: 500, message: 'provider failed' };
+      expect(toSafeError(upstreamErr)).toEqual({
+        code: 'upstream_error',
+        message: 'provider failed'
+      });
+
+      // Redacts secrets in message
+      const secretErr = { status: 400, message: 'request blocked by a guardrail: sk-nrouter-abc123456' };
+      expect(toSafeError(secretErr)).toEqual({
+        code: 'guardrail_blocked',
+        message: 'request blocked by a guardrail: [redacted]'
+      });
+    });
   });
 });

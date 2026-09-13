@@ -73,6 +73,15 @@ export interface BuildIndexOptions {
   /** Texts per embeddings request. */
   batchSize?: number;
   signal?: AbortSignal;
+  /** Mask emails and phone numbers before text leaves the process (default true). */
+  maskPii?: boolean;
+  /**
+   * When the gateway refuses a document's text under a guardrail: false (default)
+   * fails the build naming every refused document; true leaves them out and
+   * reports each through `onSkip`.
+   */
+  skipBlocked?: boolean;
+  onSkip?(doc: { title: string; url: string; reason: string }): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,9 +212,16 @@ export interface SupportAgentConfig {
   tools?: AgentTool[];
   maxToolSteps?: number;
   webSearch?: WebSearchProvider | false;
-  /** Enables SDK conversation memory keyed by ChatRequest.sessionId. */
+  /** Enables SDK conversation memory keyed by TrustedContext.sessionId. */
   memoryStore?: (sessionId: string) => MemoryStore;
   hooks?: SupportAgentHooks;
+  /**
+   * Mask emails and phone numbers in everything sent to the gateway (default
+   * true). A key whose guardrail redacts PII refuses a prompt that carries any,
+   * so an unmasked "my email is …" question would fail; retrieval and answers
+   * never need the literal value.
+   */
+  maskPii?: boolean;
 }
 
 /** Config after defaults are applied and validation passed. */
@@ -224,6 +240,7 @@ export interface ResolvedConfig {
   webSearch: WebSearchProvider | null;
   memoryStore: ((sessionId: string) => MemoryStore) | null;
   hooks: SupportAgentHooks;
+  maskPii: boolean;
 }
 
 export interface ChatTurn {

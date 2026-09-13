@@ -121,4 +121,20 @@ describe('resolveConfig', () => {
     expect(() => resolveConfig({ ...validBaseConfig, knowledge: { embeddingModel: 'a', dimensions: -1, search: async () => [] } })).toThrowError(/knowledge/);
     expect(() => resolveConfig({ ...validBaseConfig, knowledge: { embeddingModel: 'a', dimensions: 1.5, search: async () => [] } })).toThrowError(/knowledge/);
   });
+
+  it('resolves maskPii default true and respects false', () => {
+    const resDefault = resolveConfig(validBaseConfig);
+    expect(resDefault.maskPii).toBe(true);
+
+    const resFalse = resolveConfig({ ...validBaseConfig, maskPii: false });
+    expect(resFalse.maskPii).toBe(false);
+
+    const resTrue = resolveConfig({ ...validBaseConfig, maskPii: true });
+    expect(resTrue.maskPii).toBe(true);
+  });
+
+  it('validates maskPii is a boolean when provided', () => {
+    expect(() => resolveConfig({ ...validBaseConfig, maskPii: 'yes' as any })).toThrowError(SupportAgentError);
+  });
 });
+

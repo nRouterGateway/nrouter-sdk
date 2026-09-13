@@ -78,6 +78,11 @@ export function resolveConfig(config: SupportAgentConfig): ResolvedConfig {
     throw new SupportAgentError('invalid_config', 'maxToolSteps must be a positive integer');
   }
 
+  if (config.maskPii !== undefined && typeof config.maskPii !== 'boolean') {
+    throw new SupportAgentError('invalid_config', 'maskPii must be a boolean');
+  }
+  const maskPii = config.maskPii !== false;
+
   return {
     client,
     model: config.model,
@@ -93,5 +98,6 @@ export function resolveConfig(config: SupportAgentConfig): ResolvedConfig {
     webSearch: config.webSearch === false || config.webSearch === undefined ? null : config.webSearch,
     memoryStore: config.memoryStore ?? null,
     hooks: config.hooks ?? {},
+    maskPii,
   };
 }

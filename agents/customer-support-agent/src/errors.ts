@@ -7,6 +7,7 @@ import {
   nRouterRateLimitError,
   nRouterGuardrailBlockedError,
   nRouterError,
+  classifyErrorClass,
   isAbortError
 } from '@nrouter_ai/sdk';
 
@@ -63,6 +64,31 @@ export function toSafeError(err: unknown, secrets?: string[]): SafeError {
 
   if (isAbortError(err)) {
     return { code: 'aborted', message: err instanceof Error ? redact(err.message, secrets) : 'Aborted' };
+  }
+
+  if (typeof err === 'object' && err !== null && 'status' in err && typeof (err as Record<string, unknown>).status === 'number') {
+    const status = (err as Record<string, unknown>).status as number;
+    const message = typeof (err as Record<string, unknown>).message === 'string' ? (err as Record<string, unknown>).message as string : '';
+    const code = typeof (err as Record<string, unknown>).code === 'string' ? (err as Record<string, unknown>).code as string : null;
+    const Cls = classifyErrorClass(code, message, status);
+    if (Cls === nRouterGuardrailBlockedError || (Cls as unknown as { kind: string }).kind === 'guardrail_blocked') {
+      return { code: 'guardrail_blocked', message: redact(message, secrets) };
+    }
+    if (Cls === nRouterAuthenticationError || (Cls as unknown as { kind: string }).kind === 'authentication') {
+      return { code: 'auth_failed', message: redact(message, secrets) };
+    }
+    if (
+      Cls === nRouterCreditError ||
+      Cls === nRouterBudgetExceededError ||
+      (Cls as unknown as { kind: string }).kind === 'credit' ||
+      (Cls as unknown as { kind: string }).kind === 'budget_exceeded'
+    ) {
+      return { code: 'insufficient_credit', message: redact(message, secrets) };
+    }
+    if (Cls === nRouterRateLimitError || (Cls as unknown as { kind: string }).kind === 'rate_limit') {
+      return { code: 'rate_limited', message: redact(message, secrets) };
+    }
+    return { code: 'upstream_error', message: redact(message, secrets) };
   }
 
   return { code: 'internal_error', message: 'An internal error occurred.' };

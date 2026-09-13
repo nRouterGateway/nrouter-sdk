@@ -12,7 +12,7 @@ export interface CliDeps {
 
 export async function runCliWith(argv: string[], env: Record<string, string | undefined>, deps: CliDeps): Promise<number> {
   if (argv.length === 0 || argv[0] === 'help') {
-    console.log(`Usage: support-agent build-kb --docs <dir> [--seed-url <u>]... --out <file> [--model m] [--dimensions n] [--base-url u] [--base-docs-url u]`);
+    console.log(`Usage: support-agent build-kb --docs <dir> [--seed-url <u>]... --out <file> [--model m] [--dimensions n] [--base-url u] [--base-docs-url u] [--skip-blocked] [--no-mask-pii]`);
     return argv[0] === 'help' ? 0 : 2;
   }
 
@@ -28,6 +28,8 @@ export async function runCliWith(argv: string[], env: Record<string, string | un
   let dimensions: number | undefined;
   let baseUrl: string | undefined;
   let baseDocsUrl: string | undefined;
+  let skipBlocked = false;
+  let maskPii = true;
 
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i];
@@ -38,6 +40,8 @@ export async function runCliWith(argv: string[], env: Record<string, string | un
     else if (arg === '--dimensions') dimensions = parseInt(argv[++i] ?? '', 10);
     else if (arg === '--base-url') baseUrl = argv[++i];
     else if (arg === '--base-docs-url') baseDocsUrl = argv[++i];
+    else if (arg === '--skip-blocked') skipBlocked = true;
+    else if (arg === '--no-mask-pii') maskPii = false;
     else {
       console.error(`Unknown option: ${arg}`);
       return 2;
@@ -72,7 +76,12 @@ export async function runCliWith(argv: string[], env: Record<string, string | un
       client,
       docs,
       embeddingModel: model,
-      dimensions
+      dimensions,
+      maskPii,
+      skipBlocked,
+      onSkip(doc) {
+        console.log(redact(`skipped: ${doc.url} (${doc.reason})`));
+      }
     });
 
     await saveKnowledgeIndex(outPath, index);
