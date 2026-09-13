@@ -176,9 +176,9 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Default error for unknown routes / methods
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'internal_error' }));
+    // Unknown routes / methods
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'not_found' }));
   } catch (err) {
     if (!res.headersSent) {
       res.writeHead(500, { 'Content-Type': 'application/json' });

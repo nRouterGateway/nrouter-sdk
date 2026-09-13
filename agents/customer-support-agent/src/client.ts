@@ -3,7 +3,7 @@ import { nRouter, isPriced } from '@nrouter_ai/sdk';
 import type { ChatMessage, ResponseMeta } from '@nrouter_ai/sdk';
 import type { CostEvent } from './types.js';
 import { SupportAgentError } from './errors.js';
-import { maskPii } from './pii.js';
+import { maskPii, maskMessageContent } from './pii.js';
 
 export function createClient(apiKey: string, baseURL?: string): nRouter {
   if (!apiKey || apiKey.trim() === '') {
@@ -53,7 +53,7 @@ export async function streamChat(
   opts: { model: string; messages: ChatMessage[]; maxTokens: number; signal?: AbortSignal; maskPii?: boolean },
 ): Promise<StreamedAnswer> {
   const messages = opts.maskPii !== false
-    ? opts.messages.map(m => (typeof m.content === 'string' ? { ...m, content: maskPii(m.content) } : m))
+    ? opts.messages.map(m => ({ ...m, content: maskMessageContent(m.content) as any }))
     : opts.messages;
 
   const result = await client.nr.stream({

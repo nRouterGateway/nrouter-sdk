@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SupportAgentError, redact, toSafeError } from '../src/errors.js';
+import { SupportAgentError, redact, toSafeError, mapErrorClass } from '../src/errors.js';
 import {
   nRouterAuthenticationError,
   nRouterCreditError,
@@ -141,6 +141,48 @@ describe('errors', () => {
         code: 'guardrail_blocked',
         message: 'request blocked by a guardrail: [redacted]'
       });
+    });
+
+    it('survives duplicated SDK instance where error class has right name but different identity', () => {
+      const StubGuardrailBlockedError = class nRouterGuardrailBlockedError extends Error {};
+      const StubAuthError = class nRouterAuthenticationError extends Error {};
+      const StubCreditError = class nRouterCreditError extends Error {};
+      const StubBudgetError = class nRouterBudgetExceededError extends Error {};
+      const StubRateLimitError = class nRouterRateLimitError extends Error {};
+      const StubUpstreamError = class nRouterError extends Error {};
+
+      expect(toSafeError(new StubGuardrailBlockedError('blocked content'))).toEqual({
+        code: 'guardrail_blocked',
+        message: 'blocked content'
+      });
+      expect(toSafeError(new StubAuthError('invalid key'))).toEqual({
+        code: 'auth_failed',
+        message: 'invalid key'
+      });
+      expect(toSafeError(new StubCreditError('no credits'))).toEqual({
+        code: 'insufficient_credit',
+        message: 'no credits'
+      });
+      expect(toSafeError(new StubBudgetError('over budget'))).toEqual({
+        code: 'insufficient_credit',
+        message: 'over budget'
+      });
+      expect(toSafeError(new StubRateLimitError('rate limit'))).toEqual({
+        code: 'rate_limited',
+        message: 'rate limit'
+      });
+      expect(toSafeError(new StubUpstreamError('upstream issue'))).toEqual({
+        code: 'upstream_error',
+        message: 'upstream issue'
+      });
+
+      // Direct mapErrorClass with right name but different identity
+      expect(mapErrorClass(StubGuardrailBlockedError)).toBe('guardrail_blocked');
+      expect(mapErrorClass(StubAuthError)).toBe('auth_failed');
+      expect(mapErrorClass(StubCreditError)).toBe('insufficient_credit');
+      expect(mapErrorClass(StubBudgetError)).toBe('insufficient_credit');
+      expect(mapErrorClass(StubRateLimitError)).toBe('rate_limited');
+      expect(mapErrorClass(StubUpstreamError)).toBe('upstream_error');
     });
   });
 });

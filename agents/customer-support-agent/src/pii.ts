@@ -3,7 +3,7 @@
 const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
 // Matches candidate sequences of digits and phone punctuation bounded by non-word/currency chars or string edges.
-const PHONE_CANDIDATE_RE = /(^|[^\w$€£¥])(\+?(?:(?:\(\d+[\s.-]*\))|\d+)[\d\s().-]*\d)(?=[^\w]|$)/g;
+const PHONE_CANDIDATE_RE = /(^|[^\w\p{Sc}])(\+?(?:(?:\(\d+[\s.-]*\))|\d+)[\d\s().-]*\d)(?=[^\w]|$)/gu;
 
 /**
  * Mask PII (email addresses and phone numbers) in text before sending to the gateway.
@@ -43,9 +43,14 @@ export function maskPii(text: string): string {
       return match;
     }
 
-    // Do NOT touch prices with currency suffixes (e.g. 1000000 USD)
+    // Do NOT touch prices with currency symbol prefix (e.g. $1000000, €1000000, ₹1000000)
+    if (/(?:[\p{Sc}]|R\$)\s*$/u.test(beforeMatch)) {
+      return match;
+    }
+
+    // Do NOT touch prices with currency suffixes (e.g. 1000000 USD, 1000000 INR, KRW, BRL, SGD)
     const afterMatch = fullStr.slice(offset + match.length);
-    if (/^\s*(?:USD|EUR|GBP|JPY|AUD|CAD|CHF|dollars|cents)\b/i.test(afterMatch)) {
+    if (/^\s*(?:[A-Z]{3}|dollars|cents)\b/.test(afterMatch)) {
       return match;
     }
 
@@ -53,4 +58,35 @@ export function maskPii(text: string): string {
   });
 
   return masked;
+}
+
+/**
+ * Mask PII in message content.
+ * string -> maskPii
+ * array -> map parts, masking `text` on parts whose type is 'text' (leave other part types and fields untouched)
+ * anything else -> unchanged
+ */
+export function maskMessageContent(content: unknown): unknown {
+  if (typeof content === 'string') {
+    return maskPii(content);
+  }
+  if (Array.isArray(content)) {
+    return content.map(part => {
+      if (
+        part &&
+        typeof part === 'object' &&
+        'type' in part &&
+        (part as { type: unknown }).type === 'text' &&
+        'text' in part &&
+        typeof (part as { text: unknown }).text === 'string'
+      ) {
+        return {
+          ...part,
+          text: maskPii((part as { text: string }).text)
+        };
+      }
+      return part;
+    });
+  }
+  return content;
 }

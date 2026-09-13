@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { maskPii } from '../src/pii.js';
+import { maskPii, maskMessageContent } from '../src/pii.js';
 
 describe('maskPii', () => {
   const table: Array<{ name: string; input: string; expected: string }> = [
@@ -134,6 +134,26 @@ describe('maskPii', () => {
       input: 'Balance: 1000000 USD',
       expected: 'Balance: 1000000 USD'
     },
+    {
+      name: 'negative: price with ISO-4217 code INR',
+      input: 'Balance: 1000000 INR',
+      expected: 'Balance: 1000000 INR'
+    },
+    {
+      name: 'negative: price with ISO-4217 code KRW',
+      input: 'Amount: 5000000 KRW',
+      expected: 'Amount: 5000000 KRW'
+    },
+    {
+      name: 'negative: price with currency symbol prefix Rupee',
+      input: 'Balance: ₹1000000',
+      expected: 'Balance: ₹1000000'
+    },
+    {
+      name: 'international phone +91',
+      input: '+91 98765 43210',
+      expected: '[phone]'
+    },
 
     // Negatives: Short numbers
     {
@@ -165,4 +185,30 @@ describe('maskPii', () => {
       expect(maskPii(testCase.input)).toBe(testCase.expected);
     });
   }
+});
+
+describe('maskMessageContent', () => {
+  it('masks string content', () => {
+    expect(maskMessageContent('Email support@test.com')).toBe('Email [email]');
+  });
+
+  it('masks array of parts with type text, preserving non-text parts and other fields', () => {
+    const input = [
+      { type: 'text', text: 'Contact admin@example.com or 555-123-4567', cache_control: { type: 'ephemeral' } },
+      { type: 'image_url', image_url: { url: 'https://example.com/pic.jpg' } }
+    ];
+    const result = maskMessageContent(input);
+    expect(result).toEqual([
+      { type: 'text', text: 'Contact [email] or [phone]', cache_control: { type: 'ephemeral' } },
+      { type: 'image_url', image_url: { url: 'https://example.com/pic.jpg' } }
+    ]);
+  });
+
+  it('leaves non-string and non-array content unchanged', () => {
+    expect(maskMessageContent(null)).toBe(null);
+    expect(maskMessageContent(undefined)).toBe(undefined);
+    expect(maskMessageContent(12345)).toBe(12345);
+    const obj = { foo: 'bar' };
+    expect(maskMessageContent(obj)).toBe(obj);
+  });
 });

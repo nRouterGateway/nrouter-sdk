@@ -15,7 +15,7 @@ import { callHook } from './hooks.js';
 import { toSafeError } from './errors.js';
 import { toSSE } from './sse.js';
 import { validateFeedback } from './feedback.js';
-import { maskPii } from './pii.js';
+import { maskPii, maskMessageContent } from './pii.js';
 
 export function createSupportAgent(config: SupportAgentConfig): SupportAgent {
   const cfg = resolveConfig(config);
@@ -64,7 +64,7 @@ export function createSupportAgent(config: SupportAgentConfig): SupportAgent {
         const latestUserMsg = validatedReq.messages[validatedReq.messages.length - 1];
         await mem.add(latestUserMsg as unknown as import('@nrouter_ai/sdk').ChatMessage);
         const past = await mem.messages();
-        history = past.map(m => ({ role: m.role as 'user'|'assistant', content: typeof m.content === 'string' ? m.content : '' }));
+        history = past.map(m => ({ role: m.role as 'user'|'assistant', content: m.content as any }));
       }
       
       let fullResponse = '';
@@ -75,7 +75,7 @@ export function createSupportAgent(config: SupportAgentConfig): SupportAgent {
          if (cfg.maskPii) {
            msgs = msgs.map(m => ({
              ...m,
-             content: typeof m.content === 'string' ? maskPii(m.content) : m.content
+             content: maskMessageContent(m.content) as any
            }));
          }
          const phaseEvents: AgentEvent[] = [];

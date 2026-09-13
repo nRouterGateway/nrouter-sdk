@@ -303,6 +303,46 @@ describe('SupportAgent', () => {
     // streamChat received maskPii: true
     expect(capturedStreamOpts.maskPii).toBe(true);
   });
+
+  it('PII MASKING: masks multi-part array content in tool phase', async () => {
+    const { runToolPhase } = await import('../src/tools.js');
+    let capturedToolMessages: any[] = [];
+    vi.mocked(runToolPhase).mockImplementation(async (cfg, msgs, cb) => {
+      capturedToolMessages = msgs;
+      return { messages: msgs, ranTools: false };
+    });
+
+    const { createArrayStore } = await import('@nrouter_ai/sdk');
+    const store = createArrayStore([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'my email is user@domain.com' },
+          { type: 'image_url', image_url: { url: 'https://example.com/img.png' } }
+        ] as any
+      }
+    ]);
+
+    const agent = createSupportAgent({
+      client: fakeClient,
+      model: 'm',
+      knowledge: fakeIndex,
+      maskPii: true,
+      memoryStore: () => store
+    });
+
+    for await (const _ of agent.chat({
+      messages: [{ role: 'user', content: 'hello' }]
+    }, { sessionId: 'sess-1' })) {
+      // iterate
+    }
+
+    const userMsg = capturedToolMessages.find(m => Array.isArray(m.content));
+    expect(userMsg?.content).toEqual([
+      { type: 'text', text: 'my email is [email]' },
+      { type: 'image_url', image_url: { url: 'https://example.com/img.png' } }
+    ]);
+  });
 });
 
 

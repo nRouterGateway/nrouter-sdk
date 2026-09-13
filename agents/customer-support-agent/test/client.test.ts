@@ -153,6 +153,45 @@ describe('client', () => {
       ]);
     });
 
+    it('masks multi-part array content with email by default', async () => {
+      const client = Object.create(nRouter.prototype);
+      let receivedMessages: any[] = [];
+      client.nr = {
+        stream: async (opts: any) => {
+          receivedMessages = opts.messages;
+          async function* chunks() {
+            yield { delta: 'ok' };
+          }
+          return {
+            meta: { cost: null, costStatus: 'unpriced' },
+            chunks: chunks()
+          };
+        }
+      };
+
+      await streamChat(client, {
+        model: 'm',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: 'my email is secret@example.com' },
+            { type: 'image_url', image_url: { url: 'https://example.com/pic.png' } }
+          ]
+        } as any],
+        maxTokens: 10
+      });
+
+      expect(receivedMessages).toEqual([
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'my email is [email]' },
+            { type: 'image_url', image_url: { url: 'https://example.com/pic.png' } }
+          ]
+        }
+      ]);
+    });
+
     it('preserves message string contents when maskPii is false', async () => {
       const client = Object.create(nRouter.prototype);
       let receivedMessages: any[] = [];
