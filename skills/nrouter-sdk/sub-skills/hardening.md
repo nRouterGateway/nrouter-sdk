@@ -1,29 +1,20 @@
----
-name: nrouter-sdk-hardening
-description: Use when changing error classification, streaming and abort/cancellation, secret redaction, retry policy, or timeouts in any nRouter SDK — the five cross-language invariants, the two blind spots the conformance gate structurally cannot see, and the drift classes that hide in them.
-metadata:
-  version: 1.0.0
----
+# Sub-skill: Hardening the nRouter SDKs
 
-# Hardening the nRouter SDKs
+Skill `nrouter-sdk`, sub-skill `hardening` (merged from the former standalone `nrouter-sdk-hardening` skill,
+v1.0.0). Open it when changing error classification, streaming and abort/cancellation, secret
+redaction, retry policy, or timeouts in any nRouter SDK — the five cross-language invariants, the
+blind spots the conformance gate structurally cannot see, and the drift classes that hide in them.
 
-Ten SDKs, one gateway contract. This skill covers the five behaviours where a per-language mistake
-costs a customer money, leaks a credential, or hangs a caller — and where the machine gate
+Ten SDKs, one gateway contract. This sub-skill covers the five behaviours where a per-language
+mistake costs a customer money, leaks a credential, or hangs a caller — and where the machine gate
 **cannot** catch you.
 
 ## Read this first: what `check_conformance.py` structurally cannot see
 
-The gate greps each SDK's SOURCE TEXT for spec constants. That design is right — it needs no
-toolchain, so no SDK is ever silently skipped — but it has two consequences its own README states
-plainly, and **every drift class below lives inside them**:
-
-1. **It cannot bind an error code to its status.** It proves the full set of codes and the full set
-   of statuses each appear *somewhere* in the dispatch. A code wired to the wrong status passes.
-2. **It cannot prove a header is used correctly.** It proves the header name is *referenced*. A
-   header parsed into the wrong field passes.
-
-Add a third, by construction: **the spec documents nine errors, so any status outside those nine is
-invisible to the gate.** That is where the worst divergence lives — see below.
+The three blind spots — it cannot bind an error code to its status, it cannot prove a header is used
+correctly, and any status outside the spec'd errors is invisible to it — are stated once in the
+router (`../SKILL.md`, "Shared facts → What the conformance gate cannot see"). **Every drift class
+below lives inside them**, and the third is where the worst divergence lives (§1).
 
 **So: a green conformance run is necessary and never sufficient.** Behaviour needs a behavioural
 test in the SDK's own suite.
@@ -40,7 +31,7 @@ and the two 402s).
 An SDK that classifies on `code` alone silently degrades every ordinary gateway error to a generic
 class. That mistake shipped in five SDKs at once; it is why the order above is written down.
 
-⚠️ **The nine spec'd codes are well aligned. The UNDOCUMENTED statuses are not.** 502 and 504 are
+⚠️ **The spec'd codes are well aligned** (count them in the spec; it was nine until `plan_allowance_exhausted` and `plan_required` landed). **The UNDOCUMENTED statuses are not.** 502 and 504 are
 ordinary gateway outcomes — the gateway maps upstream and sandbox failures to 502 — and the spec
 documents neither, so the gate cannot see them. Whenever you touch classification, check your SDK's
 dispatch for an explicit 502/504 arm and decide deliberately between these three, because all three
@@ -108,13 +99,10 @@ which printer is chosen, pick the one that cannot fall back to reflection.
 
 ## 4. Retries — the client retries NOTHING on a billed path
 
-**Every SDK pins automatic client-side retries to zero on billed calls.** The gateway reserves
-credit once per request and owns retry and failover itself; a client-side retry is a second call and
-a second bill, with nothing to deduplicate against.
-
-⚠️ **The two SDKs wrapping a vendor client had to OVERRIDE a non-zero vendor default.** If you swap,
-upgrade, or reconfigure a vendor client, re-assert the pin and prove it with a test — this is the
-one place the default silently comes back.
+The invariant itself — every SDK pins automatic client-side retries to zero on billed calls, and the
+two vendor-client-wrapping SDKs override a non-zero vendor default that must be re-asserted and
+test-proven on any vendor swap, upgrade or reconfiguration — is stated once in the router
+(`../SKILL.md`, "Shared facts → The client retries nothing on a billed path").
 
 Retry helpers may be exposed as **advisory** for a caller's own loop. Advisory means the SDK never
 runs the loop itself.

@@ -1,13 +1,11 @@
----
-name: nrouter-sdk-parity
-description: Use when ANY SDK wire, endpoint, demo, example, validation playbook, error code, header, or README is modified or added. Enforces cross-SDK synchronization across all ten nRouter SDKs.
-metadata:
-  version: 1.1.0
----
+# Sub-skill: Cross-SDK Parity & Open-Source Standards
 
-# nRouter Cross-SDK Parity & Open-Source Standards
+Skill `nrouter-sdk`, sub-skill `parity` (merged from the former standalone `nrouter-sdk-parity` skill, v1.1.0).
+Open it when ANY SDK wire, endpoint, demo, example, validation playbook, error code, header, or
+README is modified or added. The SDK list, the spec-is-canonical rule and the conformance gate are
+stated once in the router (`../SKILL.md`, "Shared facts").
 
-The `nrouter-sdk-parity` skill enforces that all ten nRouter SDKs (`js`, `python`, `java`, `go`, `rust`, `kotlin`, `android`, `swift`, `dart`, `r`) adhere to one synchronized contract, unified versioning, and open-source documentation excellence.
+This sub-skill enforces that all ten nRouter SDKs adhere to one synchronized contract, unified versioning, and open-source documentation excellence.
 
 **When one technology changes, the entire ecosystem stays aligned.**
 
@@ -85,7 +83,7 @@ Whenever a feature, wire, helper, or test pattern is added or updated in ONE tec
 
 ## ⛔ Refuses
 
-The `nrouter-sdk-parity` skill strictly refuses:
+The `parity` sub-skill strictly refuses:
 - Adding a feature, route, or header to one SDK without updating the remaining nine SDKs and `spec/nrouter-sdk-spec.json`.
 - Creating or editing an SDK demo without maintaining `sdks/<tech>/demo/` and its `README.md`.
 - Modifying a validation step in one playbook without updating `docs/validation-playbook-template.md` and all sibling playbooks.

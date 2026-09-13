@@ -136,7 +136,7 @@ Package.swift        # the SHIPPING Swift manifest — SwiftPM reads the REPO RO
 spec/                # nrouter-sdk-spec.json — the SoT under Rule #14
 conformance/         # the cross-SDK gate; run it before every release
 docs/                # validation-playbook-template.md & cross-SDK documentation
-skills/              # 3 SDK skills: nrouter-sdk-parity, nrouter-sdk-testing, nrouter-sdk-hardening
+skills/              # 1 SDK skill: nrouter-sdk (router) + sub-skills parity, testing, hardening
 sdks/{python,js,java,kotlin,android,swift,rust,dart,r,go}/
   ├── demo/          # runnable SDK demonstrations and quickstarts
   └── docs/          # validation-playbook.md for each technology

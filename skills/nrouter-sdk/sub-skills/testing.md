@@ -1,17 +1,13 @@
----
-name: nrouter-sdk-testing
-description: Use when adding, changing, running, or auditing tests in any of the ten nRouter SDKs — the per-language runner commands, the offline-by-default contract, the billed live-probe gate, the in-process fake transport per ecosystem, and what a new wire must be covered by before it ships.
-metadata:
-  version: 1.0.0
----
+# Sub-skill: Testing the nRouter SDKs
 
-# Testing the nRouter SDKs
+Skill `nrouter-sdk`, sub-skill `testing` (merged from the former standalone `nrouter-sdk-testing` skill,
+v1.0.0). Open it when adding, changing, running, or auditing tests in any of the ten nRouter SDKs —
+the per-language runner commands, the offline-by-default contract, the billed live-probe gate, the
+in-process fake transport per ecosystem, and what a new wire must be covered by before it ships.
 
-Ten SDKs — `js python java go rust kotlin android swift dart r` — on one gateway contract. This
-skill is how you run them, what you must cover, and the one invariant that makes the suite usable
-in automation.
-
-Derive the SDK list rather than trusting this sentence: `ls -d sdks/*/ | wc -l`.
+Ten SDKs on one gateway contract (the list, and how to derive it, is in the router `../SKILL.md`).
+This sub-skill is how you run them, what you must cover, and the one invariant that makes the suite
+usable in automation.
 
 ## THE INVARIANT: the default suite is OFFLINE, and stays that way
 
@@ -69,29 +65,10 @@ CI" — never run the test entrypoints directly and call it green.
 
 ## The conformance gate — the only cross-SDK check, and it needs nothing
 
-```bash
-python3 conformance/check_conformance.py --self-test   # prove the gate bites, FIRST
-python3 conformance/check_conformance.py               # then run it
-```
-
-**Requires Python 3 and nothing else** — no toolchains, no network, no key. That is deliberate: it
-reads each SDK's SOURCE TEXT rather than importing or compiling it, because a missing toolchain
-would otherwise be silently "skipped", and a skip that reads as a pass is the failure mode the gate
-exists to prevent.
-
-It enforces the base URL, the `NROUTER_API_KEY` env name, the `sk-nrouter-` key prefix, every
-`x-nr-*` header and all nine gateway error codes; the route-ownership matrix (every route × every
-SDK, each either exposing a native helper or declaring an explicit delegation seam); and the
-coordinated release version across all ten distribution manifests plus the JS and Rust lockfiles.
-It also drives four sub-gates — doc wires, source defaults, doc header counts, and client timeouts.
-
-**Run `--self-test` before trusting a green run.** A conformance gate that passes while checking
-nothing is worse than no gate.
-
-**What it deliberately does NOT catch**, so do not let it stand in for a real test: it proves a spec
-constant is *referenced*, never that it is used *correctly* — a header parsed into the wrong field
-passes. It cannot bind an error code to its HTTP status, only that both sets exist somewhere. Those
-are your SDK suite's job.
+What the gate enforces, how to run it (`--self-test` first), why it needs only Python 3, and what
+it deliberately does NOT catch are stated once in the router (`../SKILL.md`, "Shared facts → The
+conformance gate"). The short version for a test author: it proves a spec constant is *referenced*,
+never that it is used *correctly*, so it never stands in for a test in the SDK's own suite.
 
 ## Fakes: ecosystem-native and in-process, never a shared library
 
@@ -123,9 +100,9 @@ SDKs that map it. Conformance sees only that the code exists somewhere.
 proves the string appears.
 
 **A timeout, retry or cancellation change** — a behavioural test with a fake that actually delays,
-aborts or fails. The two vendor-client-based SDKs pin their client-side retry to zero because the
-gateway already owns retry and failover and reserves credit once per request; **a client-side retry
-double-bills a customer**, so any change there needs a test proving the pin holds.
+aborts or fails. **A client-side retry double-bills a customer** (router, "Shared facts → The client
+retries nothing on a billed path"), so any change there — above all in the two vendor-client-based
+SDKs — needs a test proving the zero-retry pin holds.
 
 **Never** test generated code, a vendor client's internals, or formatting.
 
