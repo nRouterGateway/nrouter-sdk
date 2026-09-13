@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+kb.json
+.env
+.env.*
+!.env.example
+coverage/
