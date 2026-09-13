@@ -39,6 +39,11 @@ test('1. in-KB question: How do I create an API key?', async ({ page }) => {
   await expect(answerEl).not.toBeEmpty();
   const answerText = await answerEl.textContent();
   expect(answerText?.trim().length).toBeGreaterThan(0);
+  const answerLower = (answerText ?? '').toLowerCase();
+  expect(answerLower).toContain('settings');
+  expect(answerLower).toContain('api key');
+  await expect(answerEl).toContainText(/settings/i);
+  await expect(answerEl).toContainText(/api key/i);
 
   // Done visible
   await expect(doneEl).toBeVisible();
@@ -77,6 +82,12 @@ test('2. off-topic: What is the capital of Mongolia?', async ({ page }) => {
   await expect(doneEl).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('[data-testid="error"]')).toBeEmpty();
 
+  // Answer does NOT contain "ulaanbaatar"
+  const answerEl = page.locator('[data-testid="answer"]');
+  const answerText = (await answerEl.textContent()) ?? '';
+  expect(answerText.toLowerCase()).not.toContain('ulaanbaatar');
+  await expect(answerEl).not.toContainText(/ulaanbaatar/i);
+
   // Confidence low
   const confidenceEl = page.locator('[data-testid="confidence"]');
   await expect(confidenceEl).toBeVisible();
@@ -99,6 +110,12 @@ test('3. gated doc: partner referral rate before and after login', async ({ page
   await expect(doneEl).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('[data-testid="error"]')).toBeEmpty();
 
+  // Answer text must NOT contain "7731" before login
+  const answerEl = page.locator('[data-testid="answer"]');
+  const answerBefore = (await answerEl.textContent()) ?? '';
+  expect(answerBefore).not.toContain('7731');
+  await expect(answerEl).not.toContainText('7731');
+
   // NO citation to '/partners'
   const partnerCitationsBefore = page.locator('a[data-testid="citation"][href*="/partners"]');
   await expect(partnerCitationsBefore).toHaveCount(0);
@@ -112,6 +129,11 @@ test('3. gated doc: partner referral rate before and after login', async ({ page
 
   await expect(doneEl).toBeVisible({ timeout: 60_000 });
   await expect(page.locator('[data-testid="error"]')).toBeEmpty();
+
+  // Answer text MUST contain "7731" after login
+  const answerAfter = (await answerEl.textContent()) ?? '';
+  expect(answerAfter).toContain('7731');
+  await expect(answerEl).toContainText('7731');
 
   // A citation to '/partners' appears
   const partnerCitationsAfter = page.locator('a[data-testid="citation"][href*="/partners"]');
@@ -217,3 +239,56 @@ test('6. raw SSE contract via page.request', async ({ page }) => {
   const doneMatches = rawText.match(/\[DONE\]/g) || [];
   expect(doneMatches.length).toBe(1);
 });
+
+test('7. billing answer is grounded: What happens when my organization balance reaches zero?', async ({ page }) => {
+  await page.goto('/');
+
+  await page.locator('textarea[data-testid="question"]').fill('What happens when my organization balance reaches zero?');
+  await page.locator('button[data-testid="send"]').click();
+
+  const doneEl = page.locator('[data-testid="done"]');
+  await expect(doneEl).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('[data-testid="error"]')).toBeEmpty();
+
+  // Answer contains "402"
+  const answerEl = page.locator('[data-testid="answer"]');
+  await expect(answerEl).toBeVisible();
+  const answerText = (await answerEl.textContent()) ?? '';
+  expect(answerText).toContain('402');
+  await expect(answerEl).toContainText('402');
+
+  // Citation to '/billing' or '/errors'
+  const citationEl = page.locator('a[data-testid="citation"][href*="/billing"], a[data-testid="citation"][href*="/errors"]');
+  await expect(citationEl.first()).toBeVisible();
+  const citations = await page.locator('a[data-testid="citation"]').all();
+  expect(citations.length).toBeGreaterThan(0);
+  const hrefs = await Promise.all(citations.map((c) => c.getAttribute('href')));
+  expect(hrefs.some((h) => h && (h.includes('/billing') || h.includes('/errors')))).toBe(true);
+});
+
+test('8. PII in the question still works: My email is jane.doe@example.com. How do I add credits?', async ({ page }) => {
+  await page.goto('/');
+
+  await page.locator('textarea[data-testid="question"]').fill('My email is jane.doe@example.com. How do I add credits?');
+  await page.locator('button[data-testid="send"]').click();
+
+  const doneEl = page.locator('[data-testid="done"]');
+  await expect(doneEl).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('[data-testid="error"]')).toBeEmpty();
+
+  // Done visible
+  await expect(doneEl).toBeVisible();
+
+  // Answer mentions "billing" or "add credits"
+  const answerEl = page.locator('[data-testid="answer"]');
+  await expect(answerEl).toBeVisible();
+  const answerText = (await answerEl.textContent()) ?? '';
+  const answerLower = answerText.toLowerCase();
+  const mentionsBillingOrCredits = answerLower.includes('billing') || answerLower.includes('add credits');
+  expect(mentionsBillingOrCredits).toBe(true);
+
+  // Answer does NOT contain "jane.doe@example.com"
+  expect(answerLower).not.toContain('jane.doe@example.com');
+  await expect(answerEl).not.toContainText(/jane\.doe@example\.com/i);
+});
+

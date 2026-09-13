@@ -31,9 +31,13 @@ export default defineConfig({
     timeout: 60_000,
     env: {
       PATH: process.env.PATH || '',
-      NROUTER_API_KEY: process.env.NROUTER_API_KEY || '',
-      ...(process.env.NROUTER_BASE_URL ? { NROUTER_BASE_URL: process.env.NROUTER_BASE_URL } : {}),
-      ...(process.env.MODEL ? { MODEL: process.env.MODEL } : {}),
+      NROUTER_API_KEY: process.env.NROUTER_API_KEY?.trim() || '',
+      ...(process.env.NROUTER_BASE_URL && process.env.NROUTER_BASE_URL.trim()
+        ? { NROUTER_BASE_URL: process.env.NROUTER_BASE_URL.trim() }
+        : {}),
+      ...(process.env.MODEL && process.env.MODEL.trim()
+        ? { MODEL: process.env.MODEL.trim() }
+        : {}),
     },
   },
 });
