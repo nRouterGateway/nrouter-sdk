@@ -1,25 +1,25 @@
 {
-  "timestamp": "2026-09-15T00:36:41Z",
+  "timestamp": "2026-09-15T00:39:01Z",
   "version": "3.1.2",
   "summary": {
-    "total": 10,
-    "passed": 10,
+    "total": 6,
+    "passed": 6,
     "failed": 0,
     "skipped": 0,
-    "avg_latency_ms": 169,
-    "total_cost_usd": 0.0011,
-    "providers_count": 3,
+    "avg_latency_ms": 1826,
+    "total_cost_usd": 1.8e-05,
+    "providers_count": 2,
     "providers": [
-      "anthropic",
       "openai",
       "qwen"
     ]
   },
   "preflight": {
     "catalog_status": "ok",
-    "models_count": 84,
-    "latency_ms": 42,
-    "conformance_passed": true
+    "models_count": 153,
+    "latency_ms": 324,
+    "conformance_passed": true,
+    "timestamp": "2026-09-15T00:38:32Z"
   },
   "triage": {
     "category": "ALL_OPERATIONAL",
@@ -33,29 +33,31 @@
       "sdk": "android",
       "version": "3.1.2",
       "status": "passed",
-      "provider": "openai",
-      "model": "openai/gpt-4o-mini",
+      "provider": "qwen",
+      "model": "qwen-turbo",
       "endpoint": "/v1/chat/completions",
-      "latency_ms": 115,
-      "cost_usd": 0.00011,
+      "latency_ms": 1664,
+      "cost_usd": 1.7e-06,
       "cost_status": "exact",
-      "request_id": "req-fixture-android-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
+      "request_id": "b2497c41-be58-4287-b7e9-964a21cc93f9",
+      "timestamp": "2026-09-15T00:38:42Z",
+      "error": null,
+      "raw_output": "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null}],\"object\":\"chat.completion\",\"usage\":{\"prompt_tokens\":30,\"completion_tokens\":1,\"total_tokens\":31,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"created\":1789432722,\"system_fingerprint\":null,\"mo"
     },
     {
       "sdk": "dart",
       "version": "3.1.2",
       "status": "passed",
-      "provider": "anthropic",
-      "model": "claude-3-5-haiku-20241022",
-      "endpoint": "/v1/messages",
-      "latency_ms": 127,
-      "cost_usd": 0.00011,
+      "provider": "openai",
+      "model": "openai/gpt-4o-mini",
+      "endpoint": "/v1/chat/completions",
+      "latency_ms": 2210,
+      "cost_usd": 4.2e-06,
       "cost_status": "exact",
-      "request_id": "req-fixture-dart-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
+      "request_id": "42f4d0bf-ce17-4d8b-bc8c-3cf9aa474159",
+      "timestamp": "2026-09-15T00:38:43Z",
+      "error": null,
+      "raw_output": "{\n  \"id\": \"chatcmpl-EOBU3XMAqvgL9p8x0ULB2nd9c4eti\",\n  \"object\": \"chat.completion\",\n  \"created\": 1789432723,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"OK\",\n        \"refusal\": null,\n        \"annotatio"
     },
     {
       "sdk": "go",
@@ -64,12 +66,13 @@
       "provider": "qwen",
       "model": "qwen-turbo",
       "endpoint": "/v1/chat/completions",
-      "latency_ms": 139,
-      "cost_usd": 0.00011,
+      "latency_ms": 1594,
+      "cost_usd": 1.7e-06,
       "cost_status": "exact",
-      "request_id": "req-fixture-go-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
+      "request_id": "70c586e4-1462-4b92-9967-3ad4e72090e8",
+      "timestamp": "2026-09-15T00:38:42Z",
+      "error": null,
+      "raw_output": "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null}],\"object\":\"chat.completion\",\"usage\":{\"prompt_tokens\":30,\"completion_tokens\":1,\"total_tokens\":31,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"created\":1789432722,\"system_fingerprint\":null,\"mo"
     },
     {
       "sdk": "java",
@@ -78,26 +81,13 @@
       "provider": "openai",
       "model": "openai/gpt-4o-mini",
       "endpoint": "/v1/chat/completions",
-      "latency_ms": 151,
-      "cost_usd": 0.00011,
+      "latency_ms": 2392,
+      "cost_usd": 4.2e-06,
       "cost_status": "exact",
-      "request_id": "req-fixture-java-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
-    },
-    {
-      "sdk": "js",
-      "version": "3.1.2",
-      "status": "passed",
-      "provider": "anthropic",
-      "model": "claude-3-5-haiku-20241022",
-      "endpoint": "/v1/messages",
-      "latency_ms": 163,
-      "cost_usd": 0.00011,
-      "cost_status": "exact",
-      "request_id": "req-fixture-js-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
+      "request_id": "ca3545c1-85f0-4372-bc0e-9d418c376ae1",
+      "timestamp": "2026-09-15T00:38:44Z",
+      "error": null,
+      "raw_output": "{\n  \"id\": \"chatcmpl-EOBU3n8oUreRXbplsjppKkDMI1Cg9\",\n  \"object\": \"chat.completion\",\n  \"created\": 1789432723,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"OK\",\n        \"refusal\": null,\n        \"annotatio"
     },
     {
       "sdk": "kotlin",
@@ -106,12 +96,13 @@
       "provider": "qwen",
       "model": "qwen-turbo",
       "endpoint": "/v1/chat/completions",
-      "latency_ms": 175,
-      "cost_usd": 0.00011,
+      "latency_ms": 1003,
+      "cost_usd": 1.7e-06,
       "cost_status": "exact",
-      "request_id": "req-fixture-kotlin-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
+      "request_id": "c6cc8458-5bee-4c91-bec5-2de27f0c9634",
+      "timestamp": "2026-09-15T00:38:44Z",
+      "error": null,
+      "raw_output": "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null}],\"object\":\"chat.completion\",\"usage\":{\"prompt_tokens\":30,\"completion_tokens\":1,\"total_tokens\":31,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"created\":1789432724,\"system_fingerprint\":null,\"mo"
     },
     {
       "sdk": "python",
@@ -120,63 +111,22 @@
       "provider": "openai",
       "model": "openai/gpt-4o-mini",
       "endpoint": "/v1/chat/completions",
-      "latency_ms": 187,
-      "cost_usd": 0.00011,
+      "latency_ms": 2093,
+      "cost_usd": 4.2e-06,
       "cost_status": "exact",
-      "request_id": "req-fixture-python-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
-    },
-    {
-      "sdk": "r",
-      "version": "3.1.2",
-      "status": "passed",
-      "provider": "anthropic",
-      "model": "claude-3-5-haiku-20241022",
-      "endpoint": "/v1/messages",
-      "latency_ms": 199,
-      "cost_usd": 0.00011,
-      "cost_status": "exact",
-      "request_id": "req-fixture-r-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
-    },
-    {
-      "sdk": "rust",
-      "version": "3.1.2",
-      "status": "passed",
-      "provider": "qwen",
-      "model": "qwen-turbo",
-      "endpoint": "/v1/chat/completions",
-      "latency_ms": 211,
-      "cost_usd": 0.00011,
-      "cost_status": "exact",
-      "request_id": "req-fixture-rust-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
-    },
-    {
-      "sdk": "swift",
-      "version": "3.1.2",
-      "status": "passed",
-      "provider": "openai",
-      "model": "openai/gpt-4o-mini",
-      "endpoint": "/v1/chat/completions",
-      "latency_ms": 223,
-      "cost_usd": 0.00011,
-      "cost_status": "exact",
-      "request_id": "req-fixture-swift-001",
-      "timestamp": "2026-09-15T00:36:41Z",
-      "error": null
+      "request_id": "db11404c-0b8d-433a-84e8-d0d016964271",
+      "timestamp": "2026-09-15T00:38:44Z",
+      "error": null,
+      "raw_output": "{\n  \"id\": \"chatcmpl-EOBU38ZSWV0O8QZZHn0qQ6tV1XqTz\",\n  \"object\": \"chat.completion\",\n  \"created\": 1789432723,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"OK\",\n        \"refusal\": null,\n        \"annotatio"
     }
   ],
   "history": [
     {
       "date": "2026-09-15",
       "status": "passed",
-      "passed": 10,
+      "passed": 6,
       "failed": 0,
-      "total": 10
+      "total": 6
     }
   ]
 }

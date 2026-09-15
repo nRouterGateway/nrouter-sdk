@@ -1,0 +1,175 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>nRouter Sentinel Daily Health Report</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; margin: 0; padding: 24px; color: #1f2937;">
+  <div style="max-width: 680px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <!-- Header -->
+    <div style="padding: 24px; background: #111827; color: #ffffff;">
+      <div style="font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #9ca3af; margin-bottom: 4px;">
+        nRouter SDK & Provider Sentinel
+      </div>
+      <h1 style="margin: 0; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+        <span style="color: #10b981;">&bull;</span> All 10 SDKs & Providers Operational
+      </h1>
+      <div style="font-size: 13px; color: #9ca3af; margin-top: 6px;">
+        Timestamp: 2026-09-15T00:39:01Z &bull; Coordinated Release: v3.1.2
+      </div>
+    </div>
+
+    <div style="padding: 24px;">
+      <!-- KPI Cards -->
+      <div style="display: table; width: 100%; margin-bottom: 20px;">
+        <div style="display: table-cell; width: 25%; padding: 12px; background: #f3f4f6; border-radius: 8px; text-align: center;">
+          <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; font-weight: 600;">SDK Health</div>
+          <div style="font-size: 18px; font-weight: 700; color: #111827; margin-top: 4px;">6/6</div>
+        </div>
+        <div style="display: table-cell; width: 4%;"></div>
+        <div style="display: table-cell; width: 25%; padding: 12px; background: #f3f4f6; border-radius: 8px; text-align: center;">
+          <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Providers</div>
+          <div style="font-size: 18px; font-weight: 700; color: #111827; margin-top: 4px;">3 Active</div>
+        </div>
+        <div style="display: table-cell; width: 4%;"></div>
+        <div style="display: table-cell; width: 25%; padding: 12px; background: #f3f4f6; border-radius: 8px; text-align: center;">
+          <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Avg Latency</div>
+          <div style="font-size: 18px; font-weight: 700; color: #111827; margin-top: 4px;">1826 ms</div>
+        </div>
+        <div style="display: table-cell; width: 4%;"></div>
+        <div style="display: table-cell; width: 25%; padding: 12px; background: #f3f4f6; border-radius: 8px; text-align: center;">
+          <div style="font-size: 11px; text-transform: uppercase; color: #6b7280; font-weight: 600;">24h Spend</div>
+          <div style="font-size: 18px; font-weight: 700; color: #111827; margin-top: 4px;">$0.0000</div>
+        </div>
+      </div>
+
+      
+
+      <!-- Results Table -->
+      <h3 style="font-size: 15px; font-weight: 600; color: #111827; margin: 24px 0 12px 0;">10 SDK Health Verification</h3>
+      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+        <thead>
+          <tr style="background: #f9fafb; border-bottom: 2px solid #e5e7eb; color: #6b7280; font-size: 11px; text-transform: uppercase;">
+            <th style="padding: 10px 14px;">SDK</th>
+            <th style="padding: 10px 14px;">Provider</th>
+            <th style="padding: 10px 14px;">Model</th>
+            <th style="padding: 10px 14px;">Status</th>
+            <th style="padding: 10px 14px;">Latency</th>
+            <th style="padding: 10px 14px;">Trace</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 10px 14px; font-weight: 600; text-transform: capitalize; color: #111827;">android</td>
+          <td style="padding: 10px 14px; color: #4b5563;">qwen</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #374151;">qwen-turbo</td>
+          <td style="padding: 10px 14px;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">
+              PASSED
+            </span>
+          </td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #4b5563;">1664ms</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px;">
+            <a href="https://app.nrouter.ai/traces/b2497c41-be58-4287-b7e9-964a21cc93f9" style="color: #2563eb; text-decoration: none;">b2497c41-be5...</a>
+          </td>
+        </tr>
+        
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 10px 14px; font-weight: 600; text-transform: capitalize; color: #111827;">dart</td>
+          <td style="padding: 10px 14px; color: #4b5563;">openai</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #374151;">openai/gpt-4o-mini</td>
+          <td style="padding: 10px 14px;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">
+              PASSED
+            </span>
+          </td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #4b5563;">2210ms</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px;">
+            <a href="https://app.nrouter.ai/traces/42f4d0bf-ce17-4d8b-bc8c-3cf9aa474159" style="color: #2563eb; text-decoration: none;">42f4d0bf-ce1...</a>
+          </td>
+        </tr>
+        
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 10px 14px; font-weight: 600; text-transform: capitalize; color: #111827;">go</td>
+          <td style="padding: 10px 14px; color: #4b5563;">qwen</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #374151;">qwen-turbo</td>
+          <td style="padding: 10px 14px;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">
+              PASSED
+            </span>
+          </td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #4b5563;">1594ms</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px;">
+            <a href="https://app.nrouter.ai/traces/70c586e4-1462-4b92-9967-3ad4e72090e8" style="color: #2563eb; text-decoration: none;">70c586e4-146...</a>
+          </td>
+        </tr>
+        
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 10px 14px; font-weight: 600; text-transform: capitalize; color: #111827;">java</td>
+          <td style="padding: 10px 14px; color: #4b5563;">openai</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #374151;">openai/gpt-4o-mini</td>
+          <td style="padding: 10px 14px;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">
+              PASSED
+            </span>
+          </td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #4b5563;">2392ms</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px;">
+            <a href="https://app.nrouter.ai/traces/ca3545c1-85f0-4372-bc0e-9d418c376ae1" style="color: #2563eb; text-decoration: none;">ca3545c1-85f...</a>
+          </td>
+        </tr>
+        
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 10px 14px; font-weight: 600; text-transform: capitalize; color: #111827;">kotlin</td>
+          <td style="padding: 10px 14px; color: #4b5563;">qwen</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #374151;">qwen-turbo</td>
+          <td style="padding: 10px 14px;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">
+              PASSED
+            </span>
+          </td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #4b5563;">1003ms</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px;">
+            <a href="https://app.nrouter.ai/traces/c6cc8458-5bee-4c91-bec5-2de27f0c9634" style="color: #2563eb; text-decoration: none;">c6cc8458-5be...</a>
+          </td>
+        </tr>
+        
+        <tr style="border-bottom: 1px solid #e5e7eb;">
+          <td style="padding: 10px 14px; font-weight: 600; text-transform: capitalize; color: #111827;">python</td>
+          <td style="padding: 10px 14px; color: #4b5563;">openai</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #374151;">openai/gpt-4o-mini</td>
+          <td style="padding: 10px 14px;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; background: #dcfce7; color: #15803d;">
+              PASSED
+            </span>
+          </td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px; color: #4b5563;">2093ms</td>
+          <td style="padding: 10px 14px; font-family: monospace; font-size: 12px;">
+            <a href="https://app.nrouter.ai/traces/db11404c-0b8d-433a-84e8-d0d016964271" style="color: #2563eb; text-decoration: none;">db11404c-0b8...</a>
+          </td>
+        </tr>
+        
+        </tbody>
+      </table>
+
+      <!-- Action CTAs -->
+      <div style="margin-top: 32px; text-align: center;">
+        <a href="https://nroutergateway.github.io/nrouter-sdk/" style="display: inline-block; padding: 12px 24px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-right: 12px;">
+          View Live Status Dashboard &rarr;
+        </a>
+        <a href="https://github.com/nRouterGateway/nrouter-sdk/actions" style="display: inline-block; padding: 12px 20px; background: #f3f4f6; color: #374151; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; border: 1px solid #d1d5db;">
+          GitHub Actions Run
+        </a>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="padding: 16px 24px; background: #f9fafb; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af; text-align: center;">
+      This automated health report is generated daily by the nRouter Sentinel.<br>
+      nRouter Gateway: <span style="font-family: monospace;">api.nrouter.ai</span> &bull; Virtual Key Quota: $1.00/day
+    </div>
+  </div>
+</body>
+</html>
