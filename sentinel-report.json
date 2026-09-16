@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-09-15T11:14:18Z",
+  "timestamp": "2026-09-16T10:57:15Z",
   "version": "3.1.2",
   "summary": {
-    "total": 7,
-    "passed": 7,
+    "total": 6,
+    "passed": 6,
     "failed": 0,
     "skipped": 0,
-    "avg_latency_ms": 1820,
-    "total_cost_usd": 6.9e-05,
+    "avg_latency_ms": 1818,
+    "total_cost_usd": 3.5e-05,
     "providers_count": 3,
     "providers": [
       "anthropic",
@@ -18,9 +18,9 @@
   "preflight": {
     "catalog_status": "ok",
     "models_count": 153,
-    "latency_ms": 103,
+    "latency_ms": 328,
     "conformance_passed": true,
-    "timestamp": "2026-09-15T11:13:50Z"
+    "timestamp": "2026-09-16T10:56:16Z"
   },
   "triage": {
     "category": "ALL_OPERATIONAL",
@@ -37,13 +37,43 @@
       "provider": "qwen",
       "model": "qwen-turbo",
       "endpoint": "/v1/chat/completions",
-      "latency_ms": 997,
+      "latency_ms": 1807,
       "cost_usd": 1.7e-06,
       "cost_status": "exact",
-      "request_id": "c05e8da2-348f-4f09-85da-e0c6c198b8b7",
-      "timestamp": "2026-09-15T11:14:02Z",
+      "request_id": "61c85fd8-ceb5-4f87-819c-5d3cb5b1a523",
+      "timestamp": "2026-09-16T10:56:28Z",
       "error": null,
-      "raw_output": "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null}],\"object\":\"chat.completion\",\"usage\":{\"prompt_tokens\":30,\"completion_tokens\":1,\"total_tokens\":31,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"created\":1789470842,\"system_fingerprint\":null,\"mo"
+      "raw_output": "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null}],\"object\":\"chat.completion\",\"usage\":{\"prompt_tokens\":30,\"completion_tokens\":1,\"total_tokens\":31,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"created\":1789556188,\"system_fingerprint\":null,\"mo"
+    },
+    {
+      "sdk": "dart",
+      "version": "3.1.2",
+      "status": "passed",
+      "provider": "openai",
+      "model": "openai/gpt-4o-mini",
+      "endpoint": "/v1/chat/completions",
+      "latency_ms": 2500,
+      "cost_usd": 4.2e-06,
+      "cost_status": "exact",
+      "request_id": "59ccfb0f-75f9-4f91-b383-9dfb706b35bf",
+      "timestamp": "2026-09-16T10:56:28Z",
+      "error": null,
+      "raw_output": "{\n  \"id\": \"chatcmpl-EOhbQMpF0pkXcp3clXjk8Atq8HfoO\",\n  \"object\": \"chat.completion\",\n  \"created\": 1789556188,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"OK\",\n        \"refusal\": null,\n        \"annotatio"
+    },
+    {
+      "sdk": "go",
+      "version": "3.1.2",
+      "status": "passed",
+      "provider": "qwen",
+      "model": "qwen-turbo",
+      "endpoint": "/v1/chat/completions",
+      "latency_ms": 1148,
+      "cost_usd": 1.7e-06,
+      "cost_status": "exact",
+      "request_id": "d96f17e2-d896-44da-9ca8-87552cb2b3c0",
+      "timestamp": "2026-09-16T10:56:29Z",
+      "error": null,
+      "raw_output": "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null}],\"object\":\"chat.completion\",\"usage\":{\"prompt_tokens\":30,\"completion_tokens\":1,\"total_tokens\":31,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"created\":1789556189,\"system_fingerprint\":null,\"mo"
     },
     {
       "sdk": "java",
@@ -52,13 +82,13 @@
       "provider": "openai",
       "model": "openai/gpt-4o-mini",
       "endpoint": "/v1/chat/completions",
-      "latency_ms": 3687,
+      "latency_ms": 1261,
       "cost_usd": 4.2e-06,
       "cost_status": "exact",
-      "request_id": "d91e779f-4c5b-4bea-a6ea-9a170a140adb",
-      "timestamp": "2026-09-15T11:14:02Z",
+      "request_id": "51f91ecc-a6f9-42a7-9926-d33c28b1f0f6",
+      "timestamp": "2026-09-16T10:57:03Z",
       "error": null,
-      "raw_output": "{\n  \"id\": \"chatcmpl-EOLOsjQumyVMRtespFUjdLDDVC0uh\",\n  \"object\": \"chat.completion\",\n  \"created\": 1789470842,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"OK\",\n        \"refusal\": null,\n        \"annotatio"
+      "raw_output": "{\n  \"id\": \"chatcmpl-EOhbyfLp0cnVHZNDPxGUKt59sjo20\",\n  \"object\": \"chat.completion\",\n  \"created\": 1789556222,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"OK\",\n        \"refusal\": null,\n        \"annotatio"
     },
     {
       "sdk": "js",
@@ -67,28 +97,13 @@
       "provider": "anthropic",
       "model": "claude-haiku-4-5-20251001",
       "endpoint": "/v1/messages",
-      "latency_ms": 1522,
+      "latency_ms": 1508,
       "cost_usd": 1.9e-05,
       "cost_status": "exact",
-      "request_id": "507ee5df-7efd-4a88-a9e2-82af91f991e7",
-      "timestamp": "2026-09-15T11:14:01Z",
+      "request_id": "7132a51a-b47c-4685-9445-afc6e87abb79",
+      "timestamp": "2026-09-16T10:56:28Z",
       "error": null,
-      "raw_output": "{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cf58LXX2WqP7vB9V2DyiZ\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"max_tokens\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":9,\"cache_creation_input_tokens\":0,\"cache_r"
-    },
-    {
-      "sdk": "kotlin",
-      "version": "3.1.2",
-      "status": "passed",
-      "provider": "qwen",
-      "model": "qwen-turbo",
-      "endpoint": "/v1/chat/completions",
-      "latency_ms": 1769,
-      "cost_usd": 1.7e-06,
-      "cost_status": "exact",
-      "request_id": "1e0d2f59-1f76-4cbc-89ad-e4422f7d47c6",
-      "timestamp": "2026-09-15T11:14:01Z",
-      "error": null,
-      "raw_output": "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\",\"index\":0,\"logprobs\":null}],\"object\":\"chat.completion\",\"usage\":{\"prompt_tokens\":30,\"completion_tokens\":1,\"total_tokens\":31,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"created\":1789470841,\"system_fingerprint\":null,\"mo"
+      "raw_output": "{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cf6zoofTxt3qSwrbE82p7\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"max_tokens\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":9,\"cache_creation_input_tokens\":0,\"cache_r"
     },
     {
       "sdk": "python",
@@ -97,52 +112,22 @@
       "provider": "openai",
       "model": "openai/gpt-4o-mini",
       "endpoint": "/v1/chat/completions",
-      "latency_ms": 2179,
+      "latency_ms": 2689,
       "cost_usd": 4.2e-06,
       "cost_status": "exact",
-      "request_id": "2a28db24-8354-493e-9dec-35e9accf7f53",
-      "timestamp": "2026-09-15T11:14:01Z",
+      "request_id": "b2059fa2-18bf-453f-bc6d-19591637efd3",
+      "timestamp": "2026-09-16T10:56:28Z",
       "error": null,
-      "raw_output": "{\n  \"id\": \"chatcmpl-EOLOrBGm7uxiTJ8FtCsPtaX6Jh4ye\",\n  \"object\": \"chat.completion\",\n  \"created\": 1789470841,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"OK\",\n        \"refusal\": null,\n        \"annotatio"
-    },
-    {
-      "sdk": "r",
-      "version": "3.1.2",
-      "status": "passed",
-      "provider": "anthropic",
-      "model": "claude-haiku-4-5-20251001",
-      "endpoint": "/v1/messages",
-      "latency_ms": 1174,
-      "cost_usd": 1.9e-05,
-      "cost_status": "exact",
-      "request_id": "467b9f43-1542-4769-8054-481b99d5333a",
-      "timestamp": "2026-09-15T11:14:02Z",
-      "error": null,
-      "raw_output": "{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cf58LeC7ZyiQtuffoS4Dy\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"max_tokens\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":9,\"cache_creation_input_tokens\":0,\"cache_r"
-    },
-    {
-      "sdk": "swift",
-      "version": "3.1.2",
-      "status": "passed",
-      "provider": "anthropic",
-      "model": "claude-haiku-4-5-20251001",
-      "endpoint": "/v1/messages",
-      "latency_ms": 1418,
-      "cost_usd": 1.9e-05,
-      "cost_status": "exact",
-      "request_id": "0513ab77-d3d3-4b6c-8ace-0d3d93f019ec",
-      "timestamp": "2026-09-15T11:14:01Z",
-      "error": null,
-      "raw_output": "{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cf58LXWHdLshWpRGLgXTK\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"max_tokens\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":9,\"cache_creation_input_tokens\":0,\"cache_r"
+      "raw_output": "{\n  \"id\": \"chatcmpl-EOhbQbj6VqNzGgGMUx4UaVXkaUMTD\",\n  \"object\": \"chat.completion\",\n  \"created\": 1789556188,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"OK\",\n        \"refusal\": null,\n        \"annotatio"
     }
   ],
   "history": [
     {
-      "date": "2026-09-15",
+      "date": "2026-09-16",
       "status": "passed",
-      "passed": 7,
+      "passed": 6,
       "failed": 0,
-      "total": 7
+      "total": 6
     }
   ]
 }
