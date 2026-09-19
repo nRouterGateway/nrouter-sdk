@@ -120,6 +120,8 @@ type Error struct {
 	LimitSource string
 	// AuthReason is the gateway's stable reason on a 401.
 	AuthReason string
+	// Guardrails is the posture of the guardrail chain when reported by the gateway.
+	Guardrails string
 	// RetryAfter is the Retry-After header in whole seconds, when sent. Both
 	// RFC 9110 forms are accepted: delta-seconds and an HTTP-date, which
 	// upstreams do send and the gateway relays unchanged.
@@ -128,6 +130,8 @@ type Error struct {
 	// a DNS failure, a TLS handshake. Exposed through Unwrap so
 	// errors.Is(err, context.Canceled) keeps working through this type.
 	Cause error
+	// Meta is the parsed response metadata when available.
+	Meta *ResponseMeta
 }
 
 func (e *Error) Error() string {

@@ -180,6 +180,37 @@
       "format": "int64"
     }
   },
+  "request_headers": {
+    "x-nr-tags": {
+      "type": "string",
+      "description": "Custom spend tags for this request, formatted as key=value,key2=value2. Relayed to spend records in nrouter.spend_logs.",
+      "format": "comma-separated key=value pairs"
+    },
+    "x-nr-compress": {
+      "type": "string",
+      "description": "Prompt compression request toggle. Set 'on', 'true', '1' to enable prompt compression; 'off', 'false', '0' to disable.",
+      "values": [
+        "on",
+        "off",
+        "true",
+        "false",
+        "1",
+        "0"
+      ]
+    },
+    "x-nr-trace-id": {
+      "type": "string",
+      "description": "Client OpenTelemetry trace ID for correlating spans across client and gateway."
+    },
+    "x-nr-session-id": {
+      "type": "string",
+      "description": "Client session identifier for correlating multi-turn conversation steps."
+    },
+    "x-nr-client-language": {
+      "type": "string",
+      "description": "Client SDK implementation language, automatically set by each official SDK."
+    }
+  },
   "error_envelope": {
     "shape": {
       "error": {

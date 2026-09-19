@@ -1204,4 +1204,38 @@ final class StubProtocol: URLProtocol {
             XCTFail("Expected .credit")
         }
     }
+
+    func testTagsAndCompressClientOptionsAndCRLFRejection() throws {
+        let client = try NRouter(
+            apiKey: "sk-nrouter-test",
+            tags: "env:prod,project:ios",
+            compress: "target_ratio:0.6"
+        )
+        XCTAssertEqual(client.tags, "env:prod,project:ios")
+        XCTAssertEqual(client.compress, "target_ratio:0.6")
+
+        XCTAssertThrowsError(try NRouter(apiKey: "sk-nrouter-test", tags: "tag\r\nbad"))
+        XCTAssertThrowsError(try NRouter(apiKey: "sk-nrouter-test", compress: "compress\nbad"))
+    }
+
+    func testGuardrailBlockedClassificationAndMetadata() {
+        var meta = NRouterResponseMeta()
+        meta.requestID = "req-gr-swift-1"
+        meta.guardrails = "blocked"
+
+        let errBody = NRouter.errorBody(
+            status: 400,
+            payload: ["error": ["message": "Blocked by guardrails"]],
+            meta: meta
+        )
+        let err = NRouterError.fromCode(errBody)
+        if case .guardrailBlocked = err {
+            XCTAssertEqual(err.guardrails, "blocked")
+            XCTAssertEqual(err.requestID, "req-gr-swift-1")
+            XCTAssertEqual(err.meta?.guardrails, "blocked")
+        } else {
+            XCTFail("Expected .guardrailBlocked, got \(err)")
+        }
+    }
 }
+

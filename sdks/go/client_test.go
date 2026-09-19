@@ -1610,3 +1610,68 @@ func TestPlanLimitsMapToCreditError(t *testing.T) {
 		t.Errorf("expected ErrCredit with plan_required, got %v, code %s", err2.Kind, err2.Code)
 	}
 }
+
+func TestTagsAndCompressHeaders(t *testing.T) {
+	if _, err := New(testKey, WithTags("tag\r\nbad")); err == nil {
+		t.Fatal("expected error on tags with CRLF, got nil")
+	}
+	if _, err := New(testKey, WithCompress("compress\nbad")); err == nil {
+		t.Fatal("expected error on compress with newline, got nil")
+	}
+
+	var receivedTags, receivedCompress string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedTags = r.Header.Get("x-nr-tags")
+		receivedCompress = r.Header.Get("x-nr-compress")
+		w.Header().Set("x-nr-request-id", "req-test-tags-1")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data": []}`))
+	}))
+	defer srv.Close()
+
+	client, err := New(testKey,
+		WithBaseURL(srv.URL),
+		WithTags("env:test,team:core"),
+		WithCompress("target_ratio:0.5"),
+	)
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	_, err = client.Models(context.Background())
+	if err != nil {
+		t.Fatalf("Models request failed: %v", err)
+	}
+
+	if receivedTags != "env:test,team:core" {
+		t.Errorf("expected x-nr-tags 'env:test,team:core', got %q", receivedTags)
+	}
+	if receivedCompress != "target_ratio:0.5" {
+		t.Errorf("expected x-nr-compress 'target_ratio:0.5', got %q", receivedCompress)
+	}
+}
+
+func TestGuardrailBlockedClassificationAndMetadata(t *testing.T) {
+	meta1 := ResponseMeta{RequestID: "req-gr-1", Guardrails: "blocked"}
+	err1 := gatewayError(&http.Response{StatusCode: 400}, meta1, []byte(`{"error":{"message":"Prompt blocked by moderation"}}`))
+	if !errors.Is(err1, ErrGuardrailBlocked) {
+		t.Errorf("expected ErrGuardrailBlocked, got %v", err1.Kind)
+	}
+	if err1.Guardrails != "blocked" {
+		t.Errorf("expected Guardrails 'blocked', got %q", err1.Guardrails)
+	}
+	if err1.Meta == nil || err1.Meta.RequestID != "req-gr-1" {
+		t.Errorf("expected Meta with RequestID req-gr-1, got %+v", err1.Meta)
+	}
+
+	meta2 := ResponseMeta{RequestID: "req-gr-2"}
+	err2 := gatewayError(&http.Response{StatusCode: 400}, meta2, []byte(`{"error":{"type":"guardrail_blocked","message":"Blocked"}}`))
+	if !errors.Is(err2, ErrGuardrailBlocked) {
+		t.Errorf("expected ErrGuardrailBlocked for type guardrail_blocked, got %v", err2.Kind)
+	}
+	if err2.Code != "guardrail_blocked" {
+		t.Errorf("expected code guardrail_blocked, got %q", err2.Code)
+	}
+}
+

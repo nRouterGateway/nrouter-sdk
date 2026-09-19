@@ -364,6 +364,11 @@ export function isCacheMiss(meta: ResponseMeta): boolean {
   return meta.responseCache === 'miss';
 }
 
+/** Age in seconds of a response-cache hit, or 0 if absent or not a hit. */
+export function cacheAgeSeconds(meta: ResponseMeta): number {
+  return meta.responseCacheAge ?? 0;
+}
+
 /**
  * Re-exported so a caller can forward exactly the headers this parser reads —
  * into their own logging or tracing layer — without retyping the list and

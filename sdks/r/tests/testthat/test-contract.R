@@ -631,3 +631,59 @@ test_that("plan limits map to credit error", {
   expect_s3_class(err2, "nrouter_credit_error")
   expect_equal(err2$code, "plan_required")
 })
+
+test_that("tags and compress headers are sent and reject CRLF", {
+  expect_error(
+    nrouter_client(api_key = "sk-nrouter-test", tags = "tag\nbad"),
+    class = "nrouter_configuration_error"
+  )
+  expect_error(
+    nrouter_client(api_key = "sk-nrouter-test", compress = "comp\rbad"),
+    class = "nrouter_configuration_error"
+  )
+
+  client <- nrouter_client(
+    api_key = "sk-nrouter-test",
+    tags = "env:prod,app:core",
+    compress = "llmlingua2"
+  )
+  hdrs <- nrouter_request_headers(client)
+  expect_equal(hdrs[["x-nr-tags"]], "env:prod,app:core")
+  expect_equal(hdrs[["x-nr-compress"]], "llmlingua2")
+  expect_equal(hdrs[["x-nr-client-language"]], "r")
+})
+
+test_that("guardrail blocked error preserves guardrails and meta", {
+  meta <- nrouter_meta(list(
+    "x-nr-request-id" = "req_guard_1",
+    "x-nr-guardrails" = "blocked"
+  ))
+  err <- nrouter_condition(
+    message = "Request blocked by safety policy",
+    status = 400,
+    meta = meta
+  )
+
+  expect_s3_class(err, "nrouter_guardrail_blocked_error")
+  expect_equal(err$guardrails, "blocked")
+  expect_equal(err$request_id, "req_guard_1")
+  expect_equal(err$meta$request_id, "req_guard_1")
+  expect_true(grepl("guardrails=blocked", nrouter_format_error(err)))
+})
+
+test_that("response meta cache_age_seconds and is_priced work as properties and functions", {
+  meta_priced <- nrouter_meta(list(
+    "x-nr-request-cost" = "0.0025",
+    "x-nr-response-cache-age" = "42"
+  ))
+  expect_true(meta_priced$is_priced)
+  expect_true(nrouter_is_priced(meta_priced))
+  expect_equal(meta_priced$cache_age_seconds, 42)
+  expect_equal(nrouter_cache_age_seconds(meta_priced), 42)
+
+  meta_unpriced <- nrouter_meta(list())
+  expect_false(meta_unpriced$is_priced)
+  expect_false(nrouter_is_priced(meta_unpriced))
+  expect_equal(meta_unpriced$cache_age_seconds, 0)
+  expect_equal(nrouter_cache_age_seconds(meta_unpriced), 0)
+})

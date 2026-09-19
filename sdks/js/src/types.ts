@@ -217,6 +217,16 @@ export interface NRouterFeatureOptions {
   guardrails?: string[];
   /** Set false to force provider egress. Omitted when true; true is the gateway default. */
   cache?: boolean;
+  /**
+   * Request tags sent via `x-nr-tags` for cost tracking and filtering.
+   * Can be an object (key=val pairs), an array of tag strings, or a comma-separated string.
+   */
+  tags?: Record<string, string> | string[] | string;
+  /**
+   * Prompt compression instruction sent via `x-nr-compress`.
+   * Can be a boolean or compression strategy string (e.g. "auto", "summarize").
+   */
+  compress?: boolean | string;
 }
 
 export interface NRouterCallOptions extends NRouterFeatureOptions {
@@ -240,37 +250,6 @@ export interface NRouterCallOptions extends NRouterFeatureOptions {
   modelProvider?: string | null;
   /** Canonical model id behind an alias, if applicable (e.g. for sampling deprecation checks). */
   canonicalModel?: string | null;
-
-  /** Prompt template + its Jinja2 variables. */
-  promptTemplateId?: string;
-  promptVariables?: Record<string, string>;
-  /**
-   * Up to 4 model names tried in order when the primary cannot be served.
-   *
-   * REPLACES the organization's fallback policy for this one call — it is not
-   * merged with it — and `model` stays the primary. A target this key cannot
-   * route, and any Smart Router alias, `nrouter/auto`, allowance or
-   * capacity-pool model, is refused with 400 `fallback_not_allowed`.
-   *
-   * An empty array is OMITTED, not sent: `fallbacks: state.selected` with an
-   * empty default means no selection, not an empty chain.
-   */
-  fallbacks?: string[];
-  /**
-   * Up to 8 guardrail ids or names owned by this organization.
-   *
-   * ADD-ONLY. These run IN ADDITION to the guardrails already assigned to the
-   * key, team or organization, and to the platform moderation floor; a request
-   * can never remove, relax or replace one. An id or name the org does not own
-   * is refused with 400 `guardrail_not_found` rather than ignored — a silently
-   * dropped guardrail is a request the caller believes was inspected and was
-   * not.
-   *
-   * Replaces the removed `guardrailIds`, which the gateway never read.
-   */
-  guardrails?: string[];
-  /** Set false to force provider egress. Omitted when true — true is the gateway default. */
-  cache?: boolean;
 
   /**
    * Cancel this call (PGSDK-106).

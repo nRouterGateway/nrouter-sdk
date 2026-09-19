@@ -59,6 +59,7 @@ export {
   parseBudgetWarning,
   isCacheHit,
   isCacheMiss,
+  cacheAgeSeconds,
   // Cost across the many calls of ONE run. `ResponseMeta` is per-call, and the
   // hand-rolled accumulator is `sum += cost ?? 0`, which reports an unpriced
   // step as free (Rule #28).

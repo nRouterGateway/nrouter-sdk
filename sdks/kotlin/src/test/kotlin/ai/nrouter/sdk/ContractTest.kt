@@ -1376,4 +1376,41 @@ class ContractTest {
         }
         assertNull(mangled.attempts)
     }
+
+    @Test
+    fun `cacheAgeSeconds returns cached age or 0`() {
+        val empty = NRouterResponseMeta()
+        assertEquals(0L, empty.cacheAgeSeconds)
+        val cached = NRouterResponseMeta(responseCacheAge = 60L)
+        assertEquals(60L, cached.cacheAgeSeconds)
+    }
+
+    @Test
+    fun `tags and compress configure client and reject CRLF`() {
+        val client = NRouter(
+            apiKey = "sk-nrouter-test",
+            tags = "env:test,team:qa",
+            compress = "target_ratio:0.5",
+        )
+        assertEquals("env:test,team:qa", client.tags)
+        assertEquals("target_ratio:0.5", client.compress)
+
+        assertFailsWith<IllegalArgumentException> {
+            NRouter(apiKey = "sk-nrouter-test", tags = "tag\r\nbad")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NRouter(apiKey = "sk-nrouter-test", compress = "compress\nbad")
+        }
+    }
+
+    @Test
+    fun `guardrails blocked error maps to GuardrailBlocked with metadata`() {
+        val meta = NRouterResponseMeta(requestId = "req-gr-test", guardrails = "blocked")
+        val errBody = NRouter.errorBody(400, JSONObject().put("message", "blocked by moderation"), meta)
+        val err = NRouterError.fromCode(errBody)
+        assertTrue(err is NRouterError.GuardrailBlocked)
+        assertEquals("blocked", err.guardrails)
+        assertEquals("req-gr-test", err.requestId)
+        assertEquals("blocked", err.meta?.guardrails)
+    }
 }

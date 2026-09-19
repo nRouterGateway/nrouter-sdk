@@ -548,3 +548,30 @@ export function buildChatBody(
 
   return body;
 }
+
+/** Formats tags into comma-separated key=value or tag list for x-nr-tags header. */
+export function formatTags(tags: Record<string, string> | string[] | string): string {
+  let str: string;
+  if (typeof tags === 'string') {
+    str = tags.trim();
+  } else if (Array.isArray(tags)) {
+    str = tags.join(',');
+  } else if (typeof tags === 'object' && tags !== null) {
+    str = Object.entries(tags).map(([k, v]) => `${k}=${v}`).join(',');
+  } else {
+    str = String(tags);
+  }
+  if (/[\r\n]/.test(str)) {
+    throw configurationError('tags must not contain carriage return or line feed');
+  }
+  return str;
+}
+
+/** Formats compression setting for x-nr-compress header. */
+export function formatCompress(compress: boolean | string): string {
+  const str = typeof compress === 'boolean' ? String(compress) : String(compress).trim();
+  if (/[\r\n]/.test(str)) {
+    throw configurationError('compress must not contain carriage return or line feed');
+  }
+  return str;
+}

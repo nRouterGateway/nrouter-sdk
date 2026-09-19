@@ -530,3 +530,41 @@ def test_funding_source_and_allowance_reset_are_parsed_from_headers():
     })
     assert meta.funding_source == "allowance"
     assert meta.allowance_reset == 86400
+
+
+def test_is_priced_and_cache_age_seconds_properties():
+    from nroutersdk import nRouterResponseMeta
+    meta_priced = nRouterResponseMeta.from_headers({
+        "x-nr-request-cost": "0.001234",
+        "x-nr-cost-status": "exact",
+        "x-nr-response-cache-age": "42",
+    })
+    assert meta_priced.is_priced is True
+    assert meta_priced.cache_age_seconds == 42
+
+    meta_unpriced = nRouterResponseMeta.from_headers({
+        "x-nr-cost-status": "zero_cost_tier",
+    })
+    assert meta_unpriced.is_priced is False
+    assert meta_unpriced.cache_age_seconds == 0
+
+
+def test_400_with_guardrail_blocked_header_maps_to_guardrail_error():
+    err = status_error(400, "Refused by rule", {"x-nr-guardrails": "blocked", "x-nr-request-id": "req-123"})
+    with pytest.raises(nRouterGuardrailBlockedError) as caught:
+        _maybe_raise_nrouter_error(err)
+    assert caught.value.guardrails == "blocked"
+    assert caught.value.request_id == "req-123"
+    assert caught.value.meta is not None
+    assert caught.value.meta.guardrails == "blocked"
+
+
+def test_prepare_default_headers_tags_and_compress():
+    from nroutersdk.client import _prepare_default_headers
+    headers = _prepare_default_headers(
+        tags={"env": "prod", "team": "data"},
+        compress=True,
+    )
+    assert headers["x-nr-tags"] == "env=prod,team=data"
+    assert headers["x-nr-compress"] == "true"
+

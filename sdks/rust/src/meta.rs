@@ -164,6 +164,11 @@ impl ResponseMeta {
         self.response_cache.as_deref() == Some("miss")
     }
 
+    /// Returns the age of a cached response in seconds, or 0 if not cached or absent.
+    pub fn cache_age_seconds(&self) -> u64 {
+        self.response_cache_age.unwrap_or(0)
+    }
+
     /// Parses structured budget warning information if present.
     pub fn parse_budget_warning(&self) -> Option<BudgetWarningInfo> {
         let warning = self.budget_warning.as_deref()?.trim();

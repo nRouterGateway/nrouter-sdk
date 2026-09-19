@@ -50,6 +50,8 @@ class nRouterError(Exception):
         status_code: int | None = None,
         param: str | None = None,
         type: str | None = None,
+        guardrails: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         sanitized = redact_keys(message)
         super().__init__(sanitized)
@@ -61,6 +63,8 @@ class nRouterError(Exception):
         self.request_id = request_id
         self.param = param
         self.type = type
+        self.guardrails = guardrails
+        self.meta = meta
 
     def __str__(self) -> str:
         return redact_keys(self.message)
@@ -96,6 +100,8 @@ class nRouterRequestError(nRouterError):
         code: str | None = None,
         param: str | None = None,
         type: str | None = None,
+        guardrails: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         super().__init__(
             message,
@@ -104,6 +110,8 @@ class nRouterRequestError(nRouterError):
             status_code=400,
             param=param,
             type=type,
+            guardrails=guardrails,
+            meta=meta,
         )
 
 
@@ -141,6 +149,8 @@ class nRouterConfigurationError(nRouterRequestError):
         code: str | None = None,
         param: str | None = None,
         type: str | None = None,
+        guardrails: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         # Skips nRouterRequestError.__init__ ON PURPOSE: it hardcodes
         # status_code=400, which is exactly the claim this class exists to stop
@@ -153,6 +163,8 @@ class nRouterConfigurationError(nRouterRequestError):
             status_code=None,
             param=param,
             type=type,
+            guardrails=guardrails,
+            meta=meta,
         )
 
 
@@ -172,9 +184,11 @@ class nRouterGuardrailBlockedError(nRouterError):
         *,
         request_id: str | None = None,
         guardrail_name: str | None = None,
+        guardrails: str | None = None,
         code: str | None = None,
         param: str | None = None,
         type: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         super().__init__(
             message,
@@ -183,6 +197,8 @@ class nRouterGuardrailBlockedError(nRouterError):
             status_code=400,
             param=param,
             type=type,
+            guardrails=guardrails,
+            meta=meta,
         )
         self.guardrail_name = guardrail_name
 
@@ -209,6 +225,8 @@ class nRouterAuthenticationError(nRouterError):
         code: str | None = None,
         param: str | None = None,
         type: str | None = None,
+        guardrails: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         super().__init__(
             message,
@@ -217,6 +235,8 @@ class nRouterAuthenticationError(nRouterError):
             status_code=401,
             param=param,
             type=type,
+            guardrails=guardrails,
+            meta=meta,
         )
         self.auth_reason = auth_reason
 
@@ -239,6 +259,8 @@ class nRouterCreditError(nRouterError):
         code: str | None = None,
         param: str | None = None,
         type: str | None = None,
+        guardrails: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         super().__init__(
             message,
@@ -247,6 +269,8 @@ class nRouterCreditError(nRouterError):
             status_code=402,
             param=param,
             type=type,
+            guardrails=guardrails,
+            meta=meta,
         )
 
 
@@ -278,6 +302,8 @@ class nRouterBudgetExceededError(nRouterError):
         code: str | None = None,
         param: str | None = None,
         type: str | None = None,
+        guardrails: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         super().__init__(
             message,
@@ -286,6 +312,8 @@ class nRouterBudgetExceededError(nRouterError):
             status_code=402,
             param=param,
             type=type,
+            guardrails=guardrails,
+            meta=meta,
         )
 
 
@@ -313,6 +341,8 @@ class nRouterNotFoundError(nRouterError):
         code: str | None = None,
         param: str | None = None,
         type: str | None = None,
+        guardrails: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         super().__init__(
             message,
@@ -321,6 +351,8 @@ class nRouterNotFoundError(nRouterError):
             status_code=404,
             param=param,
             type=type,
+            guardrails=guardrails,
+            meta=meta,
         )
 
 
@@ -350,6 +382,8 @@ class nRouterRateLimitError(nRouterError):
         code: str | None = None,
         param: str | None = None,
         type: str | None = None,
+        guardrails: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         # Both `rate_limit_exceeded` and `tpm_limit_exceeded` are 429 and both
         # raise this class, so dispatching on status is correct. But the class
@@ -363,6 +397,8 @@ class nRouterRateLimitError(nRouterError):
             status_code=429,
             param=param,
             type=type,
+            guardrails=guardrails,
+            meta=meta,
         )
         self.limit_source = limit_source
         self.retry_after = retry_after
@@ -387,6 +423,8 @@ class nRouterServiceError(nRouterError):
         status_code: int | None = None,
         param: str | None = None,
         type: str | None = None,
+        guardrails: str | None = None,
+        meta: Any | None = None,
     ) -> None:
         super().__init__(
             message,
@@ -395,6 +433,8 @@ class nRouterServiceError(nRouterError):
             status_code=status_code,
             param=param,
             type=type,
+            guardrails=guardrails,
+            meta=meta,
         )
 
 

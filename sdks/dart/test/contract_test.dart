@@ -1155,5 +1155,68 @@ void main() {
       expect(err2, isA<NRouterCreditError>());
       expect(err2.body?.code, 'plan_required');
     });
+
+    test('tags and compress headers are sent and reject CRLF', () async {
+      expect(
+        () => NRouter(apiKey: 'sk-nrouter-test', tags: 'tag\nbad'),
+        throwsA(isA<NRouterConfigurationError>()),
+      );
+      expect(
+        () => NRouter(apiKey: 'sk-nrouter-test', compress: 'comp\rbad'),
+        throwsA(isA<NRouterConfigurationError>()),
+      );
+
+      final client = MockClient((req) async {
+        expect(req.headers['x-nr-tags'], 'env:prod,app:core');
+        expect(req.headers['x-nr-compress'], 'llmlingua2');
+        expect(req.headers['x-nr-client-language'], 'dart');
+        return http.Response(
+          jsonEncode({'choices': []}),
+          200,
+          headers: {'content-type': 'application/json', 'x-nr-request-id': 'req-1'},
+        );
+      });
+
+      final nr = NRouter(
+        apiKey: 'sk-nrouter-test',
+        httpClient: client,
+        tags: 'env:prod,app:core',
+        compress: 'llmlingua2',
+      );
+      final res = await nr.post('/test', {'foo': 'bar'});
+      expect(res.meta.requestId, 'req-1');
+    });
+
+    test('guardrail blocked error preserves guardrails and meta', () {
+      final meta = NRouterResponseMeta.fromHeaders({
+        'x-nr-request-id': 'req-guard-1',
+        'x-nr-guardrails': 'blocked',
+      });
+      final err = NRouterError.fromCode(NRouterErrorBody(
+        message: 'Request blocked by safety policy',
+        status: 400,
+        guardrails: 'blocked',
+        meta: meta,
+      ));
+
+      expect(err, isA<NRouterGuardrailBlockedError>());
+      expect(err.guardrails, 'blocked');
+      expect(err.meta?.requestId, 'req-guard-1');
+      expect(err.meta?.guardrails, 'blocked');
+      expect(err.requestId, 'req-guard-1');
+    });
+
+    test('response meta cacheAgeSeconds and isPriced', () {
+      final metaPriced = NRouterResponseMeta.fromHeaders({
+        'x-nr-request-cost': '0.0025',
+        'x-nr-response-cache-age': '42',
+      });
+      expect(metaPriced.isPriced, isTrue);
+      expect(metaPriced.cacheAgeSeconds, 42);
+
+      final metaUnpriced = NRouterResponseMeta.fromHeaders({});
+      expect(metaUnpriced.isPriced, isFalse);
+      expect(metaUnpriced.cacheAgeSeconds, 0);
+    });
   });
 }

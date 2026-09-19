@@ -407,6 +407,7 @@ fn error_envelope_and_format_error() {
         limit_source: Some("rpm".into()),
         auth_reason: None,
         retry_after: Some(30),
+        ..Default::default()
     };
     let err = NRouterError::from_code(body);
     assert_eq!(err.param(), Some("prompt"));
@@ -537,4 +538,43 @@ fn test_parses_compression_routing_and_attempts() {
     assert_eq!(empty.compression, None);
     assert_eq!(empty.routing, None);
     assert_eq!(empty.attempts, None);
+}
+
+#[test]
+fn test_cache_age_seconds_and_guardrail_metadata() {
+    let mut meta = ResponseMeta::default();
+    assert_eq!(meta.cache_age_seconds(), 0);
+    meta.response_cache_age = Some(120);
+    assert_eq!(meta.cache_age_seconds(), 120);
+
+    let client = nrouter::http::Client::new("sk-nrouter-test00000000000000000123")
+        .unwrap()
+        .with_tags("env:prod,service:chat")
+        .unwrap()
+        .with_compress("aggressive")
+        .unwrap();
+
+    assert_eq!(client.tags(), Some("env:prod,service:chat"));
+    assert_eq!(client.compress(), Some("aggressive"));
+
+    assert!(nrouter::http::Client::new("sk-nrouter-test00000000000000000123")
+        .unwrap()
+        .with_tags("tag\r\nbad")
+        .is_err());
+    assert!(nrouter::http::Client::new("sk-nrouter-test00000000000000000123")
+        .unwrap()
+        .with_compress("compress\nbad")
+        .is_err());
+
+    let body = ErrorBody {
+        message: "Prompt refused".into(),
+        status: Some(400),
+        guardrails: Some("blocked".into()),
+        meta: Some(meta.clone()),
+        ..Default::default()
+    };
+    let err = NRouterError::from_code(body);
+    assert!(matches!(err, NRouterError::GuardrailBlocked(_)));
+    assert_eq!(err.guardrails(), Some("blocked"));
+    assert_eq!(err.meta().unwrap().response_cache_age, Some(120));
 }

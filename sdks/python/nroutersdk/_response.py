@@ -182,6 +182,16 @@ class nRouterResponseMeta:
         )
 
     @property
+    def is_priced(self) -> bool:
+        """True when the gateway priced this request exactly."""
+        return self.cost_status == "exact" and self.cost is not None
+
+    @property
+    def cache_age_seconds(self) -> int:
+        """Age in seconds of a response-cache hit, or 0 if absent."""
+        return self.response_cache_age if self.response_cache_age is not None else 0
+
+    @property
     def is_cache_hit(self) -> bool:
         return self.response_cache == "hit"
 

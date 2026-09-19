@@ -993,4 +993,75 @@ class NRouterHttpClientTest {
         assertEquals(NRouterException.Kind.CREDIT, oldErr.kind());
         // Code stays null if not specified, which is fine, but it classifies correctly.
     }
+
+    @Test
+    void tagsAndCompressConfigurationAndHeaders() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/chat/completions", exchange -> {
+            byte[] res = "{}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, res.length);
+            exchange.getResponseBody().write(res);
+            exchange.close();
+        });
+        server.start();
+
+        try {
+            RecordingHttpClient recording = new RecordingHttpClient(NRouterHttpClient.defaultHttpClient());
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            NRouterHttpClient client = NRouter.httpClient(
+                    "sk-nrouter-test-key",
+                    baseUrl,
+                    recording,
+                    Duration.ofSeconds(5),
+                    "trace-123",
+                    "sess-456",
+                    "{\"team\":\"billing\"}",
+                    true);
+
+            assertEquals("{\"team\":\"billing\"}", client.tags());
+            assertTrue(client.compress());
+
+            client.chatCompletions(Map.of("model", "test-model"));
+
+            assertFalse(recording.sent.isEmpty());
+            HttpRequest sent = recording.sent.get(0);
+            assertEquals("Bearer sk-nrouter-test-key", sent.headers().firstValue("Authorization").orElse(null));
+            assertEquals("java", sent.headers().firstValue("x-nr-client-language").orElse(null));
+            assertEquals("trace-123", sent.headers().firstValue("x-nr-trace-id").orElse(null));
+            assertEquals("sess-456", sent.headers().firstValue("x-nr-session-id").orElse(null));
+            assertEquals("{\"team\":\"billing\"}", sent.headers().firstValue("x-nr-tags").orElse(null));
+            assertEquals("true", sent.headers().firstValue("x-nr-compress").orElse(null));
+
+            // Test withTags and withCompress copy builders
+            NRouterHttpClient modified = client.withTags("{\"team\":\"ml\"}").withCompress(false);
+            assertEquals("{\"team\":\"ml\"}", modified.tags());
+            assertFalse(modified.compress());
+
+            // Test CRLF rejection in tags
+            assertThrows(IllegalArgumentException.class, () -> client.withTags("bad\r\ntags"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void exceptionConvenienceGettersAndGuardrailClassification() {
+        NRouterResponseMeta meta = NRouterResponseMeta.fromHeaders(HttpHeaders.of(
+                Map.of(
+                        "x-nr-request-id", List.of("req-999"),
+                        "x-nr-limit-source", List.of("plan_allowance_exhausted"),
+                        "x-nr-auth-reason", List.of("key_expired"),
+                        "x-nr-guardrails", List.of("blocked")
+                ),
+                (n, v) -> true
+        ));
+
+        NRouterException ex = NRouterException.gateway("Request blocked", null, 400, meta);
+        assertEquals("req-999", ex.requestId());
+        assertEquals("plan_allowance_exhausted", ex.limitSource());
+        assertEquals("key_expired", ex.authReason());
+        assertEquals("blocked", ex.guardrails());
+        assertEquals("guardrail_blocked", ex.code());
+        assertEquals(NRouterException.Kind.GUARDRAIL_BLOCKED, ex.kind());
+    }
 }

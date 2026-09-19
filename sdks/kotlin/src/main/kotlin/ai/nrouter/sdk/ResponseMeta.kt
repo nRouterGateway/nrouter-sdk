@@ -91,6 +91,9 @@ public data class NRouterResponseMeta(
     /** True when the response was a cache miss. */
     val isCacheMiss: Boolean get() = responseCache == "miss"
 
+    /** Age in seconds of a cached response, or 0 if not cached or absent. */
+    val cacheAgeSeconds: Long get() = responseCacheAge ?: 0L
+
     /** Parses structured budget warning information if present. */
     public fun parseBudgetWarning(): BudgetWarningInfo? {
         val warning = budgetWarning?.trim() ?: return null
