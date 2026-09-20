@@ -257,14 +257,14 @@ class RateLimitCurlHealthCheck:
         if not refusal:
             return False
         status, headers, _ = refusal
-        return status == 429 and "retry-after" not in headers and "x-nr-limit-source" not in headers
+        return status == 429 and "x-nr-limit-source" not in headers
 
     def _store_outage_row(
         self, name: str, request: str, status: int, headers: Dict[str, str], assertion: str
     ) -> Dict[str, Any]:
         return self._record(
             name, request, status, headers, assertion, False, True,
-            detail="NOT-EVALUATED (store outage): the 429 response lacked both Retry-After and x-nr-limit-source",
+            detail="NOT-EVALUATED (store outage): the 429 response lacked x-nr-limit-source",
             not_evaluated=True,
         )
 
@@ -727,6 +727,33 @@ def run_self_test() -> int:
     assert outage_suite["not_configured_checks"] == 0, outage_suite["not_configured_checks"]
     assert outage_suite["not_evaluated_checks"] > 0, outage_suite["not_evaluated_checks"]
     assert outage_suite["partial"] is True, outage_suite["partial"]
+
+    # GWE2E-049: A 429 that has Retry-After: 1 but lacks x-nr-limit-source is STILL a store outage => NOT-EVALUATED, never PASS
+    def mock_store_outage_with_retry_after() -> Callable:
+        inner = make_backend()
+
+        def mock(args, timeout_s=40, stdin_data=None):
+            status, headers, body, latency = inner(args, timeout_s, stdin_data)
+            if status == 429:
+                headers = {k: v for k, v in headers.items() if k != "x-nr-limit-source"}
+                headers["retry-after"] = "1"
+            return status, headers, body, latency
+
+        return mock
+
+    outage_retry = RateLimitCurlHealthCheck(
+        base_url="https://mock.invalid/v1",
+        api_key="sk-nrouter-mock-key",
+        burst=12,
+        depleted_api_key="sk-nrouter-depleted",
+        curl_fn=mock_store_outage_with_retry_after(),
+    )
+    outage_retry_suite = outage_retry.run_suite()
+    outage_retry_row = next(r for r in outage_retry_suite["checks"] if r["name"] == "burst_returns_429_with_retry_after")
+    assert outage_retry_row["result"] == "NOT-EVALUATED", outage_retry_row["result"]
+    assert outage_retry_row["result"] != PASS, "a 429 lacking x-nr-limit-source must NEVER pass as an evaluated ceiling hit"
+    assert "NOT-EVALUATED (store outage)" in outage_retry_row["detail"], outage_retry_row["detail"]
+    assert outage_retry_suite["partial"] is True, outage_retry_suite["partial"]
 
     # BITE 2: a billed refusal must go red.
     def billed_refusal() -> Callable:

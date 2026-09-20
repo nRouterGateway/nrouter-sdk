@@ -835,6 +835,32 @@ class ShellExampleContractTests(unittest.TestCase):
                     f"continuation, which silently ends the command above it",
                 )
 
+    def test_no_internal_credential_store_paths(self) -> None:
+        scripts_dir = SDK_ROOT / "scripts"
+        workflows_dir = SDK_ROOT / ".github" / "workflows"
+        
+        files_to_check = []
+        if scripts_dir.exists():
+            files_to_check.extend(scripts_dir.rglob("*.sh"))
+            files_to_check.extend(scripts_dir.rglob("*.py"))
+        if workflows_dir.exists():
+            files_to_check.extend(workflows_dir.rglob("*.yml"))
+            files_to_check.extend(workflows_dir.rglob("*.yaml"))
+            
+        leaked = []
+        for file_path in files_to_check:
+            try:
+                content = file_path.read_text()
+                if ".nrouter_admin_keys" in content:
+                    leaked.append(f"{file_path.relative_to(SDK_ROOT)} contains .nrouter_admin_keys")
+            except Exception:
+                pass
+                
+        self.assertFalse(
+            leaked,
+            "Internal credential store paths found in public repository files:\n" + "\n".join(leaked)
+        )
+
 
 class ExampleBodyFieldContractTests(unittest.TestCase):
     """`sdks/*/demo/` is the Rule #14 canonical copy-paste starter for every

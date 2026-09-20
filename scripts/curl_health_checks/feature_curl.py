@@ -624,19 +624,35 @@ class FeatureCurlHealthCheck:
             "name": "Temperature Sampling",
             "method": "POST",
             "endpoint": "/v1/messages",
-            "extra_headers": {
-                "Content-Type": "application/json",
-                "anthropic-version": "2023-06-01",
-            },
+            "extra_headers": {"anthropic-version": "2023-06-01", "Content-Type": "application/json"},
             "payload": {
                 "model": self.messages_model,
                 "messages": [{"role": "user", "content": "Pick a letter"}],
-                "temperature": 0.2,
-                "max_tokens": 5,
+                "max_tokens": 10,
+                "temperature": 0.1,
             },
-            "parameters_tested": ["temperature: float"],
+            "parameters_tested": ["temperature"],
             "expected_status": 200,
             "validate": lambda s, h, b: s == 200 and "content" in b,
+        })
+
+        features.append({
+            "id": "messages_temperature_and_top_p",
+            "category": "Anthropic Messages",
+            "name": "Refuse Temperature XOR Top P (GWE2E-055)",
+            "method": "POST",
+            "endpoint": "/v1/messages",
+            "extra_headers": {"anthropic-version": "2023-06-01", "Content-Type": "application/json"},
+            "payload": {
+                "model": self.messages_model,
+                "messages": [{"role": "user", "content": "Pick a letter"}],
+                "max_tokens": 10,
+                "temperature": 0.1,
+                "top_p": 0.9,
+            },
+            "parameters_tested": ["temperature", "top_p"],
+            "expected_status": 400,
+            "validate": lambda s, h, b: s == 400 and ("temperature" in b or "top_p" in b),
         })
 
         # ---------------------------------------------------------------------
@@ -748,6 +764,23 @@ class FeatureCurlHealthCheck:
             "parameters_tested": ["encoding_format: float"],
             "expected_status": 200,
             "validate": lambda s, h, b: s == 200 and "embedding" in b,
+        })
+
+        features.append({
+            "id": "embed_rejects_nrouter_cache",
+            "category": "Text Embeddings",
+            "name": "Refuse nrouter_cache on Modality Wire (GWE2E-045)",
+            "method": "POST",
+            "endpoint": "/v1/embeddings",
+            "extra_headers": {"Content-Type": "application/json"},
+            "payload": {
+                "model": self.embed_model,
+                "input": "This should fail because nrouter_cache is set",
+                "nrouter_cache": True,
+            },
+            "parameters_tested": ["nrouter_cache: true"],
+            "expected_status": 400,
+            "validate": lambda s, h, b: s == 400 and "nrouter_cache" in b,
         })
 
         # ---------------------------------------------------------------------
@@ -1279,17 +1312,17 @@ def run_self_test() -> int:
         if "nonexistent-model" in endpoint:
             return 404, headers, '{"error": {"message": "unknown model", "type": "gateway_error"}}', 8.0
 
-        # Check for malformed JSON
+        # Parse JSON if present
+        payload_data = {}
         for i, arg in enumerate(args):
             if arg == "-d" and i + 1 < len(args):
                 val = args[i + 1]
+                try:
+                    payload_data = json.loads(val)
+                except Exception:
+                    pass
                 if "invalid json" in val:
                     return 400, headers, '{"error": {"message": "Bad Request: malformed json", "type": "invalid_request_error"}}', 6.0
-
-        # Check for context ceiling output limit
-        for i, arg in enumerate(args):
-            if arg == "-d" and i + 1 < len(args):
-                val = args[i + 1]
                 if "10000000" in val:
                     return 400, headers, '{"error": {"message": "the requested maximum output of 10000000 tokens is above the output limit", "type": "gateway_error"}}', 6.0
                 if "00000000-0000-0000-0000-000000000000" in val:
@@ -1298,6 +1331,12 @@ def run_self_test() -> int:
                     return 400, headers, '{"error": {"message": "fallback target model unauthorized", "type": "gateway_error"}}', 7.0
                 if '"nrouter_cache": false' in val or '"nrouter_cache":false' in val:
                     headers["x-nr-response-cache"] = "bypass"
+                
+        if endpoint.endswith("/embeddings") and "nrouter_cache" in payload_data:
+            return 400, headers, '{"error": {"message": "`nrouter_cache` is not supported on this endpoint", "type": "invalid_request"}}', 5.0
+            
+        if endpoint.endswith("/messages") and "temperature" in payload_data and "top_p" in payload_data:
+            return 400, headers, '{"error": {"message": "temperature and top_p cannot be set together", "type": "invalid_request"}}', 5.0
 
         # Check for streaming
         is_stream = any('"stream": true' in arg or '"stream":true' in arg for arg in args)
@@ -1384,8 +1423,8 @@ def run_self_test() -> int:
     )
 
     result = checker.run_suite(quick=False)
-    assert result["all_passed"] is True, f"Self-test failed: {result['failed_features']} features failed"
-    assert result["total_features"] == 42, f"Expected 42 feature probes, got {result['total_features']}"
+    print(result); assert result["all_passed"] is True, f"Self-test failed: {result['failed_features']} features failed"
+    assert result["total_features"] == 44, f"Expected 44 feature probes, got {result['total_features']}"
 
     # Verify feature filtering by prefix (fallback_, ratelimit_, cache_)
     fallback_res = checker.run_suite(feature_filter="fallback_")
@@ -1484,6 +1523,14 @@ def run_self_test() -> int:
             return 400, headers, '{"error": {"message": "fallback target model unauthorized", "type": "gateway_error"}}', 5.0
         if '"nrouter_cache": false' in payload or '"nrouter_cache":false' in payload:
             headers["x-nr-response-cache"] = "bypass"
+            
+        try:
+            payload_data = json.loads(payload) if payload else {}
+        except Exception:
+            payload_data = {}
+            
+        if endpoint.endswith("/messages") and "temperature" in payload_data and "top_p" in payload_data:
+            return 400, headers, '{"error": {"message": "temperature and top_p cannot be set together", "type": "invalid_request"}}', 5.0
         if '"stream": true' in payload or '"stream":true' in payload:
             headers["content-type"] = "text/event-stream"
             return 200, headers, 'event: message_start\ndata: {"type":"message_start"}\n\n', 8.0
@@ -1707,7 +1754,7 @@ def run_self_test() -> int:
         else:
             os.environ.pop(MODEL_ENV, None)
 
-    print("[PASS] feature_curl.py self-test passed cleanly (all 42 features & prefix filters verified offline).")
+    print("[PASS] feature_curl.py self-test passed cleanly (all 44 features & prefix filters verified offline).")
     return 0
 
 
