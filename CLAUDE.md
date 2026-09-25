@@ -74,6 +74,7 @@ when you touch that area. If you read nothing else, read the first one.
 - `~/nr/nrouter-brain/nrouter-app/rules/30-email-templates.md`
 - `~/nr/nrouter-brain/nrouter-cortex/rules/00-cortex-rules.md`
 - `~/nr/nrouter-brain/nrouter-frontend-ui/rules/40-image-blog-standards.md`
+- `~/nr/nrouter-brain/nrouter-frontend-ui/rules/41-seo-geo-aeo-page-checklist.md`
 - `~/nr/nrouter-brain/nrouter-infra-cicd/rules/08-database.md`
 - `~/nr/nrouter-brain/nrouter-infra-cicd/rules/15-startup-health.md`
 - `~/nr/nrouter-brain/nrouter-infra-cicd/rules/16-infrastructure.md`
