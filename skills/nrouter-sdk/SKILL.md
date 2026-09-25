@@ -136,20 +136,20 @@ the SDK's own suite (sub-skill `testing`).
 
 ### The curl proof harness — what the wire actually answers
 
-`scripts/curl_health_checks/` asks the gateway in raw `curl`, with zero SDK bias, and is the only
+`nrouter-sdk/scripts/curl_health_checks/` asks the gateway in raw `curl`, with zero SDK bias, and is the only
 thing in this repo that proves a contract claim rather than a source-text claim. Its own
 `README.md` is authoritative; the facts that decide whether a run means anything:
 
 ```bash
-python3 scripts/curl_health_checks/run_all.py --self-test            # offline, no key, proves the checks bite
+python3 nrouter-sdk/scripts/curl_health_checks/run_all.py --self-test            # offline, no key, proves the checks bite
 export NROUTER_API_KEY="sk-nrouter-..."
-python3 scripts/curl_health_checks/run_all.py --route /messages --model <a model this key may use>
-python3 scripts/curl_health_checks/run_all.py --quick                # sampled
-python3 scripts/curl_health_checks/run_all.py --json > report.json   # stdout is exactly one document
+python3 nrouter-sdk/scripts/curl_health_checks/run_all.py --route /messages --model <a model this key may use>
+python3 nrouter-sdk/scripts/curl_health_checks/run_all.py --quick                # sampled
+python3 nrouter-sdk/scripts/curl_health_checks/run_all.py --json > report.json   # stdout is exactly one document
 ```
 
 - **Per-domain modules run standalone** with the same flags and the same JSON shape — derive them
-  rather than listing them: `ls scripts/curl_health_checks/*_curl.py`. `fallbacks_curl`,
+  rather than listing them: `ls nrouter-sdk/scripts/curl_health_checks/*_curl.py`. `fallbacks_curl`,
   `guardrails_request_curl` and `cache_curl` are the three that pin the per-request body options
   above; `contract_curl` compares the live wire against the spec directly.
 - **Four results, and only one is a pass.** `PASS` · `FAIL` · `NOT-CONFIGURED` (the precondition
