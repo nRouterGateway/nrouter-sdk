@@ -1,6 +1,12 @@
 ---
 name: nrouter-sdk
-description: Use when changing or adding any SDK wire, endpoint, header, error code, per-request body option, demo, example, validation playbook, README or version and running the conformance gate, when changing error classification, streaming abort/cancellation, secret redaction, retry policy or timeouts, when running the pure-curl proof harness against a live gateway, when developing or testing the public @nrouter_ai/support-agent library, or when adding, running or auditing tests in any of the ten nRouter SDKs (runner commands, offline default, NROUTER_LIVE probe, fake transports).
+description: 'Use when developing, testing, or auditing the official nRouter multi-language SDKs.
+
+  [WHAT]: Client SDK development across 10 languages, conformance testing, wire serialization, error classification, and retry semantics.
+
+  [WHEN]: Adding SDK features, updating request/response types, running conformance test suites, or testing the @nrouter_ai/support-agent library.
+
+  [NOT FOR]: Publishing packages to external package registries (use deploy-nrouter-sdk) or gateway wire implementation (use nrouter-rust-modalities).'
 metadata:
   version: 1.2.0
 ---
