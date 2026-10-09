@@ -343,10 +343,18 @@ async function runExample({ port, model, prompts, n, size, quality, workDir, res
 
 function summaryNumber(stdout, field) {
   // Anchored to the start of a summary line so `calls` cannot match inside
-  // `pricedCalls` or `unpricedCalls`.
-  const match = new RegExp(`^\\s*${field}\\s+([0-9]+(?:\\.[0-9]+)?)\\s*$`, 'm').exec(stdout);
-  assert.ok(match, `summary line for ${field} not found in:\n${stdout}`);
-  return Number(match[1]);
+  // `pricedCalls` or `unpricedCalls`. The field name is compared as plain
+  // text rather than compiled into a pattern, and the rest of the line must be
+  // the number and nothing else.
+  for (const line of stdout.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith(field)) continue;
+    const rest = trimmed.slice(field.length);
+    if (!/^\s/.test(rest)) continue;
+    const value = rest.trim();
+    if (/^[0-9]+(?:\.[0-9]+)?$/.test(value)) return Number(value);
+  }
+  return assert.fail(`summary line for ${field} not found in:\n${stdout}`);
 }
 
 function fail(name, child, extra) {

@@ -625,9 +625,17 @@ function summaryNumber(stdout, field) {
   // Anchored at the START only: a summary line may carry a trailing caveat
   // (`streamRecomputedUsd 0.00012400   <- ESTIMATE, ...`), and an end-anchor
   // would silently fail to find it.
-  const match = new RegExp(`^\\s*${field}\\s+([0-9]+(?:\\.[0-9]+)?)(?:\\s|$)`, 'm').exec(stdout);
-  assert.ok(match, `summary line for ${field} not found in:\n${stdout}`);
-  return Number(match[1]);
+  // The field name is compared as plain text rather than compiled into a
+  // pattern; the value is the first whitespace-delimited token after it.
+  for (const line of stdout.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith(field)) continue;
+    const rest = trimmed.slice(field.length);
+    if (!/^\s/.test(rest)) continue;
+    const value = rest.trim().split(/\s+/)[0];
+    if (/^[0-9]+(?:\.[0-9]+)?$/.test(value)) return Number(value);
+  }
+  return assert.fail(`summary line for ${field} not found in:\n${stdout}`);
 }
 
 function fail(name, child, extra) {
