@@ -7,6 +7,7 @@ import json
 import subprocess
 import sys
 import unittest
+import urllib.error
 import urllib.request
 from pathlib import Path
 from unittest.mock import patch
@@ -169,7 +170,9 @@ class TestCheckModelNames(unittest.TestCase):
         def forbid_network(*args, **kwargs):
             raise AssertionError("network call attempted when --served is a file")
 
-        with patch("urllib.request.urlopen", side_effect=forbid_network):
+        with patch("urllib.request.urlopen", side_effect=forbid_network), patch(
+            "urllib.request.OpenerDirector.open", side_effect=forbid_network
+        ):
             exit_code, findings, scanned_count, served_count = run_check(
                 root_path=FIXTURES / "fake-sdk",
                 served_target=str(FIXTURES / "served.json"),
@@ -177,6 +180,73 @@ class TestCheckModelNames(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertEqual(len(findings), 0)
             self.assertEqual(served_count, 3)
+
+    def test_non_https_url_refused_before_connecting(self):
+        """A --served URL that is not https is refused, and nothing is opened."""
+        from check_model_names import load_served_models
+
+        def forbid_network(*args, **kwargs):
+            raise AssertionError("network call attempted for a refused URL")
+
+        refused = (
+            "http://models.example.test/v1/models",
+            "https:///v1/models",
+            "https://user:secret@models.example.test/v1/models",
+            "https://models.example.test:notaport/v1/models",
+            # Credentials beside each other reason for refusal: no error may quote them.
+            "https://user:secret@models.example.test:notaport/v1/models",
+            "http://user:secret@models.example.test/v1/models",
+            "https://user:secret@/v1/models",
+        )
+        with patch("urllib.request.OpenerDirector.open", side_effect=forbid_network):
+            for target in refused:
+                with self.subTest(target=target):
+                    with self.assertRaises(ValueError) as caught:
+                        load_served_models(target)
+                    self.assertNotIsInstance(caught.exception.__cause__, AssertionError)
+                    self.assertNotIn("secret", str(caught.exception))
+
+    def test_https_url_requested_exactly_as_validated(self):
+        """An https --served URL is requested from exactly the host it names."""
+        from check_model_names import load_served_models
+
+        requested = []
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                return json.dumps({"object": "list", "data": [{"id": "served-a"}]}).encode("utf-8")
+
+        def fake_open(req, timeout=None):
+            requested.append((req.get_method(), req.full_url))
+            return FakeResponse()
+
+        with patch("urllib.request.OpenerDirector.open", side_effect=fake_open):
+            served = load_served_models("https://models.example.test:8443/v1/models?limit=5#frag")
+        self.assertEqual(served, {"served-a"})
+        self.assertEqual(requested, [("GET", "https://models.example.test:8443/v1/models?limit=5")])
+
+    def test_opener_cannot_open_anything_but_https(self):
+        """The opener has no handler for another scheme and none for a redirect."""
+        from check_model_names import https_only_opener
+
+        opener = https_only_opener()
+        # Unroutable on purpose: these must be refused before any connection.
+        for url in ("http://127.0.0.1:9/v1/models", "ftp://127.0.0.1/models", "file:///etc/hosts"):
+            with self.subTest(url=url):
+                with self.assertRaises(urllib.error.URLError) as caught:
+                    opener.open(url, timeout=1)
+                self.assertIn("unknown url type", str(caught.exception))
+
+        handlers = {type(handler).__name__ for handler in opener.handlers}
+        self.assertNotIn("HTTPRedirectHandler", handlers)
+        self.assertNotIn("HTTPHandler", handlers)
+        self.assertNotIn("FileHandler", handlers)
 
     def test_unreadable_file_exit_2(self):
         """An unreadable file must be reported and cause exit code 2."""

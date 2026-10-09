@@ -19,7 +19,6 @@ import os
 import smtplib
 import sys
 import time
-import urllib.error
 import urllib.request
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -30,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 DEFAULT_RECIPIENT = "rama@nrouter.ai"
 DEFAULT_SENDER = "sentinel@nrouter.ai"
+RESEND_EMAILS_URL = "https://api.resend.com/emails"
 
 
 def format_email_html(report_data: Dict[str, Any], dashboard_url: str, actions_url: str) -> str:
@@ -185,9 +185,33 @@ def format_email_html(report_data: Dict[str, Any], dashboard_url: str, actions_u
 """
 
 
+def https_only_opener() -> urllib.request.OpenerDirector:
+    """Return an opener that can speak https and nothing else.
+
+    Assembled handler by handler instead of taken from `build_opener()`, whose
+    defaults also open http://, ftp://, file:// and data: URLs and follow
+    redirects. This one has no handler for any of those: another scheme is an
+    "unknown url type" error, and a redirect is an HTTP error, never a second
+    request. An https proxy from the environment is still honoured.
+    """
+    proxies = urllib.request.getproxies()
+    opener = urllib.request.OpenerDirector()
+    for handler in (
+        urllib.request.ProxyHandler({"https": proxies["https"]} if "https" in proxies else {}),
+        urllib.request.UnknownHandler(),
+        urllib.request.HTTPSHandler(),
+        urllib.request.HTTPDefaultErrorHandler(),
+        urllib.request.HTTPErrorProcessor(),
+    ):
+        opener.add_handler(handler)
+    return opener
+
+
 def send_via_resend(api_key: str, recipient: str, subject: str, html_body: str) -> bool:
     """Send transactional email via Resend API."""
-    url = "https://api.resend.com/emails"
+    # One fixed endpoint, opened through an opener that speaks only https and
+    # does not follow redirects, so the bearer token is never sent to a second
+    # host or over a plain connection.
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -199,9 +223,14 @@ def send_via_resend(api_key: str, recipient: str, subject: str, html_body: str) 
         "subject": subject,
         "html": html_body,
     }
-    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
+    req = urllib.request.Request(
+        RESEND_EMAILS_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with https_only_opener().open(req, timeout=15) as resp:
             if resp.status in (200, 201):
                 print(f"  ok: Email successfully sent via Resend to {recipient}")
                 return True

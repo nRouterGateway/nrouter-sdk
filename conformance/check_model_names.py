@@ -7,7 +7,7 @@ import argparse
 import json
 import re
 import sys
-import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -77,21 +77,86 @@ def is_placeholder_or_router(candidate: str) -> bool:
     return False
 
 
+def https_only_opener() -> urllib.request.OpenerDirector:
+    """Return an opener that can speak https and nothing else.
+
+    It is assembled handler by handler instead of taken from `build_opener()`,
+    whose defaults also open http://, ftp://, file:// and data: URLs and follow
+    redirects. This one has no handler for any of those: another scheme is an
+    "unknown url type" error, and a redirect is an HTTP error, never a second
+    request. An https proxy from the environment is still honoured.
+    """
+    proxies = urllib.request.getproxies()
+    opener = urllib.request.OpenerDirector()
+    for handler in (
+        urllib.request.ProxyHandler({"https": proxies["https"]} if "https" in proxies else {}),
+        urllib.request.UnknownHandler(),
+        urllib.request.HTTPSHandler(),
+        urllib.request.HTTPDefaultErrorHandler(),
+        urllib.request.HTTPErrorProcessor(),
+    ):
+        opener.add_handler(handler)
+    return opener
+
+
+def _without_credentials(target: str) -> str:
+    """The URL as it may be shown in an error: any ``user:password@`` removed.
+
+    Done on the text, not on a parsed URL, so it also works for a URL that does
+    not parse (a bad port), which is exactly when an error quotes it.
+    """
+    scheme, sep, rest = target.partition("://")
+    if not sep:
+        return target
+    authority, slash, tail = rest.partition("/")
+    return f"{scheme}://{authority.rpartition('@')[2]}{slash}{tail}"
+
+
+def fetch_served_models(target: str) -> str:
+    """Fetch the served-model document from an https:// URL and return its text.
+
+    The URL comes from the command line, so it is validated before anything is
+    opened: https only, a host, no embedded credentials, a valid port. The
+    request is then made to exactly that host over TLS. A redirect is not
+    followed; it is reported as a failure, so the check never reads a list from
+    a host the caller did not name.
+    """
+    shown = _without_credentials(target)
+    try:
+        parts = urllib.parse.urlsplit(target)
+        port = parts.port
+    except ValueError as err:
+        raise ValueError(f"Invalid served models URL {shown}: {err}") from err
+
+    if parts.scheme != "https":
+        raise ValueError(
+            f"Refusing to fetch served models from {shown}: only https:// URLs are accepted"
+        )
+    if not parts.hostname:
+        raise ValueError(f"Invalid served models URL {shown}: no host")
+    if parts.username is not None or parts.password is not None:
+        raise ValueError("Invalid served models URL: credentials in the URL are not accepted")
+
+    # Rebuilt from the validated parts, so what is requested is what was checked.
+    host = parts.hostname if ":" not in parts.hostname else f"[{parts.hostname}]"
+    netloc = host if port is None else f"{host}:{port}"
+    url = urllib.parse.urlunsplit(("https", netloc, parts.path or "/", parts.query, ""))
+
+    req = urllib.request.Request(url, headers={"User-Agent": "nrouter-sdk-conformance"})
+    try:
+        with https_only_opener().open(req, timeout=30) as resp:
+            return resp.read().decode("utf-8")
+    except Exception as err:
+        raise ValueError(f"Failed to fetch served models from {shown}: {err}") from err
+
+
 def load_served_models(target: str) -> set[str]:
     """Load served models from a local file or https:// URL.
 
     Accepts OpenAI-shaped {"object":"list","data":[{"id":"..."}]} or a plain JSON array of ids.
     """
     if target.startswith(("http://", "https://")):
-        req = urllib.request.Request(
-            target,
-            headers={"User-Agent": "nrouter-sdk-conformance"},
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                content = resp.read().decode("utf-8")
-        except Exception as err:
-            raise ValueError(f"Failed to fetch served models from {target}: {err}") from err
+        content = fetch_served_models(target)
     else:
         file_path = Path(target)
         if not file_path.exists():
