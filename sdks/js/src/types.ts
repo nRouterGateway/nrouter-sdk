@@ -104,6 +104,14 @@ export interface ResponseMeta {
   fundingSource: string | null;
   /** Seconds until the tightest usage-allowance window resets. */
   allowanceReset: number | null;
+  /**
+   * `true` when the model that served this request is deprecated and will be
+   * retired. The gateway sends the header only for a deprecated model, so null
+   * means it made no such claim — never "confirmed current".
+   */
+  modelDeprecated: boolean | null;
+  /** Notice and successor guidance for a deprecated model. */
+  deprecationNotice: string | null;
 }
 
 /**
@@ -135,6 +143,8 @@ export const HEADER_NAMES = [
   'x-nr-intent',
   'x-nr-funding-source',
   'x-nr-allowance-reset',
+  'x-nr-model-deprecated',
+  'x-nr-deprecation-notice',
 ] as const;
 
 export type HeaderName = (typeof HEADER_NAMES)[number];

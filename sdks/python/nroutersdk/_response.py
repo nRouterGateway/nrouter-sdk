@@ -60,6 +60,12 @@ class nRouterResponseMeta:
         attempts: Provider calls made for this request (>= 1), absent on cache
             hits and refusals.
         intent: Top evaluated intent category if intent routing was requested.
+        model_deprecated: ``True`` when the model that served this request is
+            deprecated and will be retired. The gateway sends the header only
+            for a deprecated model, so ``None`` means it made no such claim —
+            never "confirmed current".
+        deprecation_notice: Notice and successor guidance for a deprecated
+            model.
     """
 
     request_id: str | None = None
@@ -85,6 +91,8 @@ class nRouterResponseMeta:
     intent: str | None = None
     funding_source: str | None = None
     allowance_reset: int | None = None
+    model_deprecated: bool | None = None
+    deprecation_notice: str | None = None
 
     #: Every response header this SDK reads, exactly as
     #: ``spec/nrouter-sdk-spec.json`` names them. Published so a caller (and the
@@ -118,6 +126,8 @@ class nRouterResponseMeta:
         "x-nr-intent",
         "x-nr-funding-source",
         "x-nr-allowance-reset",
+        "x-nr-model-deprecated",
+        "x-nr-deprecation-notice",
     )
 
     @classmethod
@@ -152,6 +162,20 @@ class nRouterResponseMeta:
             except (ValueError, TypeError):
                 return None
 
+        def optional_bool(name: str) -> bool | None:
+            # Only the two literal tokens. ``bool("false")`` is ``True``, so
+            # coercing would report the opposite of what the header said; any
+            # other value is unknown and stays ``None``.
+            value = norm.get(name)
+            if not isinstance(value, str):
+                return None
+            token = value.strip()
+            if token == "true":
+                return True
+            if token == "false":
+                return False
+            return None
+
         return cls(
             request_id=norm.get("x-nr-request-id"),
             # `optional_int`, not a raw read: the gateway sends whole
@@ -179,6 +203,8 @@ class nRouterResponseMeta:
             intent=norm.get("x-nr-intent"),
             funding_source=norm.get("x-nr-funding-source"),
             allowance_reset=optional_int("x-nr-allowance-reset"),
+            model_deprecated=optional_bool("x-nr-model-deprecated"),
+            deprecation_notice=norm.get("x-nr-deprecation-notice"),
         )
 
     @property

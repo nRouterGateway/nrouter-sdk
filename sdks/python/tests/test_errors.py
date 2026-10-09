@@ -532,6 +532,30 @@ def test_funding_source_and_allowance_reset_are_parsed_from_headers():
     assert meta.allowance_reset == 86400
 
 
+def test_model_deprecated_and_deprecation_notice_are_parsed_from_headers():
+    from nroutersdk import nRouterResponseMeta
+    meta = nRouterResponseMeta.from_headers({
+        "x-nr-model-deprecated": "true",
+        "x-nr-deprecation-notice": "This model is deprecated; move to its successor.",
+    })
+    assert meta.model_deprecated is True
+    assert meta.deprecation_notice == "This model is deprecated; move to its successor."
+
+    assert nRouterResponseMeta.from_headers(
+        {"x-nr-model-deprecated": "false"}
+    ).model_deprecated is False
+    # bool("false") and bool("0") are both True; a value that is not one of the
+    # two tokens must not be coerced into a claim.
+    for hostile in ("1", "0", "yes", "TRUE", "", "  "):
+        assert nRouterResponseMeta.from_headers(
+            {"x-nr-model-deprecated": hostile}
+        ).model_deprecated is None
+
+    absent = nRouterResponseMeta.from_headers({"x-nr-request-id": "req_1"})
+    assert absent.model_deprecated is None
+    assert absent.deprecation_notice is None
+
+
 def test_is_priced_and_cache_age_seconds_properties():
     from nroutersdk import nRouterResponseMeta
     meta_priced = nRouterResponseMeta.from_headers({

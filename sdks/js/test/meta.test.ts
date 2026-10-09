@@ -76,6 +76,9 @@ const FIXTURE: Record<string, string> = {
   'x-nr-guardrails': 'pass',
   'x-nr-funding-source': 'allowance',
   'x-nr-allowance-reset': '86400',
+  // Sent only for a deprecated model, and then always as the literal `true`.
+  'x-nr-model-deprecated': 'true',
+  'x-nr-deprecation-notice': 'This model is deprecated; move to its successor.',
 };
 
 test('HEADER_NAMES and this test fixture agree in BOTH directions', () => {
@@ -316,6 +319,29 @@ test('fundingSource and allowanceReset are parsed', () => {
   });
   assert.equal(m.fundingSource, 'allowance');
   assert.equal(m.allowanceReset, 86400);
+});
+
+test('modelDeprecated and deprecationNotice are parsed, and an unknown flag stays null', () => {
+  const m = metaFromHeaders({
+    'x-nr-model-deprecated': 'true',
+    'x-nr-deprecation-notice': 'This model is deprecated; move to its successor.',
+  });
+  assert.equal(m.modelDeprecated, true);
+  assert.equal(m.deprecationNotice, 'This model is deprecated; move to its successor.');
+
+  assert.equal(metaFromHeaders({ 'x-nr-model-deprecated': 'false' }).modelDeprecated, false);
+  // Boolean('false') and Boolean('0') are both true in JavaScript; a value that
+  // is not one of the two tokens must not be coerced into a claim.
+  for (const hostile of ['1', '0', 'yes', 'TRUE', '', ' ']) {
+    assert.equal(
+      metaFromHeaders({ 'x-nr-model-deprecated': hostile }).modelDeprecated,
+      null,
+      `x-nr-model-deprecated: ${JSON.stringify(hostile)} must be null`
+    );
+  }
+  const absent = metaFromHeaders({ 'x-nr-request-id': 'nrouter-abc123' });
+  assert.equal(absent.modelDeprecated, null);
+  assert.equal(absent.deprecationNotice, null);
 });
 
 test('compression, routing, and attempts parse to null when headers are missing', () => {

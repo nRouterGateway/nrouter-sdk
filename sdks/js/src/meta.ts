@@ -67,6 +67,8 @@ export const EMPTY_META: ResponseMeta = Object.freeze({
   intent: null,
   fundingSource: null,
   allowanceReset: null,
+  modelDeprecated: null,
+  deprecationNotice: null,
 });
 
 /**
@@ -153,6 +155,21 @@ function money(raw: string | null | undefined): number | null {
 }
 
 /**
+ * Parse a boolean header, or `null`.
+ *
+ * Only the two literal tokens are accepted. Anything else — `1`, `yes`, a
+ * mangled value — is unknown, and unknown stays `null` rather than being
+ * coerced: `Boolean('false')` is `true` in JavaScript, which would report the
+ * opposite of what the header said.
+ */
+function flag(raw: string | null | undefined): boolean | null {
+  const value = text(raw);
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return null;
+}
+
+/**
  * Build `ResponseMeta` from any lowercase-name header lookup.
  *
  * This is the primitive the other entry point is written in terms of, and the
@@ -192,6 +209,8 @@ export function metaFromLookup(get: (name: string) => string | null | undefined)
     intent: text(get('x-nr-intent')),
     fundingSource: text(get('x-nr-funding-source')),
     allowanceReset: count(get('x-nr-allowance-reset')),
+    modelDeprecated: flag(get('x-nr-model-deprecated')),
+    deprecationNotice: text(get('x-nr-deprecation-notice')),
   };
 }
 

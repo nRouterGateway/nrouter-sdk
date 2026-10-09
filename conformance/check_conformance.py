@@ -1421,8 +1421,10 @@ CODES_PENDING_SDK_MAPPING: dict[str, set[str]] = {
     )
 }
 
+# The JavaScript and Python SDKs declare and parse both headers, so neither is
+# excused: the declared-and-used rule below holds them like every other header.
 HEADERS_PENDING_SDK_MAPPING: dict[str, set[str]] = {
-    header: set(SDK_SOURCES.keys())
+    header: set(SDK_SOURCES.keys()) - {"js", "python"}
     for header in (
         "x-nr-model-deprecated",
         "x-nr-deprecation-notice",
