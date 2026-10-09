@@ -557,14 +557,18 @@ fn test_cache_age_seconds_and_guardrail_metadata() {
     assert_eq!(client.tags(), Some("env:prod,service:chat"));
     assert_eq!(client.compress(), Some("aggressive"));
 
-    assert!(nrouter::http::Client::new("sk-nrouter-test00000000000000000123")
-        .unwrap()
-        .with_tags("tag\r\nbad")
-        .is_err());
-    assert!(nrouter::http::Client::new("sk-nrouter-test00000000000000000123")
-        .unwrap()
-        .with_compress("compress\nbad")
-        .is_err());
+    assert!(
+        nrouter::http::Client::new("sk-nrouter-test00000000000000000123")
+            .unwrap()
+            .with_tags("tag\r\nbad")
+            .is_err()
+    );
+    assert!(
+        nrouter::http::Client::new("sk-nrouter-test00000000000000000123")
+            .unwrap()
+            .with_compress("compress\nbad")
+            .is_err()
+    );
 
     let body = ErrorBody {
         message: "Prompt refused".into(),

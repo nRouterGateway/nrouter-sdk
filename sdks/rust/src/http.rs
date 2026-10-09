@@ -1000,12 +1000,12 @@ fn error_body(
             }
         }
     }
-    if code.is_none() && status == 400 {
-        if meta.guardrails.as_deref() == Some("blocked")
-            || error_type.as_deref() == Some("guardrail_blocked")
-        {
-            code = Some("guardrail_blocked".to_string());
-        }
+    if code.is_none()
+        && status == 400
+        && (meta.guardrails.as_deref() == Some("blocked")
+            || error_type.as_deref() == Some("guardrail_blocked"))
+    {
+        code = Some("guardrail_blocked".to_string());
     }
     ErrorBody {
         message: node
