@@ -9,8 +9,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-1. **Ten client SDKs** under `sdks/` (js, python, java, kotlin, android, go, rust, swift, dart, r), all speaking one gateway wire contract (`api.nrouter.ai/v1/*`). Package names and versions live in each SDK's manifest — read them there, never from prose; the SDKs are not all on the same version.
+1. **Ten client SDKs** under `sdks/` (js, python, java, kotlin, android, go, rust, swift, dart, r), all speaking one gateway wire contract (`api.nrouter.ai/v1/*`). Package names and versions live in each SDK's manifest — read them there, never from prose. All ten ship one coordinated release version; `conformance/check_conformance.py` and `tests/test_release_versions.py` fail on a manifest, lockfile or version marker that drifts.
 2. **Agents** under `agents/`. The public zero-DB `@nrouter_ai/support-agent` is no longer one of them: it has its own public repository, `nRouterGateway/customer-support-agent`, and depends on `@nrouter_ai/sdk` from here.
+
+| Path | Holds |
+|---|---|
+| `spec/` | `nrouter-sdk-spec.json` (the contract) and `gateway-response-headers.json` (the gateway's emitted header names) |
+| `conformance/` | The cross-SDK gate and its helpers; `feature_manifest.json`; `README.md` says what it proves |
+| `tests/` | Repo-level gates; `scripts/test-all.sh` runs the contract, release-version, tag-publish, static-catalog-count and demo-record ones — run any other (`ls tests/`) directly |
+| `scripts/curl_health_checks/` | Pure-curl proofs against a live gateway — billed, never a default path |
+| `skills/nrouter-sdk/` | The one skill (sub-skills `parity`, `hardening`, `testing`, `support-agent`). Published with the code: SDK code and contract only |
+| `.github/workflows/` | CI, guards, and one `publish-*.yml` per registry |
+| `examples/`, `notebooks/`, `docs/`, `LANGUAGES.md` | Public usage material |
 
 ## The One Rule: Canonical Specification (Rule #14)
 
@@ -21,11 +31,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 python3 scripts/check_sdk_parity.py [--self-test]        # playbooks, manifests, READMEs agree
 python3 conformance/check_conformance.py [--self-test]   # all ten agree with the spec
-scripts/test-all.sh                                      # every SDK's own tests, one lane each
+scripts/test-all.sh [--self-test]                        # every SDK's own tests, one lane each
+NROUTER_REQUIRE_ALL=1 scripts/test-all.sh                # release posture: a skipped lane fails
 (cd sdks/js && npm ci && npm test)                       # one SDK; each sdks/<lang>/README.md has its command
 ```
 
+A lane whose toolchain is absent is reported `SKIPPED`, never passed. Live tests are opt-in (`NROUTER_LIVE=1`) because they spend credits.
+
 ## Traps & Invariants
+
+- **Spec change = ten SDK changes:** a new header or error code lands in the spec, then in every SDK. `CODES_PENDING_SDK_MAPPING` and `HEADERS_PENDING_SDK_MAPPING` in `conformance/check_conformance.py` are the only places an SDK may lag; shrink them, never grow them to get green.
 
 - **Error format:** a refusal body is `{"error": {"type": "...", "message": "..."}}` plus an **optional** `"code"`, present only where the gateway can name a spec `errors` key. Model `code` as optional; classify on `code`, then `type`, then status, never on `message`. The exact code list is the spec's `error_envelope`.
 - **Pricing:** `x-nr-request-cost` is absent when unpriced; rendering it as `0` falsely reports a free request (violates Rule #28).
