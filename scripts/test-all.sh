@@ -447,13 +447,12 @@ fi
 # Gradle's auto-detection path on macOS, so name the ones this machine has,
 # at invocation time. Never commit these paths to gradle.properties: that file
 # is read on every machine, and a Windows build warns about paths it cannot have.
-GRADLE_JDK_PATHS=""
-for jdk in /opt/homebrew/opt/openjdk@11/libexec/openjdk.jdk/Contents/Home \
-           /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home; do
-  if [ -d "$jdk" ]; then
-    GRADLE_JDK_PATHS="${GRADLE_JDK_PATHS:+$GRADLE_JDK_PATHS,}$jdk"
-  fi
-done
+#
+# The list itself lives in scripts/gradle-jdk-paths.sh, shared with
+# tests/demo-e2e-record.test.sh, which runs the Kotlin contract suite through
+# Gradle too and needs the same JDKs.
+# shellcheck source=scripts/gradle-jdk-paths.sh
+. "$ROOT/scripts/gradle-jdk-paths.sh"
 GRADLE_JDK_ARGS=""
 if [ -n "$GRADLE_JDK_PATHS" ]; then
   # %q because run_lane re-parses the lane with `bash -c`: a path with a space

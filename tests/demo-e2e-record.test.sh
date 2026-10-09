@@ -340,7 +340,16 @@ run_step 7 "Executing Swift SDK Contract & Wire Suite..." swift test --filter Co
 
 export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17}"
 export PATH="$JAVA_HOME/bin:$PATH"
-kotlin_contract_suite() { (cd sdks/kotlin && ./gradlew test --tests "ai.nrouter.sdk.ContractTest"); }
+# The Kotlin SDK builds with `jvmToolchain(11)`, which Gradle cannot find among
+# Homebrew JDKs on its own. Use the same JDK list scripts/test-all.sh passes to
+# its Kotlin and Android lanes, so the two runners cannot disagree.
+# shellcheck source=scripts/gradle-jdk-paths.sh
+. "$ROOT_DIR/scripts/gradle-jdk-paths.sh"
+kotlin_contract_suite() {
+  (cd sdks/kotlin && ./gradlew \
+    ${GRADLE_JDK_PATHS:+"-Porg.gradle.java.installations.paths=$GRADLE_JDK_PATHS"} \
+    test --tests "ai.nrouter.sdk.ContractTest")
+}
 run_step 8 "Executing Kotlin SDK Contract & Wire Suite..." kotlin_contract_suite
 
 java_contract_suite() { (cd sdks/java && mvn test -q); }
