@@ -99,7 +99,8 @@ impl NRouterError {
             | Some("input_too_large")
             | Some("max_output_tokens_too_large")
             | Some("fallback_not_allowed")
-            | Some("guardrail_not_found") => Self::Request(body),
+            | Some("guardrail_not_found")
+            | Some("image_input_unsupported") => Self::Request(body),
             Some("guardrail_blocked") => Self::GuardrailBlocked(body),
             Some("invalid_api_key") => Self::Authentication(body),
             Some("insufficient_credits")

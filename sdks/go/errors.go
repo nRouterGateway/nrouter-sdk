@@ -273,7 +273,7 @@ func transportErr(format string, args ...any) *Error {
 //     caller to fix a body that was never the problem.
 func classify(code, message string, status int) Kind {
 	switch code {
-	// The last four are PRE-EGRESS refusals (2026-09-17): the gateway named
+	// All but the first are PRE-EGRESS refusals: the gateway named
 	// what the caller sent and refused it before any provider call, so nothing
 	// was reserved and nothing was spent, and a retry of the identical body is
 	// refused identically. They MUST be listed: an unrecognized code returns
@@ -283,7 +283,8 @@ func classify(code, message string, status int) Kind {
 		"input_too_large",
 		"max_output_tokens_too_large",
 		"fallback_not_allowed",
-		"guardrail_not_found":
+		"guardrail_not_found",
+		"image_input_unsupported":
 		return KindRequest
 	case "guardrail_blocked":
 		return KindGuardrailBlocked

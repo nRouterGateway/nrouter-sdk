@@ -961,4 +961,5 @@ bool _knownErrorCode(String code) => const {
       'max_output_tokens_too_large',
       'fallback_not_allowed',
       'guardrail_not_found',
+      'image_input_unsupported',
     }.contains(code);

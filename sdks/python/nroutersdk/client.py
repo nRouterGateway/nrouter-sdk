@@ -397,7 +397,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
     # the primary route, and it stays forward-compatible with a gateway that
     # starts sending codes on every path.
     #
-    # The four pre-egress refusals added 2026-09-17 MUST be listed. An
+    # Every pre-egress refusal code MUST be listed. An
     # unrecognized code is deliberately NOT allowed to fall through to status
     # classification below — it raises the base ``nRouterError`` instead — so an
     # unmapped code here is a real misclassification, not merely a missing name.
@@ -407,6 +407,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "max_output_tokens_too_large": nRouterRequestError,
         "fallback_not_allowed": nRouterRequestError,
         "guardrail_not_found": nRouterRequestError,
+        "image_input_unsupported": nRouterRequestError,
         "guardrail_blocked": nRouterGuardrailBlockedError,
         "invalid_api_key": nRouterAuthenticationError,
         "insufficient_credits": nRouterCreditError,

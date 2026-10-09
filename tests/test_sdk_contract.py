@@ -249,6 +249,7 @@ class SpecContractTests(unittest.TestCase):
         "max_output_tokens_too_large",
         "fallback_not_allowed",
         "guardrail_not_found",
+        "image_input_unsupported",
     }
 
     def test_spec_errors_name_every_refusal_code_on_the_wire(self) -> None:

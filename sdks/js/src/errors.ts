@@ -359,6 +359,7 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   max_output_tokens_too_large: nRouterRequestError,
   fallback_not_allowed: nRouterRequestError,
   guardrail_not_found: nRouterRequestError,
+  image_input_unsupported: nRouterRequestError,
 });
 
 /** The HTTP status the spec pairs with each code. */
@@ -378,6 +379,7 @@ export const ERROR_STATUS_BY_CODE: Readonly<Record<string, number>> = Object.fre
   max_output_tokens_too_large: 400,
   fallback_not_allowed: 400,
   guardrail_not_found: 400,
+  image_input_unsupported: 400,
 });
 
 /**

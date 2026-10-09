@@ -43,16 +43,20 @@ const SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8')) as {
 // Case 3 — the nine spec codes, asserted against the spec file.
 // ---------------------------------------------------------------------------
 
-test('the spec still declares exactly fifteen error codes', () => {
+test('the spec still declares exactly sixteen error codes', () => {
   // If the spec grew one, this file and ERROR_CLASS_BY_CODE must grow too.
   //
   // Eleven until 2026-09-17, when the gateway put four pre-egress refusals on
   // the wire with the per-request routing and guardrail overrides:
   // input_too_large, max_output_tokens_too_large, fallback_not_allowed and
   // guardrail_not_found. All four are 400s in the request class.
+  //
+  // Sixteen with image_input_unsupported: an image sent to nrouter/auto where
+  // no model available for automatic routing accepts image input. Also a 400
+  // in the request class.
   assert.strictEqual(
     Object.keys(SPEC.errors).length,
-    15,
+    16,
     'The gateway shipped a new code. Map it in ERROR_CLASS_BY_CODE and add it here.',
   );
 });

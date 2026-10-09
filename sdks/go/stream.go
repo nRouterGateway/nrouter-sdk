@@ -326,7 +326,8 @@ func knownErrorCode(code string) bool {
 		"plan_allowance_exhausted", "plan_required",
 		"model_not_found", "rate_limit_exceeded", "tpm_limit_exceeded",
 		"credit_check_failed", "service_unavailable",
-		"input_too_large", "max_output_tokens_too_large", "fallback_not_allowed", "guardrail_not_found":
+		"input_too_large", "max_output_tokens_too_large", "fallback_not_allowed", "guardrail_not_found",
+		"image_input_unsupported":
 		return true
 	default:
 		return false

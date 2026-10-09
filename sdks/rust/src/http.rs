@@ -950,6 +950,7 @@ fn is_known_error_code(code: &str) -> bool {
             | "max_output_tokens_too_large"
             | "fallback_not_allowed"
             | "guardrail_not_found"
+            | "image_input_unsupported"
     )
 }
 

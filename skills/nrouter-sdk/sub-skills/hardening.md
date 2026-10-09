@@ -44,9 +44,10 @@ d=collections.defaultdict(list);[d[v['http']].append(k) for k,v in e.items()];\
 print(dict(sorted(d.items())))"
 ```
 
-Four of the newer ones matter to a retry layer because they are **permanent for that body and cost
+Five of the newer ones matter to a retry layer because they are **permanent for that body and cost
 nothing** — nothing was reserved and nothing was spent, so a retry buys a second identical refusal:
-`input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed` and `guardrail_not_found`.
+`input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found` and
+`image_input_unsupported` (an image sent to `nrouter/auto` that no automatically routed model accepts).
 `max_output_tokens_too_large` is deliberately not clamped for the caller, because silently changing
 the ceiling changes what the request costs. The generic `invalid_request` covers a malformed shape.
 

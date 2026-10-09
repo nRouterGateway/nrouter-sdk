@@ -74,7 +74,8 @@ public final class NRouterException extends RuntimeException {
                 case "input_too_large":
                 case "max_output_tokens_too_large":
                 case "fallback_not_allowed":
-                case "guardrail_not_found": return Kind.REQUEST;
+                case "guardrail_not_found":
+                case "image_input_unsupported": return Kind.REQUEST;
                 case "guardrail_blocked": return Kind.GUARDRAIL_BLOCKED;
                 case "invalid_api_key": return Kind.AUTHENTICATION;
                 case "insufficient_credits":

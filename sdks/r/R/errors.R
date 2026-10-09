@@ -30,7 +30,8 @@ NROUTER_ERROR_CLASSES <- c(
   input_too_large          = "nrouter_request_error",
   max_output_tokens_too_large = "nrouter_request_error",
   fallback_not_allowed     = "nrouter_request_error",
-  guardrail_not_found      = "nrouter_request_error"
+  guardrail_not_found      = "nrouter_request_error",
+  image_input_unsupported  = "nrouter_request_error"
 )
 
 NROUTER_STATUS_CLASSES <- c(

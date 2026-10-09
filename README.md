@@ -329,15 +329,15 @@ nothing):
 | Language | Install | Registry URL | Registry status | Package | Typed errors | `x-nr-*` metadata |
 |----------|---------|--------------|---|---------|---|---|
 | **Python** | `pip install nrouter-sdk` | [pypi.org/project/nrouter-sdk](https://pypi.org/project/nrouter-sdk/) | ✅ PUBLISHED `3.1.3` | [`sdks/python/`](sdks/python/) | ✅ typed wrappers | ✅ `client.last_response` |
-| **TypeScript / JS** | `npm install @nrouter_ai/sdk` | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/js/`](sdks/js/) | ✅ 15 codes | ✅ all `x-nr-*` headers |
-| **Java** | Maven `ai.nrouter:nrouter-sdk:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/java/`](sdks/java/) | ✅ 15 codes (native HTTP surface) | ✅ all `x-nr-*` headers (native HTTP surface) |
-| **Kotlin** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin) | ✅ PUBLISHED `3.1.3` | [`sdks/kotlin/`](sdks/kotlin/) | ✅ 15 codes | ✅ all `x-nr-*` headers |
-| **Android** | Maven `ai.nrouter:nrouter-sdk-android:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/android/`](sdks/android/) | ✅ 15 codes | ✅ all `x-nr-*` headers |
-| **Rust** | `cargo add nrouter@3.1.3` | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/rust/`](sdks/rust/) | ✅ 15 codes | ✅ all `x-nr-*` headers |
-| **Dart / Flutter** | `dart pub add nrouter` | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/dart/`](sdks/dart/) | ✅ 15 codes | ✅ all `x-nr-*` headers |
-| **Swift** | SwiftPM, this repo's URL | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | ✅ git tag `3.1.3` | [`sdks/swift/`](sdks/swift/) | ✅ 15 codes | ✅ all `x-nr-*` headers |
-| **R** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/r/`](sdks/r/) | ✅ 15 classed conditions | ✅ all `x-nr-*` headers |
-| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.3` | [pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.1.3` | [`sdks/go/`](sdks/go/) | ✅ 15 codes | ✅ all `x-nr-*` headers |
+| **TypeScript / JS** | `npm install @nrouter_ai/sdk` | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/js/`](sdks/js/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
+| **Java** | Maven `ai.nrouter:nrouter-sdk:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/java/`](sdks/java/) | ✅ 16 codes (native HTTP surface) | ✅ all `x-nr-*` headers (native HTTP surface) |
+| **Kotlin** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin) | ✅ PUBLISHED `3.1.3` | [`sdks/kotlin/`](sdks/kotlin/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
+| **Android** | Maven `ai.nrouter:nrouter-sdk-android:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/android/`](sdks/android/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
+| **Rust** | `cargo add nrouter@3.1.3` | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/rust/`](sdks/rust/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
+| **Dart / Flutter** | `dart pub add nrouter` | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/dart/`](sdks/dart/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
+| **Swift** | SwiftPM, this repo's URL | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | ✅ git tag `3.1.3` | [`sdks/swift/`](sdks/swift/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
+| **R** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/r/`](sdks/r/) | ✅ 16 classed conditions | ✅ all `x-nr-*` headers |
+| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.3` | [pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.1.3` | [`sdks/go/`](sdks/go/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
 
 Verify any row rather than trusting it:
 
@@ -365,7 +365,7 @@ curl -s https://nroutergateway.r-universe.dev/src/contrib/PACKAGES | grep -A4 '^
 
 Java keeps its vendor-compatible OpenAI factory and adds a Java 11 native HTTP
 surface for all 15 gateway operations, four incremental SSE wires, every
-`x-nr-*` header and fifteen typed gateway errors.
+`x-nr-*` header and sixteen typed gateway errors.
 JavaScript/TypeScript and the seven first-party native transports expose the
 same contract. Android delegates those guarantees to Kotlin; Python adds the
 same nRouter typing and metadata capture around its vendor client.
@@ -665,6 +665,7 @@ The gateway classifies refusals into typed error codes:
 | `max_output_tokens_too_large` | 400 | `nRouterRequestError` | The requested output ceiling exceeds what the served model allows. It is not clamped for you; lower it |
 | `fallback_not_allowed` | 400 | `nRouterRequestError` | A model in `nrouter_fallbacks` is not a valid fallback target for this key; nothing was spent |
 | `guardrail_not_found` | 400 | `nRouterRequestError` | A guardrail in `nrouter_guardrails` is not owned by this organization; refused rather than ignored |
+| `image_input_unsupported` | 400 | `nRouterRequestError` | The request to `nrouter/auto` includes an image, and no model available for automatic routing on this endpoint accepts image input. Remove the image or name a model that accepts images; nothing was spent |
 
 ---
 

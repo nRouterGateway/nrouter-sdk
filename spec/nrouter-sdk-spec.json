@@ -326,6 +326,11 @@
       "http": 400,
       "class": "nRouterRequestError",
       "description": "A guardrail id or name in the request's nrouter_guardrails list is not owned by this organization. Refused rather than ignored: a silently dropped guardrail is a request the caller believes was inspected and was not. Nothing was reserved and nothing was spent."
+    },
+    "image_input_unsupported": {
+      "http": 400,
+      "class": "nRouterRequestError",
+      "description": "The request to nrouter/auto includes an image, and no model available for automatic routing on this endpoint accepts image input. Refused before any provider egress, so nothing was reserved and nothing was spent. Permanent for this body: remove the image or name a model that accepts images."
     }
   },
   "supported_endpoints": [

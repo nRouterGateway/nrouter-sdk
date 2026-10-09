@@ -973,6 +973,7 @@ private fun isKnownStreamErrorCode(code: String): Boolean = code in setOf(
     "max_output_tokens_too_large",
     "fallback_not_allowed",
     "guardrail_not_found",
+    "image_input_unsupported",
 )
 
 // Android's platform org.json does not normalize Kotlin collections the same
