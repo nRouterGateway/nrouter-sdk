@@ -191,7 +191,7 @@
     },
     "x-nr-allowance-reset": {
       "type": "integer",
-      "description": "Seconds until the tightest usage-allowance window resets",
+      "description": "Seconds until the tightest usage-allowance window resets; sent on allowance-window 429s (equal to Retry-After) and the monthly 402 plan_allowance_exhausted",
       "always": false,
       "format": "int64"
     }
@@ -280,7 +280,7 @@
     "rate_limit_exceeded": {
       "http": 429,
       "class": "nRouterRateLimitError",
-      "description": "RPM limit exceeded; see x-nr-limit-source"
+      "description": "RPM limit exceeded, or an 8-hour/daily/weekly nrouter/auto allowance window is used up (x-nr-limit-source: plan_window_h8|plan_window_day|plan_window_week; Retry-After and x-nr-allowance-reset carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see x-nr-limit-source"
     },
     "tpm_limit_exceeded": {
       "http": 429,
@@ -300,7 +300,7 @@
     "plan_allowance_exhausted": {
       "http": 402,
       "class": "nRouterCreditError",
-      "description": "The plan's usage allowance for this billing period is used up. It resets at the next billing period (see x-nr-allowance-reset)."
+      "description": "The plan's monthly usage allowance is used up (HTTP 402; the 8-hour, daily and weekly windows answer 429 rate_limit_exceeded instead). It resets at the next billing period (see x-nr-allowance-reset); no Retry-After is sent. With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused."
     },
     "plan_required": {
       "http": 402,

@@ -632,7 +632,7 @@ not itself the register of which ones exist.
 | `x-nr-response-cache` | string | `hit` or `miss`; absent when the response cache did not participate |
 | `x-nr-response-cache-age` | integer | Age of a cache `hit` in seconds |
 | `x-nr-funding-source` | string | Which balance paid for this request: the plan's usage allowance or credits (`allowance` or `credits`) |
-| `x-nr-allowance-reset` | integer | Seconds until the tightest usage-allowance window resets |
+| `x-nr-allowance-reset` | integer | Seconds until the tightest usage-allowance window resets; sent on allowance-window 429s (equal to `Retry-After`) and the monthly 402 `plan_allowance_exhausted` |
 | `x-nr-routing` | string | Which chain entry answered: `direct` for the first, `fallback:<n>` for the entry n fallbacks deep; absent on cache hits and refusals |
 | `x-nr-attempts` | integer | Provider calls made for this request, retries and failovers alike; absent on cache hits and refusals |
 | `x-nr-compression` | string | Prompt compression outcome: `applied`, `not_requested`, `off` or `skipped` |
@@ -655,11 +655,11 @@ The gateway classifies refusals into typed error codes:
 | `invalid_api_key` | 401 | `nRouterAuthenticationError` | Virtual-key authentication refused; see `x-nr-auth-reason` |
 | `insufficient_credits` | 402 | `nRouterCreditError` | Reserve failed; nothing was spent |
 | `model_not_found` | 404 | `nRouterNotFoundError` | Model alias absent or not visible to this key |
-| `rate_limit_exceeded` | 429 | `nRouterRateLimitError` | RPM limit exceeded; see `x-nr-limit-source` |
+| `rate_limit_exceeded` | 429 | `nRouterRateLimitError` | RPM limit exceeded, or an 8-hour/daily/weekly `nrouter/auto` allowance window is used up (`x-nr-limit-source`: `plan_window_h8`, `plan_window_day` or `plan_window_week`; `Retry-After` and `x-nr-allowance-reset` carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see `x-nr-limit-source` |
 | `tpm_limit_exceeded` | 429 | `nRouterRateLimitError` | TPM limit exceeded; see `x-nr-limit-source` |
 | `credit_check_failed` | 503 | `nRouterServiceError` | Credit system unavailable |
 | `service_unavailable` | 503 | `nRouterServiceError` | A required gateway dependency is unavailable |
-| `plan_allowance_exhausted` | 402 | `nRouterCreditError` | The plan's usage allowance for this billing period is used up. It resets at the next billing period (see `x-nr-allowance-reset`). |
+| `plan_allowance_exhausted` | 402 | `nRouterCreditError` | The plan's monthly usage allowance is used up (HTTP 402; the 8-hour, daily and weekly windows answer 429 `rate_limit_exceeded` instead). It resets at the next billing period (see `x-nr-allowance-reset`); no `Retry-After` is sent. With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused. |
 | `plan_required` | 402 | `nRouterCreditError` | Only plan subscribers can use `nrouter/auto`, or the plan's usage allowance is paused pending payment. Named models are paid from credits. |
 | `input_too_large` | 400 | `nRouterRequestError` | The input exceeds the served model's context window. Refused before any provider call; nothing was spent |
 | `max_output_tokens_too_large` | 400 | `nRouterRequestError` | The requested output ceiling exceeds what the served model allows. It is not clamped for you; lower it |
