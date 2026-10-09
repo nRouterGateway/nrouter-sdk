@@ -1409,15 +1409,7 @@ def check_option_builders(root: Path = ROOT, spec: dict | None = None) -> list[s
 # closes its own entry by adding the code to its dispatch; until then its
 # callers see a generic error for these four refusals.
 # ---------------------------------------------------------------------------
-_SDKS_PENDING_REFUSAL_CODES = {
-    "java",
-    "kotlin",
-    "android",
-    "swift",
-    "rust",
-    "dart",
-    "r",
-}
+_SDKS_PENDING_REFUSAL_CODES: set[str] = set()
 
 CODES_PENDING_SDK_MAPPING: dict[str, set[str]] = {
     code: set(_SDKS_PENDING_REFUSAL_CODES)
@@ -1426,6 +1418,14 @@ CODES_PENDING_SDK_MAPPING: dict[str, set[str]] = {
         "max_output_tokens_too_large",
         "fallback_not_allowed",
         "guardrail_not_found",
+    )
+}
+
+HEADERS_PENDING_SDK_MAPPING: dict[str, set[str]] = {
+    header: set(SDK_SOURCES.keys())
+    for header in (
+        "x-nr-model-deprecated",
+        "x-nr-deprecation-notice",
     )
 }
 
@@ -1489,6 +1489,8 @@ def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
             continue
 
         for header in headers:
+            if sdk in HEADERS_PENDING_SDK_MAPPING.get(header, ()):
+                continue
             # DECLARED AND USED. Every native SDK names each header twice in
             # code: once in its header-name list, once at the parse site. One
             # occurrence means a parser lookup was deleted while the list still

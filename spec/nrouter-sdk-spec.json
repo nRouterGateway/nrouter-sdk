@@ -120,13 +120,29 @@
       "values": [
         "unauthorized",
         "key_blocked",
+        "account_hold",
+        "organization_hold",
+        "team_hold",
         "key_expired",
         "key_route_not_allowed",
+        "wrong_plane_credential",
         "key_model_not_allowed",
+        "org_web_search_disabled",
         "key_ip_not_allowed",
         "key_network_policy_invalid",
+        "platform_maintenance",
         "auth_backend_unavailable"
       ]
+    },
+    "x-nr-model-deprecated": {
+      "type": "boolean",
+      "description": "Emitted when the served model is deprecated and will be retired",
+      "always": false
+    },
+    "x-nr-deprecation-notice": {
+      "type": "string",
+      "description": "Notice and successor guidance for a deprecated model",
+      "always": false
     },
     "x-nr-response-cache": {
       "type": "string",

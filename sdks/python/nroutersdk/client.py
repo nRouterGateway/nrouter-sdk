@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import time
@@ -409,6 +410,8 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "guardrail_blocked": nRouterGuardrailBlockedError,
         "invalid_api_key": nRouterAuthenticationError,
         "insufficient_credits": nRouterCreditError,
+        "plan_allowance_exhausted": nRouterCreditError,
+        "plan_required": nRouterCreditError,
         "model_not_found": nRouterNotFoundError,
         "credit_check_failed": nRouterServiceError,
         "service_unavailable": nRouterServiceError,
@@ -1515,3 +1518,122 @@ def parse_sse(raw: str) -> list[dict[str, str]]:
         else:
             events.append({"data": data})
     return events
+
+
+def parse_stream_frame(
+    event: str | None,
+    data: str,
+    meta: nRouterResponseMeta | None = None,
+) -> dict[str, Any] | None:
+    """Parse one SSE frame and raise nRouterGuardrailBlockedError on in-band guardrail errors.
+
+    When streaming, an output guardrail cut arrives inside a 200 response as a
+    terminal `event: error` SSE frame whose data is {"error":{"type":"guardrail_blocked",...}}.
+    If this frame is encountered, this function raises the corresponding
+    nRouterGuardrailBlockedError instead of letting the caller read an empty or truncated
+    response as a success.
+
+    Returns the parsed JSON dictionary, or None for empty frames / [DONE].
+    """
+    trimmed = data.strip()
+    if not trimmed or trimmed == "[DONE]":
+        return None
+
+    try:
+        raw = json.loads(trimmed)
+    except Exception:
+        if event == "error":
+            request_id = meta.request_id if meta else None
+            guardrails = meta.guardrails if meta else None
+            if guardrails == "blocked" or "guardrail" in trimmed.lower():
+                raise nRouterGuardrailBlockedError(
+                    trimmed,
+                    request_id=request_id,
+                    guardrails=guardrails,
+                    meta=meta,
+                )
+            raise nRouterError(trimmed, request_id=request_id, status_code=200, meta=meta)
+        return None
+
+    if not isinstance(raw, dict):
+        return None
+
+    if event == "error" or "error" in raw:
+        node = raw.get("error") if isinstance(raw.get("error"), dict) else raw
+        explicit_code = node.get("code")
+        error_type = node.get("type")
+        message = node.get("message") or trimmed
+        param = node.get("param")
+        request_id = meta.request_id if meta else None
+        guardrails = meta.guardrails if meta else None
+
+        code = explicit_code or error_type
+        if not code and guardrails == "blocked":
+            code = "guardrail_blocked"
+
+        if (
+            code == "guardrail_blocked"
+            or error_type == "guardrail_blocked"
+            or guardrails == "blocked"
+            or "guardrail" in str(message).lower()
+        ):
+            raise nRouterGuardrailBlockedError(
+                str(message),
+                request_id=request_id,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            )
+
+        if code in ("rate_limit_exceeded", "tpm_limit_exceeded"):
+            raise nRouterRateLimitError(
+                str(message),
+                request_id=request_id,
+                code=code,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            )
+        if code in ("insufficient_credits", "plan_allowance_exhausted", "plan_required"):
+            raise nRouterCreditError(
+                str(message),
+                request_id=request_id,
+                code=code,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            )
+        if code == "invalid_api_key":
+            raise nRouterAuthenticationError(
+                str(message),
+                request_id=request_id,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            )
+        if code in ("credit_check_failed", "service_unavailable"):
+            raise nRouterServiceError(
+                str(message),
+                request_id=request_id,
+                code=code,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            )
+        raise nRouterError(
+            str(message),
+            request_id=request_id,
+            code=code,
+            status_code=200,
+            param=param,
+            type=error_type,
+            guardrails=guardrails,
+            meta=meta,
+        )
+
+    return raw

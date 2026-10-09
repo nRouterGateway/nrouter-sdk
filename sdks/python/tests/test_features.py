@@ -389,4 +389,28 @@ def test_cleartext_is_limited_to_loopback_and_rejects_credentials():
             _resolve_base_url(refused)
 
 
+def test_parse_stream_frame_in_band_guardrail_blocked():
+    from nroutersdk import nRouterGuardrailBlockedError, parse_stream_frame, nRouterResponseMeta
+
+    meta = nRouterResponseMeta(request_id="req_test_123", guardrails="blocked")
+    error_frame = '{"error":{"type":"guardrail_blocked","message":"the response was withheld by an output guardrail"}}'
+
+    with pytest.raises(nRouterGuardrailBlockedError) as exc_info:
+        parse_stream_frame("error", error_frame, meta=meta)
+
+    err = exc_info.value
+    assert err.code == "guardrail_blocked"
+    assert "withheld" in str(err)
+    assert err.request_id == "req_test_123"
+
+    # Also test valid data chunk
+    chunk = parse_stream_frame(None, '{"choices":[{"delta":{"content":"hello"}}]}', meta=meta)
+    assert chunk is not None
+    assert chunk["choices"][0]["delta"]["content"] == "hello"
+
+    # Done chunk
+    assert parse_stream_frame(None, "[DONE]", meta=meta) is None
+
+
+
 

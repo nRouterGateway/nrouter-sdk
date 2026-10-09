@@ -40,6 +40,7 @@ from nroutersdk.client import (
     extract_trace_headers,
     nRouter,
     parse_sse,
+    parse_stream_frame,
     uses_messages_wire,
     with_trace_context,
 )
@@ -161,6 +162,7 @@ __all__ = [
     "parse_gateway_error_envelope",
     "parse_retry_after",
     "parse_sse",
+    "parse_stream_frame",
     "safe_json_parse",
     "prompt_extra_body",
     "prompt_template",

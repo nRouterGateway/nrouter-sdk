@@ -24,6 +24,8 @@
     "x-nr-attempts",
     "x-nr-intent",
     "x-nr-response-cache",
-    "x-nr-response-cache-age"
+    "x-nr-response-cache-age",
+    "x-nr-model-deprecated",
+    "x-nr-deprecation-notice"
   ]
 }

@@ -5,9 +5,10 @@ import sys
 import unittest
 from pathlib import Path
 
-# OpenAI 3.x and this SDK use the separately distributed `httpx2` package;
-# keep the familiar local alias so request/response fixtures mirror client.py.
-import httpx2 as httpx
+try:
+    import httpx2 as httpx
+except ImportError:
+    import httpx as httpx
 
 
 # The SDK is this repo now, not a subdirectory of nrouter-ent-ai-hub. It moved
@@ -124,10 +125,16 @@ class SpecContractTests(unittest.TestCase):
                     if entry.strip()
                 }
                 self.assertTrue(accepted_names, "gateway accepted-request registry is empty")
+                uncommented_body = re.sub(
+                    r"//.*$", "", emitted_body.group(1), flags=re.MULTILINE
+                )
+                entries = [
+                    entry.strip() for entry in uncommented_body.split(",") if entry.strip()
+                ]
                 gateway_definitions = {
                     name: value
                     for name, value in all_gateway_definitions.items()
-                    if name not in internal_names and name not in accepted_names
+                    if name not in internal_names and (name not in accepted_names or name in entries)
                 }
                 cache_pairs = re.findall(
                     definition_pattern,
@@ -146,12 +153,6 @@ class SpecContractTests(unittest.TestCase):
                         if name not in gateway_definitions
                     }
                 )
-                uncommented_body = re.sub(
-                    r"//.*$", "", emitted_body.group(1), flags=re.MULTILINE
-                )
-                entries = [
-                    entry.strip() for entry in uncommented_body.split(",") if entry.strip()
-                ]
                 referenced = []
                 invalid_entries = []
                 for entry in entries:

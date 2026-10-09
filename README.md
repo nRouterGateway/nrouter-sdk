@@ -328,16 +328,16 @@ nothing):
 
 | Language | Install | Registry URL | Registry status | Package | Typed errors | `x-nr-*` metadata |
 |----------|---------|--------------|---|---------|---|---|
-| **Python** | `pip install nrouter-sdk` | [pypi.org/project/nrouter-sdk](https://pypi.org/project/nrouter-sdk/) | ✅ PUBLISHED `3.1.2` | [`sdks/python/`](sdks/python/) | ✅ typed wrappers | ✅ `client.last_response` |
-| **TypeScript / JS** | `npm install @nrouter_ai/sdk` | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | ✅ PUBLISHED `3.1.2` | [`sdks/js/`](sdks/js/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
-| **Java** | Maven `ai.nrouter:nrouter-sdk:3.1.2` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | ✅ PUBLISHED `3.1.2` | [`sdks/java/`](sdks/java/) | ✅ 11 codes (native HTTP surface) | ✅ all `x-nr-*` headers (native HTTP surface) |
-| **Kotlin** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.2` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin) | ✅ PUBLISHED `3.1.2` | [`sdks/kotlin/`](sdks/kotlin/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
-| **Android** | Maven `ai.nrouter:nrouter-sdk-android:3.1.2` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android) | 🧪 PUBLIC PREVIEW `3.1.2` | [`sdks/android/`](sdks/android/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
-| **Rust** | `cargo add nrouter@3.1.2` | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | 🧪 PUBLIC PREVIEW `3.1.2` | [`sdks/rust/`](sdks/rust/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
-| **Dart / Flutter** | `dart pub add nrouter` | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | 🧪 PUBLIC PREVIEW `3.1.2` | [`sdks/dart/`](sdks/dart/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
-| **Swift** | SwiftPM, this repo's URL | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | ✅ git tag `3.1.2` | [`sdks/swift/`](sdks/swift/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
-| **R** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW `3.1.2` | [`sdks/r/`](sdks/r/) | ✅ 11 classed conditions | ✅ all `x-nr-*` headers |
-| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.2` | [pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.1.2` | [`sdks/go/`](sdks/go/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
+| **Python** | `pip install nrouter-sdk` | [pypi.org/project/nrouter-sdk](https://pypi.org/project/nrouter-sdk/) | ✅ PUBLISHED `3.1.3` | [`sdks/python/`](sdks/python/) | ✅ typed wrappers | ✅ `client.last_response` |
+| **TypeScript / JS** | `npm install @nrouter_ai/sdk` | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/js/`](sdks/js/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
+| **Java** | Maven `ai.nrouter:nrouter-sdk:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/java/`](sdks/java/) | ✅ 11 codes (native HTTP surface) | ✅ all `x-nr-*` headers (native HTTP surface) |
+| **Kotlin** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin) | ✅ PUBLISHED `3.1.3` | [`sdks/kotlin/`](sdks/kotlin/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
+| **Android** | Maven `ai.nrouter:nrouter-sdk-android:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/android/`](sdks/android/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
+| **Rust** | `cargo add nrouter@3.1.3` | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/rust/`](sdks/rust/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
+| **Dart / Flutter** | `dart pub add nrouter` | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/dart/`](sdks/dart/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
+| **Swift** | SwiftPM, this repo's URL | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | ✅ git tag `3.1.3` | [`sdks/swift/`](sdks/swift/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
+| **R** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/r/`](sdks/r/) | ✅ 11 classed conditions | ✅ all `x-nr-*` headers |
+| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.3` | [pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.1.3` | [`sdks/go/`](sdks/go/) | ✅ 11 codes | ✅ all `x-nr-*` headers |
 
 Verify any row rather than trusting it:
 
@@ -558,13 +558,13 @@ example for any of these without first adding the route to the gateway and the s
 | **Python (branded)** | `pip install nrouter-sdk` | [`sdks/python/`](sdks/python/) · [`sdks/python/demo/`](sdks/python/demo/), [`notebooks/quickstart.ipynb`](notebooks/quickstart.ipynb) |
 | **TypeScript / JS (branded)** | `npm install @nrouter_ai/sdk` | [`sdks/js/`](sdks/js/) · [`sdks/js/demo/quickstart.ts`](sdks/js/demo/quickstart.ts), [`sdks/js/demo/quickstart.js`](sdks/js/demo/quickstart.js) |
 | **Java (branded)** | `ai.nrouter:nrouter-sdk` | [`sdks/java/`](sdks/java/) · [`sdks/java/demo/quickstart.java`](sdks/java/demo/quickstart.java) |
-| **Kotlin (branded)** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.2` | [`sdks/kotlin/`](sdks/kotlin/) · [`sdks/kotlin/demo/quickstart.kt`](sdks/kotlin/demo/quickstart.kt) |
-| **Android (branded)** | Maven `ai.nrouter:nrouter-sdk-android:3.1.2` | [`sdks/android/`](sdks/android/) · [`sdks/android/demo/`](sdks/android/demo/) |
-| **Rust (branded)** | `cargo add nrouter@3.1.2` | [`sdks/rust/`](sdks/rust/) · [`sdks/rust/demo/quickstart.rs`](sdks/rust/demo/quickstart.rs) |
+| **Kotlin (branded)** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.3` | [`sdks/kotlin/`](sdks/kotlin/) · [`sdks/kotlin/demo/quickstart.kt`](sdks/kotlin/demo/quickstart.kt) |
+| **Android (branded)** | Maven `ai.nrouter:nrouter-sdk-android:3.1.3` | [`sdks/android/`](sdks/android/) · [`sdks/android/demo/`](sdks/android/demo/) |
+| **Rust (branded)** | `cargo add nrouter@3.1.3` | [`sdks/rust/`](sdks/rust/) · [`sdks/rust/demo/quickstart.rs`](sdks/rust/demo/quickstart.rs) |
 | **Dart / Flutter (branded)** | `dart pub add nrouter` | [`sdks/dart/`](sdks/dart/) · [`sdks/dart/demo/quickstart.dart`](sdks/dart/demo/quickstart.dart) |
 | **R (branded)** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [`sdks/r/`](sdks/r/) · [`sdks/r/demo/quickstart.R`](sdks/r/demo/quickstart.R) |
 | **Node.js / TypeScript (plain openai)** | `npm install openai` | [`sdks/js/demo/node.ts`](sdks/js/demo/node.ts) |
-| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.2`, or plain `openai-go` | [`sdks/go/demo/quickstart.go`](sdks/go/demo/quickstart.go) |
+| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.3`, or plain `openai-go` | [`sdks/go/demo/quickstart.go`](sdks/go/demo/quickstart.go) |
 | **Java (plain openai-java)** | `com.openai:openai-java` | [`sdks/java/demo/quickstart.java`](sdks/java/demo/quickstart.java) |
 
 Every language under `sdks/*/demo/` holds standalone, runnable starter scripts and framework integrations.

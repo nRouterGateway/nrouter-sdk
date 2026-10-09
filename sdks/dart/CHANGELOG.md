@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.3
+
+- Tracks the coordinated 3.1.3 nRouter SDK release.
+- Added deprecation headers and complete auth refusal reasons.
+- Mapped remaining refusal error codes.
+
 ## 3.1.2
 
 - Tracks the coordinated 3.1.2 nRouter SDK release.

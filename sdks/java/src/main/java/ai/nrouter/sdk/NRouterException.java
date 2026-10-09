@@ -70,7 +70,11 @@ public final class NRouterException extends RuntimeException {
     private static Kind classify(String code, String message, int status, NRouterResponseMeta meta) {
         if (code != null) {
             switch (code) {
-                case "invalid_request": return Kind.REQUEST;
+                case "invalid_request":
+                case "input_too_large":
+                case "max_output_tokens_too_large":
+                case "fallback_not_allowed":
+                case "guardrail_not_found": return Kind.REQUEST;
                 case "guardrail_blocked": return Kind.GUARDRAIL_BLOCKED;
                 case "invalid_api_key": return Kind.AUTHENTICATION;
                 case "insufficient_credits":
