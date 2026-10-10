@@ -305,7 +305,7 @@
     "plan_required": {
       "http": 402,
       "class": "nRouterCreditError",
-      "description": "Only plan subscribers can use nrouter/auto, or the plan's usage allowance is paused pending payment. Named models are paid from credits."
+      "description": "A request for nrouter/auto was refused because the organization's plan usage allowance is paused pending payment. Pay-as-you-go organizations are served nrouter/auto from credits and do not receive this code. Named models are paid from credits."
     },
     "input_too_large": {
       "http": 400,
