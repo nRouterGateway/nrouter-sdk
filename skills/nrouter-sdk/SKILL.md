@@ -63,7 +63,7 @@ get wrong:
 
 | Field | Shape | Refusal |
 |---|---|---|
-| `nrouter_fallbacks` | 1–4 model ids, tried in order. **REPLACES** the organization's fallback policy for this one call; never merged with it. `model` stays the primary and is never listed. Text wires only. | a target this key cannot route — including an alias, auto-router, allowance or capacity-pool name — is `400 fallback_not_allowed`, before any provider egress |
+| `nrouter_fallbacks` | 1–4 model ids, tried in order. **REPLACES** the organization's fallback policy for this one call; never merged with it. `model` stays the primary and is never listed. Text wires only. | a target this key cannot route — including an alias, auto-router or allowance name, or any other model that is not offered as a fallback target — is `400 fallback_not_allowed`, before any provider egress |
 | `nrouter_guardrails` | 1–8 guardrail ids or names. **ADD-ONLY**: they run *in addition to* what is assigned to the key, team and organization, and a request can never remove, relax or replace an assigned guardrail or the platform moderation floor. Text wires only. | an id or name the organization does not own is `400 guardrail_not_found` — refused, never silently ignored |
 | `nrouter_cache` | Boolean. `false` forces provider egress for a buffered text request; streams are never cached anyway. | none — the response carries `x-nr-response-cache: bypass` |
 

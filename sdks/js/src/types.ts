@@ -205,8 +205,9 @@ export interface NRouterFeatureOptions {
    *
    * REPLACES the organization's fallback policy for this one call — it is not
    * merged with it — and `model` stays the primary. A target this key cannot
-   * route, and any Smart Router alias, `nrouter/auto`, allowance or
-   * capacity-pool model, is refused with 400 `fallback_not_allowed`.
+   * route, and any Smart Router alias, `nrouter/auto`, allowance model or
+   * other model that is not offered as a fallback target, is refused with
+   * 400 `fallback_not_allowed`.
    *
    * An empty array is OMITTED, not sent: `fallbacks: state.selected` with an
    * empty default means no selection, not an empty chain.

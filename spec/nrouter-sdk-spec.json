@@ -320,7 +320,7 @@
     "fallback_not_allowed": {
       "http": 400,
       "class": "nRouterRequestError",
-      "description": "A model named in the request's nrouter_fallbacks list cannot be used as a fallback target by this virtual key: the key cannot route it, or it is a Smart Router alias, nrouter/auto, an allowance model or a capacity-pool model, none of which are valid targets. Refused before any provider egress; nothing was reserved and nothing was spent."
+      "description": "A model named in the request's nrouter_fallbacks list cannot be used as a fallback target by this virtual key: the key cannot route it, or it is a Smart Router alias, nrouter/auto, an allowance model or another model that is not offered as a fallback target. Refused before any provider egress; nothing was reserved and nothing was spent."
     },
     "guardrail_not_found": {
       "http": 400,
@@ -494,7 +494,7 @@
       "type": "array",
       "items": { "type": "string" },
       "max": 4,
-      "description": "Per-request fallback chain: up to 4 model names, tried in order when the primary cannot be served. `model` stays the primary and is never listed here. This REPLACES the organization's fallback policy for this one call and is not merged with it. A target this virtual key cannot route — and any Smart Router alias, nrouter/auto, allowance model or capacity-pool model, none of which are valid targets — is refused with 400 fallback_not_allowed before any provider egress. Text wires only (/v1/chat/completions, /v1/completions, /v1/messages, /v1/responses)."
+      "description": "Per-request fallback chain: up to 4 model names, tried in order when the primary cannot be served. `model` stays the primary and is never listed here. This REPLACES the organization's fallback policy for this one call and is not merged with it. A target this virtual key cannot route — and any Smart Router alias, nrouter/auto, allowance model or other model that is not offered as a fallback target — is refused with 400 fallback_not_allowed before any provider egress. Text wires only (/v1/chat/completions, /v1/completions, /v1/messages, /v1/responses)."
     },
     "nrouter_guardrails": {
       "type": "array",
