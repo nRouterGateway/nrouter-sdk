@@ -14,7 +14,7 @@ from anywhere either.
 
 from __future__ import annotations
 
-import httpx2 as httpx
+import httpx
 import pytest
 from openai import APIStatusError
 
@@ -591,4 +591,17 @@ def test_prepare_default_headers_tags_and_compress():
     )
     assert headers["x-nr-tags"] == "env=prod,team=data"
     assert headers["x-nr-compress"] == "true"
+
+
+def test_credit_error_preserves_specific_gateway_codes():
+    """Verify that specific 402 error codes like plan_allowance_exhausted and plan_required
+    are preserved on nRouterCreditError instances instead of defaulting to insufficient_credits.
+    """
+    for code in ("plan_allowance_exhausted", "plan_required", "insufficient_credits"):
+        err = status_error(402, f"Funding refusal: {code}", {"x-nr-request-id": "req-fund-1"}, code=code)
+        with pytest.raises(nRouterCreditError) as caught:
+            _maybe_raise_nrouter_error(err)
+        assert caught.value.code == code
+        assert caught.value.request_id == "req-fund-1"
+
 

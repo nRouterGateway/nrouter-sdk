@@ -445,6 +445,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         raise cls(
             message,
             request_id=request_id,
+            code=gateway_code,
             param=param,
             type=error_type,
             guardrails=guardrails,
