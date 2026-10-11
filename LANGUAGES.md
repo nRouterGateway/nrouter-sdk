@@ -114,15 +114,13 @@ x-nr-total-tokens: 60
 | `x-nr-limit-source` | Rate-limit source (`key`, `plan`, `team`, `user`, or `budget`) on 429 |
 | `x-nr-budget-warning` | A soft budget you configured was crossed; the request still served (`<scope> soft_budget <spend>/<ceiling>`) |
 
-### Platform Fee (Already Deducted)
+### Platform Fee
 
-The cost in the header is the **model cost only**. Your platform fee (0-4%) was already applied when you purchased credits — not per-request. What you see is what you pay.
+The cost in the header is the **model cost only**. nRouter has a 0% platform fee — a credit purchase charges exactly the credits bought ($100 costs $100.00), with no fee on top and no per-request markup. What you see is what you pay.
 
 | Plan | Platform Fee | $100 Purchase → Credits |
 |------|-------------|------------------------|
-| Pay As You Go | 4% | $96.00 |
-| Tier 2 ($100/mo) | 2% | $98.00 |
-| Tier 3 ($1,200/yr) | 0% | $100.00 |
+| Pay As You Go | 0% | $100.00 |
 | Enterprise | 0% | $100.00 |
 
 ---

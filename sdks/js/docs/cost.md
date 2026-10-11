@@ -79,7 +79,7 @@ With the counts in hand you can multiply by the model's published rates and show
 a number before the spend row settles. Do it, and then say what it is: it is your
 arithmetic over relayed counts, not the gateway's settled price. The two can
 differ — a rate you cached is a rate that can move, and the settlement applies
-the platform fee and the pricing the gateway actually held. Print it as
+the 0% platform fee and the pricing the gateway actually held. Print it as
 *recomputed, not the settled cost*, and never fold it into a figure you present
 as the bill.
 
