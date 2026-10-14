@@ -69,6 +69,10 @@ public struct NRouterResponseMeta: Equatable, Sendable {
     public var fundingSource: String?
     /// When the current usage allowance resets.
     public var allowanceReset: Int?
+    /// True when the served model carries a retirement date in the gateway catalog.
+    public var modelDeprecated: Bool?
+    /// Human-readable retirement warning when `x-nr-model-deprecated` is `true`.
+    public var deprecationNotice: String?
 
     /// Every header this SDK reads, exactly as the spec names them.
     public static let headerNames: [String] = [
@@ -95,6 +99,8 @@ public struct NRouterResponseMeta: Equatable, Sendable {
         "x-nr-intent",
         "x-nr-funding-source",
         "x-nr-allowance-reset",
+        "x-nr-model-deprecated",
+        "x-nr-deprecation-notice",
     ]
 
     public init() {}
@@ -105,6 +111,13 @@ public struct NRouterResponseMeta: Equatable, Sendable {
     /// here would be indistinguishable from a real zero.
     public init(lookup: (String) -> String?) {
         func int(_ name: String) -> Int? { lookup(name).flatMap(Int.init) }
+        func flag(_ name: String) -> Bool? {
+            switch lookup(name)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            case "true": return true
+            case "false": return false
+            default: return nil
+            }
+        }
         requestID = lookup("x-nr-request-id")
         // int(), not a raw read: the gateway sends whole milliseconds, so a
         // fractional or garbage value is a mangled header rather than a
@@ -131,6 +144,8 @@ public struct NRouterResponseMeta: Equatable, Sendable {
         intent = lookup("x-nr-intent")
         fundingSource = lookup("x-nr-funding-source")
         allowanceReset = int("x-nr-allowance-reset")
+        modelDeprecated = flag("x-nr-model-deprecated")
+        deprecationNotice = lookup("x-nr-deprecation-notice")
     }
 
     /// Parse from an `HTTPURLResponse`.

@@ -135,7 +135,9 @@ class NRouterHttpClientTest {
                 "x-nr-attempts",
                 "x-nr-intent",
                 "x-nr-funding-source",
-                "x-nr-allowance-reset");
+                "x-nr-allowance-reset",
+                "x-nr-model-deprecated",
+                "x-nr-deprecation-notice");
         assertEquals(expected.size(), NRouterResponseMeta.HEADER_NAMES.size());
         assertEquals(
                 (long) expected.size(),

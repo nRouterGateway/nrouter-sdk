@@ -49,6 +49,8 @@ void main() {
         'x-nr-guardrails',
         'x-nr-funding-source',
         'x-nr-allowance-reset',
+        'x-nr-model-deprecated',
+        'x-nr-deprecation-notice',
       ];
       expect(NRouterResponseMeta.headerNames.length, expected.length);
       for (final name in expected) {

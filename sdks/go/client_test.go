@@ -271,6 +271,8 @@ func TestEveryDeclaredHeaderIsRead(t *testing.T) {
 		"x-nr-routing":            "fallback:1",
 		"x-nr-attempts":           "2",
 		"x-nr-intent":             "chitchat",
+		"x-nr-model-deprecated":   "true",
+		"x-nr-deprecation-notice": "retiring",
 	}
 	if len(headers) != len(HeaderNames) {
 		t.Fatalf("this test covers %d headers, HeaderNames declares %d", len(headers), len(HeaderNames))

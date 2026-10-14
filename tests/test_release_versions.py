@@ -224,3 +224,44 @@ def test_sdk_version_4_publishable_sdks_carry_registry_metadata() -> None:
     assert re.search(rf"^##\s+{re.escape(version)}\s*$", changelog, re.M), (
         f"sdks/dart/CHANGELOG.md has no '## {version}' entry"
     )
+
+
+def test_publishing_doc_matches_canonical_version() -> None:
+    canonical = json.loads((ROOT / "spec/nrouter-sdk-spec.json").read_text())["version"]
+    publishing = (ROOT / "PUBLISHING.md").read_text()
+    assert f"**`{canonical}`**" in publishing, (
+        f"PUBLISHING.md does not state the canonical release version {canonical}"
+    )
+    assert f"git tag `sdks/go/v{canonical}`" in publishing, (
+        f"PUBLISHING.md Go tag example does not match canonical release version {canonical}"
+    )
+    assert "3.1.2" not in publishing, "PUBLISHING.md still contains stale 3.1.2 version"
+
+
+import unittest  # noqa: E402
+
+
+class ReleaseVersionTests(unittest.TestCase):
+    def test_all_release_metadata_matches_contract(self) -> None:
+        test_sdk_version_1_all_release_metadata_matches_contract()
+
+    def test_go_module_path_carries_the_release_major(self) -> None:
+        test_sdk_version_2_go_module_path_carries_the_release_major()
+
+    def test_android_cannot_publish_ahead_of_its_kotlin_core(self) -> None:
+        test_sdk_version_3_android_cannot_publish_ahead_of_its_kotlin_core()
+
+    def test_publishable_sdks_carry_registry_metadata(self) -> None:
+        test_sdk_version_4_publishable_sdks_carry_registry_metadata()
+
+    def test_kotlin_release_cannot_skip_signing_or_staging(self) -> None:
+        test_sdk_version_5_kotlin_release_cannot_skip_signing_or_staging()
+
+    def test_registry_publishes_refuse_an_ambiguous_existence_check(self) -> None:
+        test_sdk_version_6_registry_publishes_refuse_an_ambiguous_existence_check()
+
+    def test_tag_driven_sdks_are_tagged_by_the_release_workflow(self) -> None:
+        test_sdk_version_7_tag_driven_sdks_are_tagged_by_the_release_workflow()
+
+    def test_publishing_doc_matches_canonical_version(self) -> None:
+        test_publishing_doc_matches_canonical_version()

@@ -37,6 +37,14 @@ nrouter_meta <- function(headers = list()) {
     value <- suppressWarnings(as.numeric(raw))
     if (is.na(value)) NULL else value
   }
+  get_bool <- function(name) {
+    raw <- get_chr(name)
+    if (is.null(raw)) return(NULL)
+    trimmed <- trimws(raw)
+    if (identical(trimmed, "true")) TRUE
+    else if (identical(trimmed, "false")) FALSE
+    else NULL
+  }
 
   cost_val <- get_num("x-nr-request-cost")
   cost_stat <- get_chr("x-nr-cost-status")
@@ -78,6 +86,8 @@ nrouter_meta <- function(headers = list()) {
       intent             = get_chr("x-nr-intent"),
       funding_source     = get_chr("x-nr-funding-source"),
       allowance_reset    = get_int("x-nr-allowance-reset"),
+      model_deprecated   = get_bool("x-nr-model-deprecated"),
+      deprecation_notice = get_chr("x-nr-deprecation-notice"),
       retry_after        = nrouter_parse_retry_after(get_chr("retry-after"))
     )
   )
@@ -113,7 +123,9 @@ nrouter_header_names <- function() {
     "x-nr-attempts",
     "x-nr-intent",
     "x-nr-funding-source",
-    "x-nr-allowance-reset"
+    "x-nr-allowance-reset",
+    "x-nr-model-deprecated",
+    "x-nr-deprecation-notice"
   )
 }
 

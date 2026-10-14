@@ -41,6 +41,23 @@ class SpecContractTests(unittest.TestCase):
             "control-plane/dashboard APIs are not part of the gateway SDK contract",
         )
 
+    def test_spec_endpoints_match_gateway_routes(self) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        spec_routes = {e["path"] for e in spec["supported_endpoints"]}
+        gateway_routes_file = (
+            ROOT.parent / "nrouter-rust-gateway" / "src" / "http" / "routes.rs"
+        )
+        try:
+            if gateway_routes_file.exists():
+                text = gateway_routes_file.read_text()
+                gateway_routes = {
+                    r.replace("{*", "{")
+                    for r in re.findall(r'"(/v1[^"]*)"', text)
+                }
+                self.assertEqual(spec_routes, gateway_routes)
+        except (OSError, PermissionError):
+            pass
+
     def test_spec_uses_only_canonical_public_contract(self) -> None:
         spec_path = SDK_ROOT / "spec" / "nrouter-sdk-spec.json"
         spec = json.loads(spec_path.read_text())

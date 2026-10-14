@@ -29,7 +29,9 @@ public final class NRouterResponseMeta {
             "x-nr-attempts",
             "x-nr-intent",
             "x-nr-funding-source",
-            "x-nr-allowance-reset");
+            "x-nr-allowance-reset",
+            "x-nr-model-deprecated",
+            "x-nr-deprecation-notice");
 
     private final String requestId;
     private final Long latencyMs;
@@ -54,6 +56,8 @@ public final class NRouterResponseMeta {
     private final String intent;
     private final String fundingSource;
     private final Long allowanceReset;
+    private final Boolean modelDeprecated;
+    private final String deprecationNotice;
 
     private NRouterResponseMeta(HttpHeaders headers) {
         requestId = value(headers, "x-nr-request-id");
@@ -82,6 +86,8 @@ public final class NRouterResponseMeta {
         intent = value(headers, "x-nr-intent");
         fundingSource = value(headers, "x-nr-funding-source");
         allowanceReset = integer(headers, "x-nr-allowance-reset");
+        modelDeprecated = flag(headers, "x-nr-model-deprecated");
+        deprecationNotice = value(headers, "x-nr-deprecation-notice");
     }
 
     public static NRouterResponseMeta fromHeaders(HttpHeaders headers) {
@@ -90,6 +96,21 @@ public final class NRouterResponseMeta {
 
     private static String value(HttpHeaders headers, String name) {
         return headers.firstValue(name).orElse(null);
+    }
+
+    private static Boolean flag(HttpHeaders headers, String name) {
+        String raw = value(headers, name);
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if ("true".equals(trimmed)) {
+            return Boolean.TRUE;
+        }
+        if ("false".equals(trimmed)) {
+            return Boolean.FALSE;
+        }
+        return null;
     }
 
     private static Double decimal(HttpHeaders headers, String name) {
@@ -153,6 +174,8 @@ public final class NRouterResponseMeta {
     public String intent() { return intent; }
     public String fundingSource() { return fundingSource; }
     public Long allowanceReset() { return allowanceReset; }
+    public Boolean modelDeprecated() { return modelDeprecated; }
+    public String deprecationNotice() { return deprecationNotice; }
     public boolean isPriced() { return cost != null && "exact".equals(costStatus); }
     public boolean isCacheHit() { return "hit".equals(responseCache); }
     public boolean isCacheMiss() { return "miss".equals(responseCache); }

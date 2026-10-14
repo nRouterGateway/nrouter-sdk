@@ -101,6 +101,7 @@ class ContractTest {
             "x-nr-auth-reason", "x-nr-response-cache", "x-nr-response-cache-age",
             "x-nr-budget-warning", "x-nr-guardrails", "x-nr-funding-source", "x-nr-allowance-reset",
             "x-nr-compression", "x-nr-routing", "x-nr-attempts", "x-nr-intent",
+            "x-nr-model-deprecated", "x-nr-deprecation-notice",
         )
         assertEquals(expected.size, NRouterResponseMeta.HEADER_NAMES.size)
         expected.forEach {

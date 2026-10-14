@@ -116,6 +116,14 @@ type ResponseMeta struct {
 
 	// Intent is the top evaluated intent category if intent routing was requested.
 	Intent string
+
+	// ModelDeprecated is true when the served model carries a retirement date in
+	// the gateway catalog, false when it does not, or nil when absent.
+	ModelDeprecated *bool
+
+	// DeprecationNotice is the human-readable retirement warning when
+	// x-nr-model-deprecated is true.
+	DeprecationNotice string
 }
 
 // HeaderNames lists every response header this SDK reads, exactly as the
@@ -145,6 +153,8 @@ var HeaderNames = []string{
 	"x-nr-routing",
 	"x-nr-attempts",
 	"x-nr-intent",
+	"x-nr-model-deprecated",
+	"x-nr-deprecation-notice",
 }
 
 // MetaFromLookup builds ResponseMeta from any lowercase-name header lookup.
@@ -167,32 +177,46 @@ func MetaFromLookup(get func(string) string) ResponseMeta {
 		}
 		return &v
 	}
+	flag := func(name string) *bool {
+		switch strings.TrimSpace(get(name)) {
+		case "true":
+			t := true
+			return &t
+		case "false":
+			f := false
+			return &f
+		default:
+			return nil
+		}
+	}
 	meta := ResponseMeta{
 		RequestID: get("x-nr-request-id"),
 		// num, not a raw read: the gateway sends whole milliseconds, so a
 		// fractional or garbage value is a mangled header rather than a
 		// latency a caller should chart.
-		LatencyMs:        num("x-nr-latency-ms"),
-		TraceID:          get("x-nr-trace-id"),
-		CostStatus:       get("x-nr-cost-status"),
-		Model:            get("x-nr-model"),
-		InputTokens:      num("x-nr-input-tokens"),
-		OutputTokens:     num("x-nr-output-tokens"),
-		TotalTokens:      num("x-nr-total-tokens"),
-		CacheReadTokens:  num("x-nr-cache-read-tokens"),
-		CacheWriteTokens: num("x-nr-cache-write-tokens"),
-		LimitSource:      get("x-nr-limit-source"),
-		BudgetWarning:    get("x-nr-budget-warning"),
-		Guardrails:       get("x-nr-guardrails"),
-		AuthReason:       get("x-nr-auth-reason"),
-		ResponseCache:    get("x-nr-response-cache"),
-		ResponseCacheAge: num("x-nr-response-cache-age"),
-		FundingSource:    get("x-nr-funding-source"),
-		AllowanceReset:   num("x-nr-allowance-reset"),
-		Compression:      get("x-nr-compression"),
-		Routing:          get("x-nr-routing"),
-		Attempts:         num("x-nr-attempts"),
-		Intent:           get("x-nr-intent"),
+		LatencyMs:         num("x-nr-latency-ms"),
+		TraceID:           get("x-nr-trace-id"),
+		CostStatus:        get("x-nr-cost-status"),
+		Model:             get("x-nr-model"),
+		InputTokens:       num("x-nr-input-tokens"),
+		OutputTokens:      num("x-nr-output-tokens"),
+		TotalTokens:       num("x-nr-total-tokens"),
+		CacheReadTokens:   num("x-nr-cache-read-tokens"),
+		CacheWriteTokens:  num("x-nr-cache-write-tokens"),
+		LimitSource:       get("x-nr-limit-source"),
+		BudgetWarning:     get("x-nr-budget-warning"),
+		Guardrails:        get("x-nr-guardrails"),
+		AuthReason:        get("x-nr-auth-reason"),
+		ResponseCache:     get("x-nr-response-cache"),
+		ResponseCacheAge:  num("x-nr-response-cache-age"),
+		FundingSource:     get("x-nr-funding-source"),
+		AllowanceReset:    num("x-nr-allowance-reset"),
+		Compression:       get("x-nr-compression"),
+		Routing:           get("x-nr-routing"),
+		Attempts:          num("x-nr-attempts"),
+		Intent:            get("x-nr-intent"),
+		ModelDeprecated:   flag("x-nr-model-deprecated"),
+		DeprecationNotice: get("x-nr-deprecation-notice"),
 	}
 	if raw := get("x-nr-request-cost"); raw != "" {
 		if v, err := strconv.ParseFloat(raw, 64); err == nil && isBillableAmount(v) {

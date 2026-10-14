@@ -31,6 +31,8 @@ class NRouterResponseMeta {
     this.intent,
     this.fundingSource,
     this.allowanceReset,
+    this.modelDeprecated,
+    this.deprecationNotice,
   });
 
   /// Present on every response; the join key for a spend row or a log line.
@@ -111,6 +113,10 @@ class NRouterResponseMeta {
   final String? fundingSource;
   /// When the current usage allowance resets.
   final int? allowanceReset;
+  /// True when the served model carries a retirement date in the gateway catalog.
+  final bool? modelDeprecated;
+  /// Human-readable retirement warning when `x-nr-model-deprecated` is `true`.
+  final String? deprecationNotice;
 
   /// Every header this SDK reads, exactly as the spec names them.
   static const List<String> headerNames = [
@@ -137,6 +143,8 @@ class NRouterResponseMeta {
     'x-nr-intent',
     'x-nr-funding-source',
     'x-nr-allowance-reset',
+    'x-nr-model-deprecated',
+    'x-nr-deprecation-notice',
   ];
 
   /// Parse from a header map keyed by lowercase name.
@@ -146,6 +154,12 @@ class NRouterResponseMeta {
   factory NRouterResponseMeta.fromHeaders(Map<String, String> headers) {
     String? get(String name) => headers[name];
     int? asInt(String name) => int.tryParse(get(name) ?? '');
+    bool? asBool(String name) {
+      final raw = get(name)?.trim();
+      if (raw == 'true') return true;
+      if (raw == 'false') return false;
+      return null;
+    }
     final rawCost = get('x-nr-request-cost');
 
     return NRouterResponseMeta(
@@ -175,6 +189,8 @@ class NRouterResponseMeta {
       intent: get('x-nr-intent'),
       fundingSource: get('x-nr-funding-source'),
       allowanceReset: asInt('x-nr-allowance-reset'),
+      modelDeprecated: asBool('x-nr-model-deprecated'),
+      deprecationNotice: get('x-nr-deprecation-notice'),
     );
   }
 

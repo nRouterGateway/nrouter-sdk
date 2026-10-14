@@ -70,10 +70,14 @@ pub struct ResponseMeta {
     pub funding_source: Option<String>,
     /// When the current usage allowance resets.
     pub allowance_reset: Option<u64>,
+    /// True when the served model carries a retirement date in the gateway catalog.
+    pub model_deprecated: Option<bool>,
+    /// Human-readable retirement warning when `x-nr-model-deprecated` is `true`.
+    pub deprecation_notice: Option<String>,
 }
 
 /// Every header this SDK reads, exactly as the spec names them.
-pub const HEADER_NAMES: [&str; 23] = [
+pub const HEADER_NAMES: [&str; 25] = [
     "x-nr-request-id",
     "x-nr-latency-ms",
     "x-nr-trace-id",
@@ -97,6 +101,8 @@ pub const HEADER_NAMES: [&str; 23] = [
     "x-nr-intent",
     "x-nr-funding-source",
     "x-nr-allowance-reset",
+    "x-nr-model-deprecated",
+    "x-nr-deprecation-notice",
 ];
 
 impl ResponseMeta {
@@ -109,6 +115,11 @@ impl ResponseMeta {
         F: Fn(&str) -> Option<String>,
     {
         let num = |name: &str| get(name).and_then(|v| v.parse::<u64>().ok());
+        let flag = |name: &str| match get(name).as_deref().map(str::trim) {
+            Some("true") => Some(true),
+            Some("false") => Some(false),
+            _ => None,
+        };
         Self {
             request_id: get("x-nr-request-id"),
             // `num`, not a raw read: the gateway sends whole milliseconds, so
@@ -136,6 +147,8 @@ impl ResponseMeta {
             intent: get("x-nr-intent"),
             funding_source: get("x-nr-funding-source"),
             allowance_reset: num("x-nr-allowance-reset"),
+            model_deprecated: flag("x-nr-model-deprecated"),
+            deprecation_notice: get("x-nr-deprecation-notice"),
         }
     }
 

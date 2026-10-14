@@ -48,6 +48,8 @@ fn every_spec_header_is_read() {
         "x-nr-guardrails",
         "x-nr-funding-source",
         "x-nr-allowance-reset",
+        "x-nr-model-deprecated",
+        "x-nr-deprecation-notice",
     ] {
         assert!(
             HEADER_NAMES.contains(&name),

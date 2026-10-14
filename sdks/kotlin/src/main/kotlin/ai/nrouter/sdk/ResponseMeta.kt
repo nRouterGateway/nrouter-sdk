@@ -81,6 +81,10 @@ public data class NRouterResponseMeta(
     val fundingSource: String? = null,
     /** When the current usage allowance resets. */
     val allowanceReset: Long? = null,
+    /** True when the served model carries a retirement date in the gateway catalog. */
+    val modelDeprecated: Boolean? = null,
+    /** Human-readable retirement warning when `x-nr-model-deprecated` is `true`. */
+    val deprecationNotice: String? = null,
 ) {
     /** True when the gateway priced this request exactly. */
     val isPriced: Boolean get() = costStatus == "exact" && cost != null
@@ -136,6 +140,8 @@ public data class NRouterResponseMeta(
             "x-nr-intent",
             "x-nr-funding-source",
             "x-nr-allowance-reset",
+            "x-nr-model-deprecated",
+            "x-nr-deprecation-notice",
         )
 
         /**
@@ -147,6 +153,11 @@ public data class NRouterResponseMeta(
         @JvmStatic
         public fun fromLookup(lookup: (String) -> String?): NRouterResponseMeta {
             fun num(name: String): Long? = lookup(name)?.toLongOrNull()
+            fun flag(name: String): Boolean? = when (lookup(name)?.trim()) {
+                "true" -> true
+                "false" -> false
+                else -> null
+            }
             return NRouterResponseMeta(
                 requestId = lookup("x-nr-request-id"),
                 // num(), not a raw read: the gateway sends whole milliseconds,
@@ -174,6 +185,8 @@ public data class NRouterResponseMeta(
                 intent = lookup("x-nr-intent"),
                 fundingSource = lookup("x-nr-funding-source"),
                 allowanceReset = num("x-nr-allowance-reset"),
+                modelDeprecated = flag("x-nr-model-deprecated"),
+                deprecationNotice = lookup("x-nr-deprecation-notice"),
             )
         }
     }
