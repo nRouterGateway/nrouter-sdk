@@ -1253,6 +1253,77 @@ class ExampleBodyFieldContractTests(unittest.TestCase):
         self.assertTrue(client.is_closed())
 
 
+class TwoModeRoutingDocsTests(unittest.TestCase):
+    """The docs tell one routing story: two ways to ask for a model.
+
+    Direct: the model you name is the model that answers, unless a fallback
+    YOU configured takes over. `nrouter/auto`: nRouter chooses an eligible
+    model. Model aliases carrying their own routing strategy were withdrawn
+    on 2026-10-15, so no doc may still offer one as a current feature — an
+    alias name now returns the unknown-model error.
+    """
+
+    STORY = "Two ways to ask for a model"
+    ROUTING_DOC = SDK_ROOT / "sdks" / "js" / "docs" / "routing.md"
+    ROOT_README = SDK_ROOT / "README.md"
+
+    # Phrases that present the withdrawn alias-with-strategy feature as live.
+    WITHDRAWN = (
+        re.compile(r"(?m)^\|\s*Strategy\s*\|"),  # the per-alias strategy table
+        re.compile(r"(?i)pinned strategy"),
+        re.compile(r"`pinned`"),
+        re.compile(r"(?i)an alias gets (the|its) strategy"),
+        re.compile(r"(?i)Smart Router alias(es)? (in `model`|and fallback chains)"),
+        re.compile(r"(?i)routing strategies are selected by the model value"),
+    )
+
+    def _docs(self) -> list[Path]:
+        readmes = sorted(SDK_ROOT.glob("sdks/*/README.md"))
+        # Never pass by finding nothing: one README per shipped SDK.
+        self.assertGreaterEqual(len(readmes), 10, "SDK READMEs went missing")
+        return [self.ROOT_README, self.ROUTING_DOC, *readmes]
+
+    def test_every_routing_surface_tells_the_two_mode_story(self) -> None:
+        for path in self._docs():
+            text = path.read_text(encoding="utf-8")
+            rel = path.relative_to(SDK_ROOT)
+            self.assertIn(self.STORY, text, f"{rel} does not tell the two-mode story")
+            self.assertIn("nrouter/auto", text, f"{rel} never names nrouter/auto")
+
+    def test_no_surface_offers_the_withdrawn_alias_strategy(self) -> None:
+        for path in self._docs():
+            text = path.read_text(encoding="utf-8")
+            for pattern in self.WITHDRAWN:
+                self.assertIsNone(
+                    pattern.search(text),
+                    f"{path.relative_to(SDK_ROOT)} still offers the withdrawn "
+                    f"alias routing strategy ({pattern.pattern!r})",
+                )
+
+    def test_routing_doc_states_the_failover_triggers_and_the_auto_refusal(
+        self,
+    ) -> None:
+        text = self.ROUTING_DOC.read_text(encoding="utf-8")
+        # What fails over and what never does are customer money facts.
+        for needle in ("429", "503", "529", "first byte", "500", "502", "504"):
+            self.assertIn(needle, text, f"routing.md no longer mentions {needle}")
+        self.assertIn("nrouter_fallbacks", text)
+        self.assertIn("fallback_not_allowed", text)
+        self.assertIn("Lowest cost", text)
+        self.assertIn("x-nr-routing", text)
+
+    def test_spec_descriptions_follow_the_two_mode_story(self) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        fallbacks = spec["extra_body_fields"]["nrouter_fallbacks"]["description"]
+        # Sending the field on a request FOR nrouter/auto is itself refused,
+        # which is distinct from naming nrouter/auto as a fallback target.
+        self.assertRegex(fallbacks, r"request for nrouter/auto")
+        self.assertIn("fallback_not_allowed", fallbacks)
+        blob = json.dumps(spec)
+        for stale in ("Smart Router alias", "alias resolution", "Model alias absent"):
+            self.assertNotIn(stale, blob, f"spec still describes {stale!r}")
+
+
 # AT THE BOTTOM, and that is the whole point. This block used to sit at line
 # 492 with THREE test classes defined after it, so `unittest.main()` ran
 # before they existed: `python3 tests/test_sdk_contract.py` printed "OK" with

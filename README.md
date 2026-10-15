@@ -111,7 +111,7 @@ Rather than juggling separate provider SDKs (OpenAI, Anthropic, Bedrock, Vertex 
 1. **One API Key Across 6 Provider Clouds**: Call OpenAI, Claude, Vertex, Bedrock, and Azure models with a single client and unified billing.
 2. **Built-in Spend & Observability**: Every response captures exact latency, model ID, and request cost (`x-nr-request-cost`) with no extra telemetry instrumentation needed.
 3. **Automated Guardrails & Compliance**: PII redaction, prompt injection protection, and keyword scanning configured once in the dashboard apply automatically.
-4. **Smart Routing & Automatic Failover**: Route across provider clouds by real-time latency, price, or availability using router aliases.
+4. **Two Ways to Ask for a Model**: Name a model directly (it is never swapped; only fallbacks you configure can take over), or send `nrouter/auto` and let nRouter choose an eligible model.
 5. **Universal Enterprise Features**: Unified conversation memory, Jinja2 prompt variable injection, and RFC 9110 retry-after exponential backoff across all 10 SDKs.
 
 ---
@@ -500,7 +500,7 @@ Also from the spec (`request_headers`, `extra_body_fields`). The body fields app
 | Option | Where | What it does |
 |---|---|---|
 | `nrouter_cache` | body, boolean, default `true` | Use the tenant-isolated response cache for buffered text requests. `false` forces a provider call; streams are never cached |
-| `nrouter_fallbacks` | body, up to 4 model names | Per-request fallback chain, tried in order. Replaces the organization's fallback policy for this call. An invalid target is refused with `400 fallback_not_allowed` |
+| `nrouter_fallbacks` | body, up to 4 model names | Per-request fallback chain, tried in order. Replaces the organization's fallback policy for this call. An invalid target, or the field on a request for `nrouter/auto`, is refused with `400 fallback_not_allowed` |
 | `nrouter_guardrails` | body, up to 8 ids or names | Guardrails to run in addition to the assigned ones; it can never remove one. An unknown id is refused with `400 guardrail_not_found` |
 | `nrouter_prompt_template_id` / `nrouter_prompt_variables` | body | Select a prompt template and supply its variables |
 | `x-nr-tags` | request header | Custom spend tags, `key=value,key2=value2` |
@@ -543,19 +543,43 @@ without spending anything.
 | [`sdks/js/demo/image-agent/`](sdks/js/demo/image-agent/) | `/v1/images/generations` | which of two billing units the model measured, and why no header carries the quantity that produced the price — semantics in [`sdks/js/docs/images.md`](sdks/js/docs/images.md) |
 | [`sdks/js/demo/video-agent/`](sdks/js/demo/video-agent/) | the three video routes | why the create is the only call that bills, and why a *free* call is not an *unpriced* one — semantics in [`sdks/js/docs/video.md`](sdks/js/docs/video.md) |
 
-### Routing strategies are selected by the model value
+### Two ways to ask for a model
 
-Routing strategy is a gateway concern, so there is no separate per-language
-strategy API to drift. Put a Smart Router alias in `model` to activate its
-configured strategy and fallback chain; put a concrete model id there to pin
-the call to that model. Every runnable hello-world example accepts
-`NROUTER_MODEL` so the same example demonstrates both modes without inventing
-client-only routing behavior.
+Routing is a gateway concern, so there is no separate per-language routing API
+to drift; what you put in `model` chooses the mode.
+
+- **Direct — you choose the model.** Name it in `model`. nRouter never swaps it
+  for another: a concrete model is never re-routed and inherits no hidden
+  fallback. A different model answers only through a fallback you configured
+  yourself — a per-model fallback list in the dashboard's Router Settings, or
+  `nrouter_fallbacks` on the request (up to 4; it replaces the saved list for
+  that request) — and only when the provider cannot take the request: `429`,
+  `503`, `529`, a connection that never opened, a stalled first byte, or a
+  deployment fault such as `401`/`404` from the provider. `500`, `502`, `504`
+  and read timeouts never fail over. You are charged once, for the model that
+  answered.
+- **`nrouter/auto` — nRouter chooses an eligible model for you.**
+  *Best for the task* (the default) uses smart model selection when it is
+  available; *Lowest cost*, an organization setting in Router Settings, orders
+  the models fit for
+  the task by their list rate (input plus output price per million tokens,
+  weighted equally, read live). `nrouter_fallbacks` is refused on a request for
+  `nrouter/auto` with `400 fallback_not_allowed`.
+
+Either way you pay the served model's list price: `x-nr-model` names the model
+that answered, and `x-nr-routing` says `direct` or `fallback:<n>`. Model
+aliases carrying their own routing strategy are no longer offered; a former
+alias name now returns `model_not_found`. Every runnable hello-world example
+accepts `NROUTER_MODEL` so the same example demonstrates both modes without
+inventing client-only routing behavior.
 
 ```bash
-NROUTER_MODEL=my-production-router ./run-your-example   # alias: strategy + fallback
-NROUTER_MODEL=gpt-5.4-mini ./run-your-example  # concrete: pinned
+NROUTER_MODEL=gpt-5.4-mini ./run-your-example   # direct: this model, or a fallback you configured
+NROUTER_MODEL=nrouter/auto ./run-your-example   # nrouter/auto: nRouter chooses
 ```
+
+The full semantics, including which routes can fail over at all, are in
+[`sdks/js/docs/routing.md`](sdks/js/docs/routing.md).
 
 ### Not Served By The Gateway
 
@@ -654,7 +678,7 @@ The gateway classifies refusals into typed error codes:
 | `guardrail_blocked` | 400 | `nRouterGuardrailBlockedError` | A guardrail denied the request (pre-call) or withheld the response (post-call) |
 | `invalid_api_key` | 401 | `nRouterAuthenticationError` | Virtual-key authentication refused; see `x-nr-auth-reason` |
 | `insufficient_credits` | 402 | `nRouterCreditError` | Reserve failed; nothing was spent |
-| `model_not_found` | 404 | `nRouterNotFoundError` | Model alias absent or not visible to this key |
+| `model_not_found` | 404 | `nRouterNotFoundError` | Model unknown or not visible to this key; a former model alias name is now an unknown model |
 | `rate_limit_exceeded` | 429 | `nRouterRateLimitError` | RPM limit exceeded, or an 8-hour/daily/weekly `nrouter/auto` allowance window is used up (`x-nr-limit-source`: `plan_window_h8`, `plan_window_day` or `plan_window_week`; `Retry-After` and `x-nr-allowance-reset` carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see `x-nr-limit-source` |
 | `tpm_limit_exceeded` | 429 | `nRouterRateLimitError` | TPM limit exceeded; see `x-nr-limit-source` |
 | `credit_check_failed` | 503 | `nRouterServiceError` | Credit system unavailable |
@@ -727,11 +751,11 @@ protection you do not have:**
   assignment wins across key > team > org > default, and a winner disabled at
   that scope does not run. A guardrail you configured is not necessarily a
   guardrail this request gets — check the assignment, not just the switch.
-- **Routing is opt-in by what you put in `model`, and applies to text wires
-  only.** An alias gets its strategy and fallback chain; a concrete model is
-  never re-routed and inherits no hidden platform fallback. Audio, image and
-  video take a single-provider route and are not cross-provider Smart Router
-  wires.
+- **Routing is chosen by what you put in `model`, and failover applies to text
+  wires only.** A model you name directly is never re-routed and inherits no
+  hidden platform fallback — only a fallback you configured can take over;
+  `nrouter/auto` lets nRouter choose an eligible model. Audio, image and video
+  take a single-provider route and have no cross-provider failover.
 
 Cost accounting covers every BILLABLE call. Some routes these SDKs expose are
 deliberately free and emit no `x-nr-request-cost` at all —

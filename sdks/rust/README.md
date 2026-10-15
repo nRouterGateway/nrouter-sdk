@@ -202,15 +202,20 @@ included, and behaves identically from every nRouter SDK and from raw `curl`.
   `x-nr-request-cost`: `/v1/messages/count_tokens`, and video polling and
   content retrieval.
 
-[Smart Router aliases and fallback chains](https://nrouter.ai/docs/guides/router-settings)
+[Routing and fallbacks](https://nrouter.ai/docs/guides/router-settings)
 carry two conditions worth knowing before you rely on failover you have not
 enabled:
 
-- **Opt-in by what you put in `model`.** An alias gets the strategy and its
-  chain; a concrete model is never re-routed and inherits no hidden fallback.
+- **Two ways to ask for a model, chosen by what you put in `model`.**
+  *Direct*: name the model; nRouter never swaps it for another. A concrete
+  model is never re-routed and inherits no hidden fallback — a different model
+  answers only through a fallback you configured yourself (Router Settings, or
+  `nrouter_fallbacks` on the request). *`nrouter/auto`*: nRouter chooses an
+  eligible model for you. Either way you pay the served model's list price,
+  and `x-nr-model` names it.
 - **Text wires only** — chat completions, responses, messages and legacy
   completions. Audio, image and video calls take a single-provider route and
-  are not cross-provider Smart Router wires.
+  have no cross-provider failover.
 - [API reference](https://nrouter.ai/docs/api-reference) — the wire
   contract every SDK here implements.
 

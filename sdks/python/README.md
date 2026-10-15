@@ -396,7 +396,7 @@ Both are text wires only (chat completions, completions, messages, responses).
 
 | Option | Wire field | Notes |
 |---|---|---|
-| `fallbacks` | `nrouter_fallbacks` | Up to **4** model names tried in order when the primary cannot be served. **Replaces** your org fallback policy for this one call; `model` stays the primary. |
+| `fallbacks` | `nrouter_fallbacks` | Up to **4** model names tried in order when the primary cannot be served. **Replaces** your org fallback policy for this one call; `model` stays the primary. Refused with `fallback_not_allowed` on a request for `nrouter/auto`. |
 | `guardrails` | `nrouter_guardrails` | Up to **8** guardrail ids or names your org owns. **ADD-ONLY.** |
 
 ```python
@@ -439,15 +439,20 @@ included, and behaves identically from every nRouter SDK and from raw `curl`.
   `x-nr-request-cost`: `/v1/messages/count_tokens`, and video polling and
   content retrieval.
 
-[Smart Router aliases and fallback chains](https://nrouter.ai/docs/guides/router-settings)
+[Routing and fallbacks](https://nrouter.ai/docs/guides/router-settings)
 carry two conditions worth knowing before you rely on failover you have not
 enabled:
 
-- **Opt-in by what you put in `model`.** An alias gets the strategy and its
-  chain; a concrete model is never re-routed and inherits no hidden fallback.
+- **Two ways to ask for a model, chosen by what you put in `model`.**
+  *Direct*: name the model; nRouter never swaps it for another. A concrete
+  model is never re-routed and inherits no hidden fallback — a different model
+  answers only through a fallback you configured yourself (Router Settings, or
+  `nrouter_fallbacks` on the request). *`nrouter/auto`*: nRouter chooses an
+  eligible model for you. Either way you pay the served model's list price,
+  and `x-nr-model` names it.
 - **Text wires only** — chat completions, responses, messages and legacy
   completions. Audio, image and video calls take a single-provider route and
-  are not cross-provider Smart Router wires.
+  have no cross-provider failover.
 
 ---
 
@@ -476,7 +481,7 @@ This SDK maintains a repeatable 18-step verification process:
 ## Documentation & Resources
 
 * [nRouter Documentation](https://nrouter.ai/docs)
-* [Smart Router: aliases, strategies and fallback chains](https://nrouter.ai/docs/guides/router-settings)
+* [Routing: direct models, nrouter/auto and fallbacks](https://nrouter.ai/docs/guides/router-settings)
 * [API Reference](https://nrouter.ai/docs/api-reference)
 * [Python Quickstart Guide](https://nrouter.ai/docs/sdks/python)
 * [Live Model Catalog](https://nrouter.ai/models)

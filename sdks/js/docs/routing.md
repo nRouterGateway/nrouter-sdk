@@ -1,63 +1,72 @@
 # Routing and fallbacks
 
-Routing is **opt-in through the `model` you send**, and nothing else. There is no
-routing option in this SDK, and adding one would not help: the decision is made
-from your organization's configuration, keyed on the model name in the request.
+There is no routing option in this SDK, and adding one would not help: the
+decision is made at the gateway from the `model` you send and your
+organization's configuration.
+
+## Two ways to ask for a model
 
 ```ts
-await client.nr.chat({ model: 'claude-sonnet-4-5-20250929', prompt });  // concrete
-await client.nr.chat({ model: 'summariser', prompt });                            // an alias you configured
+await client.nr.chat({ model: 'claude-sonnet-4-5-20250929', prompt }); // direct
+await client.nr.chat({ model: 'nrouter/auto', prompt });                // nRouter chooses
 ```
 
-- **A concrete model id is never re-routed.** It resolves to one deployment, it
-  is called, and it inherits no hidden fallback. If that provider is down, the
-  call fails.
-- **An alias you configured** resolves to an ordered chain of deployments plus a
-  strategy. The gateway walks the chain.
+- **Direct — you choose the model.** nRouter never swaps it for another. A
+  concrete model is never re-routed and inherits no hidden fallback: a
+  different model answers only through a fallback **you configured yourself**,
+  and only when the provider cannot take the request (below). With no fallback
+  configured, one model is called once; if its provider is down, the call
+  fails. Most organizations configure no fallbacks at all, and that is a
+  supported steady state, not a misconfiguration.
+- **`nrouter/auto` — nRouter chooses an eligible model for you.** Your
+  organization picks how, in the dashboard's Router Settings:
+  *Best for the task* (the default) uses smart model selection when it is
+  available; *Lowest cost* orders the models fit for the task by their list
+  rate — input plus output price per million tokens, weighted equally, read
+  live. That orders
+  models by their published rate; it is not a promise of the lowest bill for a
+  given request.
 
-A model name that matches no configured alias simply has an empty chain, which is
-the concrete-model case again: one deployment, one attempt. Most organizations
-configure no chains at all, and that is a supported steady state, not a
-misconfiguration.
+Either way you pay the served model's list price, and `x-nr-model`
+(`res.meta.model`) names the model that answered.
 
-## What the chain gives you
+Model aliases carrying their own routing strategy are no longer offered: a
+former alias name in `model` now returns the unknown-model error
+(`model_not_found`). Name a model, or send `nrouter/auto`.
 
-Each chain entry names a provider and an upstream model. The strategy decides the
-order the entries are tried in:
+## Fallbacks you configure
 
-| Strategy | Order |
-|---|---|
-| `priority` | the configured order; the default, and what the gateway falls back to |
-| `cost` | cheapest first |
-| `latency` | fastest observed first |
-| `weighted` | proportional split |
-| `pinned` | an exact deployment was named; no selection happens |
+A direct request can fall back to another model in two ways, both yours:
+
+- a per-model **fallback list** saved in the dashboard's Router Settings, or
+- **`nrouter_fallbacks`** on the request — up to 4 model names, tried in order.
+  It **replaces** the saved list for that one request; it is not merged with it.
+  `model` stays the primary.
+
+`nrouter_fallbacks` is refused on a request for `nrouter/auto` with
+`400 fallback_not_allowed`, before any provider call — `nrouter/auto` already
+chooses the model. A target your key cannot route is refused the same way.
 
 Entries whose circuit breaker is open are skipped. Health state is advanced when
 an attempt fails, so a provider having a bad minute drops out of the rotation
 without you doing anything.
 
-If the health data cannot be read, routing degrades to "walk the chain in order"
-rather than failing your request.
-
 ## Which failures actually fail over — this is narrower than you expect
 
-Only **429 and 503** (and the Anthropic-family `529`) advance to the next chain
-entry. They are the two statuses that mean *the provider refused before doing any
-work*.
+A fallback is tried only when **the provider cannot take the request**:
 
-Everything else is fatal to the walk:
-
-| Status | Behaviour | Why |
+| Failure | Behaviour | Why |
 |---|---|---|
-| `429`, `503`, `529` | try the next entry | nothing was generated and nothing was billed |
+| `429`, `503`, `529` | try the next model | the provider refused before doing any work; nothing was generated |
+| a connection that never opened | try the next model | nothing reached the provider |
+| a stalled first byte | try the next model | the provider sent nothing back within the time-to-first-byte limit; the abandoned call is not charged to you |
+| a deployment fault such as `401` / `404` from the provider | try the next model | that deployment cannot serve the model; another can |
 | `500`, `502`, `504` | fail | the provider may have generated **and billed** a completion we never delivered; a retry buys a second one you never see |
-| `4xx` other than 429 | fail | a second provider rejects a malformed request too, and you have then paid twice for nothing |
+| a read timeout | fail | the connection was established, so we cannot tell whether a completion was generated |
+| any other `4xx` | fail | a second provider rejects a malformed request too, and you have then paid twice for nothing |
 
-Transport failures are narrower still: only a failure during **connect** is
-retried. Once the connection was established we cannot tell whether a completion
-was generated, and an "unbillable-looking" retry is how one request becomes two
-bills.
+The last model in the list is never cut short at the first-byte limit. Whatever
+answers, **you are charged once, for the model that answered**.
 
 ## One request, one reservation, one rate-limit slot
 
@@ -80,7 +89,7 @@ credential leak wearing a failover's clothes. Those entries are skipped exactly
 as an entry with no credential would be.
 
 The practical consequence: configuring a cross-provider fallback chain for an
-image or audio alias will not give you failover. Chain entries that stay on the
+image or audio model will not give you failover. Chain entries that stay on the
 same provider and the same upstream model still work there.
 
 ### On the text wires, an entry whose provider does not serve THAT ROUTE is skipped
@@ -154,11 +163,11 @@ never be a failover target on any of the four wires. Its `nrouter_endpoints` is
 empty, which is the honest answer and the one to build chains from.
 
 **Do not infer a model's route from its name.** Ask the gateway. Every entry in
-`GET /v1/models` carries the routes that alias actually answers on:
+`GET /v1/models` carries the routes that model actually answers on:
 
 ```ts
 const models = await client.nrouterModels.list();
-const entry = models.data.find((m) => m.id === alias);
+const entry = models.data.find((m) => m.id === modelId);
 entry.nrouter_endpoints; // e.g. ["/v1/messages", "/v1/messages/count_tokens"]
 ```
 
@@ -167,6 +176,8 @@ intend to call, and the walk has somewhere to go on every hop.
 
 ## What the response tells you
 
-`res.meta.model` is the model that **actually served** the request, which is not
-always the alias you sent. Log it. On a chain walk it is the only thing in the
-response that says which deployment answered.
+`res.meta.model` (`x-nr-model`) is the model that **actually served** the
+request, which is not always the model you sent: after a fallback it names the
+fallback, and for `nrouter/auto` it names the model nRouter chose. Log it.
+`x-nr-routing` says `direct` when the first model answered, or `fallback:<n>`
+when a fallback you configured did; it is absent on cache hits and refusals.
