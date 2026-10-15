@@ -504,7 +504,7 @@
     }
   },
   "spend_row_metadata_fields": {
-    "$comment": "RESPONSE surface, not a request body. These are the customer-visible keys the dashboard spend-row route (GET /api/nrouter-proxy/spend/by-key) returns inside a log row's `metadata`. Sending one as a request field is a defect: the gateway does not read them and forwards them to the provider verbatim. Derived from nrouter-app src/lib/logs/sanitize-log-metadata.ts (CUSTOMER_FACING_NROUTER_META_KEYS, the allowlist the drawer scrubs against) — re-derive, never retype. Every other nrouter_* key in that blob is gateway-internal and is stripped before a customer ever sees it. The examples gate enforces the nrouter_ namespace only; `tags` is the caller's own key, published here to document the surface, with nothing to refuse.",
+    "$comment": "RESPONSE surface, not a request body. These are the customer-visible keys the dashboard spend-row route (GET /api/nrouter-proxy/spend/by-key) returns inside a log row's `metadata`. Sending one as a request field is a defect: the gateway does not read them and forwards them to the provider verbatim. Derived from nrouter-app src/lib/logs/sanitize-log-metadata.ts (CUSTOMER_FACING_NROUTER_META_KEYS, the allowlist the drawer scrubs against) — re-derive, never retype. Every nrouter_* key not listed here is gateway-internal and is stripped before a customer ever sees it. The examples gate enforces the nrouter_ namespace only; `tags` is the caller's own key, published here to document the surface, with nothing to refuse.",
     "nrouter_cost": {
       "type": ["number", "null"],
       "description": "What the customer is CHARGED for the request, in USD; null when unpriced, never a zero."
@@ -552,6 +552,34 @@
     "nrouter_request_log": {
       "type": "object",
       "description": "Versioned customer-facing request diagnostics."
+    },
+    "nrouter_guardrails": {
+      "type": "object",
+      "description": "Response side, as { redacted: bool }: true when a guardrail rewrote the caller's own prompt before it was sent on. This is not the request field of the same name (extra_body_fields.nrouter_guardrails), which selects guardrails for one call."
+    },
+    "nrouter_timings": {
+      "type": "object",
+      "description": "How long each phase of the request took, in milliseconds, keyed by phase name (for example key_auth, rate_limit, guardrails_scoring, reserve, provider, post_call). Phases run in order and do not overlap, except intent_classify and content_scoring, which are time already inside guardrails_scoring. `edge_to_row` is the measured time from the request arriving to its log row being written, and is never a sum of the others. A phase that was not recorded has no key. `provider` is the whole provider call, not time to first token: for a stream, time to first token is the row's completionStartTime minus its startTime."
+    },
+    "nrouter_auto_routing": {
+      "type": "object",
+      "description": "Present on a request for nrouter/auto: how the model was chosen, as { mode, source, task, task_outcome, model_outcome }. `mode` is off, shadow or enforce. `source` is signals (chosen from the request's own shape: reasoning asked for, input length, tools) or decision (chosen by nRouter's model-selection step). `task` is the task type, present only when `task_outcome` is answered. `task_outcome` and `model_outcome` are one of answered, low_confidence, invalid, timeout, error, skipped, cancelled, not_asked or not_enabled. The served model is nrouter_model."
+    },
+    "nrouter_checks": {
+      "type": "object",
+      "description": "What each preflight check decided, as { version, model_access, rate_limit, rate_limit_dimension, concurrency }. Each check is allowed or refused. `rate_limit_dimension` (rpm, tpm, tps or rpd) appears only beside a refused rate_limit, when the limit that refused is known. A check that did not run has no key, so an absent key never means allowed."
+    },
+    "nrouter_trace": {
+      "type": "object",
+      "description": "Per-step request trace, as { v, steps, coverage }. `steps` is a list of START events { i, p?, k: \"s\", n, t } and END events { i, k: \"e\", t, o }: `i` pairs a START with its END, `p` is the enclosing step's `i`, `n` is the step name, `t` is the offset in microseconds from the request arriving, and `o` is the outcome (ok, refused, error, timeout, cancelled, panicked). `coverage` says what the trace does and does not include: `ends_at` is row_snapshot (the trace stops when the log row is written, so work after that is absent), `truncated` and `undeclared` count events that were dropped, and `unfinished` lists the `i` of steps still open at that point. Time between one step's END and the next step's START is untraced. Rows written before per-step tracing shipped carry no such key."
+    },
+    "nrouter_web_search_requests": {
+      "type": "integer",
+      "description": "How many web searches the request ran: a count, never an amount. Present only when at least one search ran; the search charge is already inside nrouter_cost."
+    },
+    "nrouter_usage": {
+      "type": "object",
+      "description": "The token breakdown the charge was computed from: input_tokens, output_tokens, cache_creation_input_tokens, cache_creation_input_tokens_1h, cache_read_input_tokens, audio_input_tokens, audio_output_tokens, web_search_requests and code_interpreter_containers. Counts only, no prices."
     },
     "tags": {
       "type": "array",

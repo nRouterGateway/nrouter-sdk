@@ -349,6 +349,80 @@ class SpecContractTests(unittest.TestCase):
                 f"the routing object's `{key}` member is undocumented",
             )
 
+    # The seven customer-visible spend-row keys the dashboard returns that the
+    # spec did not publish until 2026-10-15. Each is pinned with its JSON type
+    # and the member names its description must document, so a customer timing
+    # a request (TTFT, per-step latency) can read the row from the contract.
+    _CUSTOMER_ROW_KEYS = {
+        "nrouter_guardrails": ("object", ("redacted",)),
+        "nrouter_timings": ("object", ("edge_to_row", "provider")),
+        "nrouter_auto_routing": (
+            "object",
+            ("mode", "source", "task", "task_outcome", "model_outcome"),
+        ),
+        "nrouter_checks": (
+            "object",
+            ("version", "model_access", "rate_limit", "rate_limit_dimension", "concurrency"),
+        ),
+        "nrouter_trace": ("object", ("steps", "coverage", "ends_at")),
+        "nrouter_web_search_requests": ("integer", ()),
+        "nrouter_usage": ("object", ("cache_read_input_tokens",)),
+    }
+
+    def test_spend_row_metadata_publishes_every_customer_visible_key(self) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        section = spec["spend_row_metadata_fields"]
+        for key, (json_type, members) in self._CUSTOMER_ROW_KEYS.items():
+            self.assertIn(
+                key,
+                section,
+                f"the dashboard returns `{key}` in a customer's own log row and "
+                "the spec does not publish it",
+            )
+            entry = section[key]
+            self.assertEqual(entry["type"], json_type, key)
+            description = entry["description"]
+            self.assertTrue(description.strip(), f"`{key}` has no description")
+            for member in members:
+                self.assertIn(
+                    member,
+                    description,
+                    f"`{key}` does not document its `{member}` member",
+                )
+
+    def test_spend_row_guardrails_is_not_confused_with_the_request_field(self) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        description = spec["spend_row_metadata_fields"]["nrouter_guardrails"]["description"]
+        self.assertRegex(
+            description,
+            r"(?i)not the request field",
+            "the response-side nrouter_guardrails shares its name with the "
+            "request field and must say it is a different thing",
+        )
+
+    def test_spend_row_metadata_names_no_internal_component(self) -> None:
+        """Rule #29: the SDK repo is public. The response-surface descriptions
+        name what a customer reads, never the internals that produced it."""
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        text = json.dumps(spec["spend_row_metadata_fields"])
+        for word in (
+            "nrouter_auto_decision",
+            "nrouter_plan_evidence",
+            "nrouter_cost_basis",
+            "cortex",
+            "jev",
+            "pooler",
+            "supabase",
+            "redis",
+            "postgres",
+            "sidecar",
+        ):
+            self.assertNotRegex(
+                text,
+                rf"(?i)\b{word}\b",
+                f"the public spend-row section names `{word}`",
+            )
+
 
 class ClientContractTests(unittest.TestCase):
     def test_every_advertised_python_sdk_method_is_callable(self) -> None:
