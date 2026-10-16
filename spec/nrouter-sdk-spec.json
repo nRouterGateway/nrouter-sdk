@@ -177,7 +177,7 @@
     },
     "x-nr-intent": {
       "type": "string",
-      "description": "The top intent category evaluated by the preflight chain, if intent routing was requested",
+      "description": "The top intent category evaluated by the preflight chain when intent classification runs on nrouter/auto",
       "always": false
     },
     "x-nr-funding-source": {
