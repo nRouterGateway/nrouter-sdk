@@ -436,7 +436,9 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
             raise cls(
                 message,
                 request_id=request_id,
+                retry_after=parse_retry_after(headers.get("retry-after")),
                 code=gateway_code,
+                status_code=status,
                 param=param,
                 type=error_type,
                 guardrails=guardrails,
@@ -570,8 +572,9 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
             meta=meta,
         ) from err
 
+    retry_after = headers.get("retry-after")
+
     if status == 429:
-        retry_after = headers.get("retry-after")
         raise nRouterRateLimitError(
             message,
             request_id=request_id,
@@ -604,6 +607,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         raise nRouterServiceError(
             message,
             request_id=request_id,
+            retry_after=parse_retry_after(retry_after),
             status_code=status,
             param=param,
             type=error_type,
@@ -615,6 +619,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         raise nRouterServiceError(
             message,
             request_id=request_id,
+            retry_after=parse_retry_after(retry_after),
             status_code=status,
             param=param,
             type=error_type,

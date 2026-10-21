@@ -50,6 +50,11 @@ sealed class NRouterError implements Exception {
   factory NRouterError.fromCode(NRouterErrorBody body) {
     switch (body.code) {
       case 'invalid_request':
+      case 'input_too_large':
+      case 'max_output_tokens_too_large':
+      case 'fallback_not_allowed':
+      case 'guardrail_not_found':
+      case 'image_input_unsupported':
         return (body.guardrails == 'blocked' || body.type == 'guardrail_blocked')
             ? NRouterGuardrailBlockedError(body)
             : NRouterRequestError(body);

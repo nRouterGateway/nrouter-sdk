@@ -7,11 +7,18 @@ use crate::NRouterError;
 pub const PROMPT_TEMPLATE_ID_FIELD: &str = "nrouter_prompt_template_id";
 pub const PROMPT_VARIABLES_FIELD: &str = "nrouter_prompt_variables";
 pub const CACHE_FIELD: &str = "nrouter_cache";
-pub const EXTRA_BODY_FIELDS: [&str; 3] = [
+pub const FALLBACKS_FIELD: &str = "nrouter_fallbacks";
+pub const GUARDRAILS_FIELD: &str = "nrouter_guardrails";
+pub const EXTRA_BODY_FIELDS: [&str; 5] = [
     PROMPT_TEMPLATE_ID_FIELD,
     PROMPT_VARIABLES_FIELD,
     CACHE_FIELD,
+    FALLBACKS_FIELD,
+    GUARDRAILS_FIELD,
 ];
+
+pub const MAX_FALLBACKS: usize = 4;
+pub const MAX_GUARDRAILS: usize = 8;
 
 const TENANCY_KEYS: [&str; 5] = ["organizationid", "orgid", "teamid", "userid", "nrouterorg"];
 
@@ -19,8 +26,30 @@ const TENANCY_KEYS: [&str; 5] = ["organizationid", "orgid", "teamid", "userid", 
 pub struct FeatureOptions {
     pub prompt_template_id: Option<String>,
     pub prompt_variables: Option<Map<String, Value>>,
+    pub fallbacks: Vec<String>,
+    pub guardrails: Vec<String>,
     pub guardrail_ids: Vec<String>,
     pub cache: Option<bool>,
+}
+
+fn normalize_names(values: &[String], argument: &str, ceiling: usize) -> Result<Vec<Value>, NRouterError> {
+    let mut out = Vec::with_capacity(values.len());
+    for entry in values {
+        let trimmed = entry.trim();
+        if trimmed.is_empty() {
+            return Err(NRouterError::Configuration(format!(
+                "{argument} contains an empty entry. Every entry must be a non-empty name."
+            )));
+        }
+        out.push(Value::String(trimmed.to_string()));
+    }
+    if out.len() > ceiling {
+        return Err(NRouterError::Configuration(format!(
+            "{argument} carries {} entries; the gateway accepts at most {ceiling}.",
+            out.len()
+        )));
+    }
+    Ok(out)
 }
 
 pub fn build_extra_body(opts: &FeatureOptions) -> Result<Map<String, Value>, NRouterError> {
@@ -48,6 +77,18 @@ pub fn build_extra_body(opts: &FeatureOptions) -> Result<Map<String, Value>, NRo
     }
     if opts.cache == Some(false) {
         out.insert(CACHE_FIELD.into(), Value::Bool(false));
+    }
+    if !opts.fallbacks.is_empty() {
+        out.insert(
+            FALLBACKS_FIELD.into(),
+            Value::Array(normalize_names(&opts.fallbacks, "fallbacks", MAX_FALLBACKS)?),
+        );
+    }
+    if !opts.guardrails.is_empty() {
+        out.insert(
+            GUARDRAILS_FIELD.into(),
+            Value::Array(normalize_names(&opts.guardrails, "guardrails", MAX_GUARDRAILS)?),
+        );
     }
     Ok(out)
 }

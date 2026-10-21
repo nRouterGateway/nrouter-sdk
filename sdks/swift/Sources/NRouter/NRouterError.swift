@@ -57,7 +57,13 @@ public enum NRouterError: Error, Equatable {
     ///    was never the problem.
     public static func fromCode(_ body: NRouterErrorBody) -> NRouterError {
         switch body.code {
-        case "invalid_request": return .request(body)
+        case "invalid_request",
+             "input_too_large",
+             "max_output_tokens_too_large",
+             "fallback_not_allowed",
+             "guardrail_not_found",
+             "image_input_unsupported":
+            return .request(body)
         case "guardrail_blocked": return .guardrailBlocked(body)
         case "invalid_api_key": return .authentication(body)
         case "insufficient_credits", "plan_allowance_exhausted", "plan_required": return .credit(body)
@@ -113,6 +119,7 @@ public enum NRouterError: Error, Equatable {
     public var requestID: String? { body?.requestID }
     public var limitSource: String? { body?.limitSource }
     public var authReason: String? { body?.authReason }
+    public var retryAfter: UInt64? { body?.retryAfter }
     public var guardrails: String? { body?.guardrails }
     public var meta: NRouterResponseMeta? { body?.meta }
 

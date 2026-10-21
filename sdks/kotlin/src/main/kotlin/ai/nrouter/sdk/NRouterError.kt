@@ -87,6 +87,7 @@ public sealed class NRouterError(
     public val requestId: String? get() = body?.requestId
     public val limitSource: String? get() = body?.limitSource
     public val authReason: String? get() = body?.authReason
+    public val retryAfter: Long? get() = body?.retryAfter
     public val guardrails: String? get() = body?.guardrails
     public val meta: NRouterResponseMeta? get() = body?.meta
 
@@ -109,7 +110,13 @@ public sealed class NRouterError(
          */
         @JvmStatic
         public fun fromCode(body: NRouterErrorBody): NRouterError = when (body.code) {
-            "invalid_request" -> Request(body)
+            "invalid_request",
+            "input_too_large",
+            "max_output_tokens_too_large",
+            "fallback_not_allowed",
+            "guardrail_not_found",
+            "image_input_unsupported",
+            -> Request(body)
             "guardrail_blocked" -> GuardrailBlocked(body)
             "invalid_api_key" -> Authentication(body)
             "insufficient_credits", "plan_allowance_exhausted", "plan_required" -> Credit(body)

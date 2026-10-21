@@ -1244,6 +1244,7 @@ OPTION_BUILDERS: dict[str, list[str]] = {
     # the mapping. The gate needs both or every field reads as unmapped.
     "js": ["sdks/js/src/options.ts", "sdks/js/src/types.ts"],
     "go": ["sdks/go/options.go"],
+    "rust": ["sdks/rust/src/options.rs"],
 }
 
 # An SDK with NO typed option builder, and why. Each entry names the files that
@@ -1276,17 +1277,6 @@ NO_OPTION_BUILDER: dict[str, dict] = {
     "r": {
         "reason": "NO-BUILDER — prompts.R is prompt-only, same shape as java",
         "files": ["sdks/r/R/prompts.R"],
-    },
-    "rust": {
-        "reason": "BUILDER-PENDING, and this one is NOT a wrapper excuse — "
-        "sdks/rust/src/options.rs IS a full builder (FeatureOptions + "
-        "build_extra_body + EXTRA_BODY_FIELDS) and it carries only the three "
-        "older fields. It is listed here rather than enforced because the "
-        "2026-09-17 slice that added nrouter_fallbacks and nrouter_guardrails "
-        "held a file lease covering python, js and go only. The stale check "
-        "below FAILS this entry the moment options.rs names every spec field, "
-        "so it cannot outlive the follow-up that closes it.",
-        "files": ["sdks/rust/src/options.rs"],
     },
 }
 

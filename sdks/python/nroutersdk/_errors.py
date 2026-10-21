@@ -419,6 +419,7 @@ class nRouterServiceError(nRouterError):
         message: str,
         *,
         request_id: str | None = None,
+        retry_after: int | None = None,
         code: str | None = None,
         status_code: int | None = None,
         param: str | None = None,
@@ -436,13 +437,14 @@ class nRouterServiceError(nRouterError):
             guardrails=guardrails,
             meta=meta,
         )
+        self.retry_after = retry_after
 
 
 
 def is_retryable(err: Exception | Any) -> bool:
     """Whether retrying could plausibly succeed.
 
-    True for rate limits, service errors, and transient HTTP status codes (408, 425, 429, 502, 503, 504),
+    True for rate limits, service errors, transport/timeout errors, and transient HTTP status codes (408, 425, 429, 502, 503, 504),
     except when cancelled/aborted, configuration errors, or when response was too large.
     """
     err_cls = getattr(err, "__class__", None)
@@ -454,7 +456,24 @@ def is_retryable(err: Exception | Any) -> bool:
     if "too large" in str(msg).lower():
         return False
 
-    if isinstance(err, (nRouterRateLimitError, nRouterServiceError)):
+    if isinstance(err, (nRouterRateLimitError, nRouterServiceError, ConnectionError, TimeoutError)):
+        return True
+    if err_cls is not None and any(
+        base.__name__
+        in (
+            "TransportError",
+            "TimeoutException",
+            "NetworkError",
+            "ConnectError",
+            "ReadTimeout",
+            "WriteTimeout",
+            "ConnectTimeout",
+            "PoolTimeout",
+            "APIConnectionError",
+            "APITimeoutError",
+        )
+        for base in getattr(err_cls, "__mro__", ())
+    ):
         return True
     status = getattr(err, "status_code", None)
     if status in (408, 425, 429, 502, 503, 504):

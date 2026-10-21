@@ -208,3 +208,44 @@ def test_is_retryable_respects_abort_and_too_large():
     assert is_retryable(nRouterServiceError("upstream exploded", status_code=502))
     assert is_retryable(nRouterServiceError("gateway timeout", status_code=504))
 
+
+def test_is_retryable_accepts_transport_errors_and_service_error_preserves_retry_after():
+    import openai
+    from nroutersdk import is_retryable, nRouterServiceError
+    from nroutersdk.client import _maybe_raise_nrouter_error
+
+    assert is_retryable(httpx.ConnectError("connection refused"))
+    assert is_retryable(httpx.ReadTimeout("read timed out"))
+    assert is_retryable(ConnectionError("socket reset"))
+    assert is_retryable(TimeoutError("timed out"))
+
+    req = httpx.Request("POST", f"{BASE}/chat/completions")
+    resp = httpx.Response(
+        503,
+        headers={"retry-after": "15", "x-nr-request-id": "req-503"},
+        json={"error": {"message": "service unavailable", "code": "service_unavailable"}},
+        request=req,
+    )
+    with pytest.raises(nRouterServiceError) as caught:
+        _maybe_raise_nrouter_error(
+            openai.InternalServerError("service unavailable", response=resp, body=None)
+        )
+    assert caught.value.retry_after == 15
+
+    # Codeless 502/503 responses hit the status fallback path after _BY_CODE
+    for status_code in (502, 503):
+        codeless_resp = httpx.Response(
+            status_code,
+            headers={"retry-after": "20", "x-nr-request-id": f"req-{status_code}"},
+            json={"error": {"message": "upstream unavailable"}},
+            request=req,
+        )
+        with pytest.raises(nRouterServiceError) as codeless_caught:
+            _maybe_raise_nrouter_error(
+                openai.InternalServerError("upstream unavailable", response=codeless_resp, body=None)
+            )
+        assert codeless_caught.value.retry_after == 20
+        assert codeless_caught.value.status_code == status_code
+
+
+

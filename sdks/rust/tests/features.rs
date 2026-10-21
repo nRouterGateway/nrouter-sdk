@@ -59,6 +59,35 @@ fn guardrails_are_refused_and_cache_false_is_mapped() {
 }
 
 #[test]
+fn fallbacks_and_guardrails_map_to_gateway_fields_and_enforce_bounds() {
+    let body = build_extra_body(&FeatureOptions {
+        fallbacks: vec![" openai/gpt-4o-mini ".into(), "anthropic/claude-3-5-sonnet".into()],
+        guardrails: vec![" pii-strict ".into()],
+        ..FeatureOptions::default()
+    })
+    .unwrap();
+    assert_eq!(
+        body["nrouter_fallbacks"],
+        json!(["openai/gpt-4o-mini", "anthropic/claude-3-5-sonnet"])
+    );
+    assert_eq!(body["nrouter_guardrails"], json!(["pii-strict"]));
+
+    // > 4 fallbacks refused locally with Configuration error
+    assert!(build_extra_body(&FeatureOptions {
+        fallbacks: vec!["m1".into(), "m2".into(), "m3".into(), "m4".into(), "m5".into()],
+        ..FeatureOptions::default()
+    })
+    .is_err());
+
+    // Blank fallback entry refused locally
+    assert!(build_extra_body(&FeatureOptions {
+        fallbacks: vec!["   ".into()],
+        ..FeatureOptions::default()
+    })
+    .is_err());
+}
+
+#[test]
 fn extra_body_tenancy_fields_are_refused() {
     let mut extra = Map::new();
     extra.insert("organization_id".into(), json!("spoof"));
