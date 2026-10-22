@@ -39,7 +39,11 @@ pub struct FeatureOptions {
     pub optimize: Option<String>,
 }
 
-fn normalize_names(values: &[String], argument: &str, ceiling: usize) -> Result<Vec<Value>, NRouterError> {
+fn normalize_names(
+    values: &[String],
+    argument: &str,
+    ceiling: usize,
+) -> Result<Vec<Value>, NRouterError> {
     let mut out = Vec::with_capacity(values.len());
     for entry in values {
         let trimmed = entry.trim();
@@ -88,7 +92,11 @@ pub fn build_extra_body(opts: &FeatureOptions) -> Result<Map<String, Value>, NRo
     if !opts.fallbacks.is_empty() {
         out.insert(
             FALLBACKS_FIELD.into(),
-            Value::Array(normalize_names(&opts.fallbacks, "fallbacks", MAX_FALLBACKS)?),
+            Value::Array(normalize_names(
+                &opts.fallbacks,
+                "fallbacks",
+                MAX_FALLBACKS,
+            )?),
         );
     }
     if let Some(optimize) = opts.optimize.as_deref() {
@@ -104,7 +112,11 @@ pub fn build_extra_body(opts: &FeatureOptions) -> Result<Map<String, Value>, NRo
     if !opts.guardrails.is_empty() {
         out.insert(
             GUARDRAILS_FIELD.into(),
-            Value::Array(normalize_names(&opts.guardrails, "guardrails", MAX_GUARDRAILS)?),
+            Value::Array(normalize_names(
+                &opts.guardrails,
+                "guardrails",
+                MAX_GUARDRAILS,
+            )?),
         );
     }
     Ok(out)
