@@ -70,6 +70,9 @@ public enum NRouterError: Error, Equatable {
         case "model_not_found": return .notFound(body)
         case "rate_limit_exceeded", "tpm_limit_exceeded": return .rateLimit(body)
         case "credit_check_failed", "service_unavailable": return .service(body)
+        // 403 model deny lists: no permission case, so `.other` carries the
+        // code and the status.
+        case "model_denied_by_org", "model_denied_by_team", "model_denied_by_key": return .other(body)
         case .some: return .other(body)
         case nil:
             switch body.status {
@@ -78,6 +81,8 @@ public enum NRouterError: Error, Equatable {
                     ? .guardrailBlocked(body)
                     : .request(body)
             case 401: return .authentication(body)
+            // A permission refusal with no code: `.other` keeps the status.
+            case 403: return .other(body)
             case 402:
                 // The gateway's own wording is the only discriminator, and it
                 // is stable: GatewayError::{BudgetExceeded,

@@ -931,7 +931,8 @@ public struct NRouter: Sendable {
         "model_not_found", "rate_limit_exceeded", "tpm_limit_exceeded",
         "credit_check_failed", "service_unavailable",
         "input_too_large", "max_output_tokens_too_large", "fallback_not_allowed", "guardrail_not_found",
-        "image_input_unsupported"
+        "image_input_unsupported",
+        "model_denied_by_org", "model_denied_by_team", "model_denied_by_key"
     ]
 }
 

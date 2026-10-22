@@ -31,13 +31,19 @@ NROUTER_ERROR_CLASSES <- c(
   max_output_tokens_too_large = "nrouter_request_error",
   fallback_not_allowed     = "nrouter_request_error",
   guardrail_not_found      = "nrouter_request_error",
-  image_input_unsupported  = "nrouter_request_error"
+  image_input_unsupported  = "nrouter_request_error",
+  # 403 model deny lists: no permission class, so the base class carries the
+  # code and the status.
+  model_denied_by_org      = "nrouter_other_error",
+  model_denied_by_team     = "nrouter_other_error",
+  model_denied_by_key      = "nrouter_other_error"
 )
 
 NROUTER_STATUS_CLASSES <- c(
   "400" = "nrouter_request_error",
   "401" = "nrouter_authentication_error",
   "402" = "nrouter_credit_error",
+  "403" = "nrouter_other_error",
   "404" = "nrouter_not_found_error",
   "408" = "nrouter_transport_error",
   "425" = "nrouter_service_error",

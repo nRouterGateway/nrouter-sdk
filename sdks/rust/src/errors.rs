@@ -109,6 +109,11 @@ impl NRouterError {
             Some("model_not_found") => Self::NotFound(body),
             Some("rate_limit_exceeded") | Some("tpm_limit_exceeded") => Self::RateLimit(body),
             Some("credit_check_failed") | Some("service_unavailable") => Self::Service(body),
+            // 403 model deny lists: no permission variant, so `Other` carries
+            // the code and the status.
+            Some("model_denied_by_org")
+            | Some("model_denied_by_team")
+            | Some("model_denied_by_key") => Self::Other(body),
             Some(_) => Self::Other(body),
             None => match body.status {
                 Some(400) => {
@@ -122,6 +127,9 @@ impl NRouterError {
                     }
                 }
                 Some(401) => Self::Authentication(body),
+                // A permission refusal with no code: no dedicated variant, so
+                // the base `Other` keeps the status.
+                Some(403) => Self::Other(body),
                 // The gateway's own wording is the only discriminator it gives
                 // us, and it is stable: GatewayError::{BudgetExceeded,
                 // ScopedBudgetExceeded} both start their Display with "budget".

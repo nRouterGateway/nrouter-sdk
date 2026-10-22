@@ -64,7 +64,10 @@ test_that("each gateway code maps to its condition class", {
     rate_limit_exceeded  = "nrouter_rate_limit_error",
     tpm_limit_exceeded   = "nrouter_rate_limit_error",
     credit_check_failed  = "nrouter_service_error",
-    service_unavailable  = "nrouter_service_error"
+    service_unavailable  = "nrouter_service_error",
+    model_denied_by_org  = "nrouter_other_error",
+    model_denied_by_team = "nrouter_other_error",
+    model_denied_by_key  = "nrouter_other_error"
   )
   for (code in names(expected)) {
     cond <- nrouter_condition("boom", code = code)

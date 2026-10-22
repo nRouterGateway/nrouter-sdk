@@ -298,6 +298,10 @@ func classify(code, message string, status int) Kind {
 		return KindRateLimit
 	case "credit_check_failed", "service_unavailable":
 		return KindService
+	case "model_denied_by_org", "model_denied_by_team", "model_denied_by_key":
+		// 403 model deny lists. No permission kind exists: the base kind keeps
+		// the code and the status on the Error.
+		return KindOther
 	case "":
 		// fall through to status dispatch below
 	default:
@@ -321,6 +325,9 @@ func classify(code, message string, status int) Kind {
 			return KindBudgetExceeded
 		}
 		return KindCredit
+	case 403:
+		// A permission refusal with no code: the base kind keeps the status.
+		return KindOther
 	case 404:
 		// Scoped to MODELS. A 404 is also a missing video job, an unknown MCP
 		// server or an unknown agent run; calling those model_not_found is a

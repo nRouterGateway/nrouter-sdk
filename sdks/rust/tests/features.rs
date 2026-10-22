@@ -88,6 +88,22 @@ fn fallbacks_and_guardrails_map_to_gateway_fields_and_enforce_bounds() {
 }
 
 #[test]
+fn optimize_maps_onto_the_gateway_field_and_refuses_other_values() {
+    let body = build_extra_body(&FeatureOptions {
+        optimize: Some("cost".into()),
+        ..FeatureOptions::default()
+    })
+    .unwrap();
+    assert_eq!(body["nrouter_optimize"], json!("cost"));
+    assert!(build_extra_body(&FeatureOptions::default()).unwrap().is_empty());
+    assert!(build_extra_body(&FeatureOptions {
+        optimize: Some("cheap".into()),
+        ..FeatureOptions::default()
+    })
+    .is_err());
+}
+
+#[test]
 fn extra_body_tenancy_fields_are_refused() {
     let mut extra = Map::new();
     extra.insert("organization_id".into(), json!("spoof"));

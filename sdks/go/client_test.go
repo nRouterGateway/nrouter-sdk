@@ -423,6 +423,26 @@ func TestEachGatewayCodeMapsToItsKind(t *testing.T) {
 	}
 }
 
+// The three 403 model deny-list codes have no dedicated kind: the base kind
+// carries the code and the status.
+func TestModelDenyCodesKeepCodeAndStatus(t *testing.T) {
+	for _, code := range []string{"model_denied_by_org", "model_denied_by_team", "model_denied_by_key"} {
+		t.Run(code, func(t *testing.T) {
+			c := newTestClient(t, jsonHandler(403, nil, map[string]any{
+				"error": map[string]any{"code": code, "message": "model denied"},
+			}))
+			_, err := c.Models(context.Background())
+			var e *Error
+			if !errors.As(err, &e) {
+				t.Fatalf("got %#v; want *Error", err)
+			}
+			if e.Kind != KindOther || e.Code != code || e.Status != 403 {
+				t.Fatalf("code/status/kind not preserved: %+v", e)
+			}
+		})
+	}
+}
+
 // The gateway's MAIN error path sends {"error":{"type","message"}} with no
 // code at all, so status dispatch is the ordinary route, not a fallback.
 func TestCodelessResponsesAreClassifiedByStatusAndMessage(t *testing.T) {

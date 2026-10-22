@@ -869,6 +869,16 @@ class NRouterHttpClientTest {
     }
 
     @Test
+    void modelDenyCodesKeepCodeAndStatusAsOtherKind() {
+        for (String code : new String[] {"model_denied_by_org", "model_denied_by_team", "model_denied_by_key"}) {
+            NRouterException ex = NRouterException.gateway("model denied", code, null, null, 403, null, null);
+            assertEquals(NRouterException.Kind.OTHER, ex.kind());
+            assertEquals(code, ex.code());
+            assertEquals(403, ex.status());
+        }
+    }
+
+    @Test
     void propagatesTraceContextAndRejectsCrlf() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/chat/completions", exchange -> {

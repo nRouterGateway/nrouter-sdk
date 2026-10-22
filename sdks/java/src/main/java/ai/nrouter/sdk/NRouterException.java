@@ -86,6 +86,11 @@ public final class NRouterException extends RuntimeException {
                 case "tpm_limit_exceeded": return Kind.RATE_LIMIT;
                 case "credit_check_failed":
                 case "service_unavailable": return Kind.SERVICE;
+                // 403 model deny lists: no permission kind, so OTHER carries
+                // the code and the status.
+                case "model_denied_by_org":
+                case "model_denied_by_team":
+                case "model_denied_by_key": return Kind.OTHER;
                 default: return Kind.OTHER;
             }
         }
@@ -98,6 +103,7 @@ public final class NRouterException extends RuntimeException {
                 return Kind.REQUEST;
             case 401: return Kind.AUTHENTICATION;
             case 402: return lower.startsWith("budget") ? Kind.BUDGET_EXCEEDED : Kind.CREDIT;
+            case 403: return Kind.OTHER; // permission refusal: the base kind keeps the status
             case 404: return lower.contains("model") ? Kind.NOT_FOUND : Kind.OTHER;
             case 408: return Kind.TRANSPORT;
             case 425: return Kind.SERVICE;

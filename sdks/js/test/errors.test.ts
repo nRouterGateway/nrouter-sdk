@@ -43,7 +43,9 @@ const SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8')) as {
 // Case 3 — the nine spec codes, asserted against the spec file.
 // ---------------------------------------------------------------------------
 
-test('the spec still declares exactly sixteen error codes', () => {
+test('the spec still declares exactly nineteen error codes', () => {
+  // Nineteen with the three 403 model deny-list codes (model_denied_by_org,
+  // _team, _key), which classify as the base nRouterError.
   // If the spec grew one, this file and ERROR_CLASS_BY_CODE must grow too.
   //
   // Eleven until 2026-09-17, when the gateway put four pre-egress refusals on
@@ -56,7 +58,7 @@ test('the spec still declares exactly sixteen error codes', () => {
   // in the request class.
   assert.strictEqual(
     Object.keys(SPEC.errors).length,
-    16,
+    19,
     'The gateway shipped a new code. Map it in ERROR_CLASS_BY_CODE and add it here.',
   );
 });

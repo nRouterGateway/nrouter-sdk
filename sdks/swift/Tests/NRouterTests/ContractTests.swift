@@ -84,6 +84,9 @@ final class ContractTests: XCTestCase {
             ("tpm_limit_exceeded", "rateLimit"),
             ("credit_check_failed", "service"),
             ("service_unavailable", "service"),
+            ("model_denied_by_org", "other"),
+            ("model_denied_by_team", "other"),
+            ("model_denied_by_key", "other"),
         ]
         for (code, want) in expected {
             let error = NRouterError.fromCode(NRouterErrorBody(message: "boom", code: code))

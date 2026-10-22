@@ -25,6 +25,7 @@ from nroutersdk import (
     AsyncnRouter,
     nRouterAuthenticationError,
     nRouterCreditError,
+    nRouterError,
     nRouterGuardrailBlockedError,
     nRouterNotFoundError,
     nRouterRateLimitError,
@@ -121,3 +122,29 @@ async def test_the_async_client_types_errors_too():
             max_completion_tokens=16,
         )
     await c.close()
+
+
+@pytest.mark.parametrize(
+    "code", ["model_denied_by_org", "model_denied_by_team", "model_denied_by_key"]
+)
+def test_a_403_model_deny_code_keeps_its_code_and_status(code):
+    """The deny-list refusals are 403s with no dedicated class: the base error
+    carries the stable code and the status, so a caller can branch on them."""
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            403,
+            json={"error": {"type": "gateway_error", "message": "model denied", "code": code}},
+        )
+
+    c = nRouter(
+        api_key=KEY,
+        base_url="https://api.nrouter.ai/v1",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        max_retries=0,
+    )
+    with c:
+        with pytest.raises(nRouterError) as caught:
+            chat(c)
+    assert caught.value.code == code
+    assert caught.value.status_code == 403

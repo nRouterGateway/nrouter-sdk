@@ -12,13 +12,18 @@ PROMPT_VARIABLES_FIELD = "nrouter_prompt_variables"
 CACHE_FIELD = "nrouter_cache"
 FALLBACKS_FIELD = "nrouter_fallbacks"
 GUARDRAILS_FIELD = "nrouter_guardrails"
+OPTIMIZE_FIELD = "nrouter_optimize"
 EXTRA_BODY_FIELDS = (
     PROMPT_TEMPLATE_ID_FIELD,
     PROMPT_VARIABLES_FIELD,
     CACHE_FIELD,
     FALLBACKS_FIELD,
+    OPTIMIZE_FIELD,
     GUARDRAILS_FIELD,
 )
+
+#: The two strategies ``nrouter_optimize`` accepts, for ``nrouter/auto`` only.
+OPTIMIZE_VALUES = ("quality", "cost")
 
 #: Published ceilings, from ``spec/nrouter-sdk-spec.json`` (``extra_body_fields``).
 #:
@@ -82,6 +87,7 @@ def build_extra_body(
     fallbacks: Sequence[str] | None = None,
     guardrails: Sequence[str] | None = None,
     cache: bool | None = None,
+    optimize: str | None = None,
 ) -> dict[str, Any]:
     """Map Python options to the exact nRouter gateway body fields.
 
@@ -120,6 +126,17 @@ def build_extra_body(
         extra[FALLBACKS_FIELD] = _names(
             fallbacks, argument="fallbacks", ceiling=MAX_FALLBACKS
         )
+    if optimize is not None:
+        # Strategy for ``nrouter/auto`` only. A bad value is refused here,
+        # naming the argument; pairing it with another model is refused by the
+        # gateway with 400 ``invalid_request``.
+        if optimize not in OPTIMIZE_VALUES:
+            raise _configuration_error(
+                'optimize must be "quality" or "cost"; it maps onto the '
+                "gateway field nrouter_optimize and applies to the model "
+                "nrouter/auto only."
+            )
+        extra[OPTIMIZE_FIELD] = optimize
     if guardrails:
         extra[GUARDRAILS_FIELD] = _names(
             guardrails, argument="guardrails", ceiling=MAX_GUARDRAILS

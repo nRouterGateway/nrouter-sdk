@@ -74,6 +74,12 @@ sealed class NRouterError implements Exception {
       case 'credit_check_failed':
       case 'service_unavailable':
         return NRouterServiceError(body);
+      case 'model_denied_by_org':
+      case 'model_denied_by_team':
+      case 'model_denied_by_key':
+        // 403 model deny lists: no permission type, so NRouterOtherError
+        // carries the code and the status.
+        return NRouterOtherError(body);
       case null:
         switch (body.status) {
           case 400:
@@ -84,6 +90,9 @@ sealed class NRouterError implements Exception {
                 : NRouterRequestError(body);
           case 401:
             return NRouterAuthenticationError(body);
+          case 403:
+            // A permission refusal with no code: the base type keeps the status.
+            return NRouterOtherError(body);
           case 402:
             // The gateway's own wording is the only discriminator, and it is
             // stable: GatewayError::{BudgetExceeded, ScopedBudgetExceeded}

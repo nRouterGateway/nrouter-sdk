@@ -142,6 +142,9 @@ class ContractTest {
             "tpm_limit_exceeded" to NRouterError.RateLimit::class,
             "credit_check_failed" to NRouterError.Service::class,
             "service_unavailable" to NRouterError.Service::class,
+            "model_denied_by_org" to NRouterError.Other::class,
+            "model_denied_by_team" to NRouterError.Other::class,
+            "model_denied_by_key" to NRouterError.Other::class,
         )
         expected.forEach { (code, type) ->
             val error = NRouterError.fromCode(NRouterErrorBody("boom", code = code))

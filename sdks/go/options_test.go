@@ -63,6 +63,22 @@ func TestBuildExtraBodyOmitsEmptyOverrides(t *testing.T) {
 	}
 }
 
+func TestBuildExtraBodyMapsOptimizeAndRefusesOtherValues(t *testing.T) {
+	for _, v := range []string{"quality", "cost"} {
+		body, err := BuildExtraBody(FeatureOptions{Optimize: v})
+		if err != nil || body["nrouter_optimize"] != v {
+			t.Errorf("Optimize %q: body %v, err %v", v, body, err)
+		}
+	}
+	body, err := BuildExtraBody(FeatureOptions{})
+	if err != nil || len(body) != 0 {
+		t.Errorf("empty Optimize must be omitted, got %v, %v", body, err)
+	}
+	if _, err := BuildExtraBody(FeatureOptions{Optimize: "cheap"}); err == nil {
+		t.Errorf("expected an unknown Optimize value to be refused")
+	}
+}
+
 // Refused locally, before egress. The gateway refuses an over-long list with a
 // 400 naming `fallback_not_allowed`, which costs a round trip and does not name
 // the Go field the caller set.
@@ -93,6 +109,7 @@ func TestExtraBodyFieldsCoversEveryEmittableField(t *testing.T) {
 		PromptVariables:  map[string]any{"k": "v"},
 		Guardrails:       []string{"g"},
 		Fallbacks:        []string{"m"},
+		Optimize:         "cost",
 		Cache:            &cacheOff,
 	})
 	if err != nil {

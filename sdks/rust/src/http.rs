@@ -951,6 +951,9 @@ fn is_known_error_code(code: &str) -> bool {
             | "fallback_not_allowed"
             | "guardrail_not_found"
             | "image_input_unsupported"
+            | "model_denied_by_org"
+            | "model_denied_by_team"
+            | "model_denied_by_key"
     )
 }
 

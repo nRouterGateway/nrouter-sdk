@@ -95,6 +95,9 @@ void main() {
       expect(build('tpm_limit_exceeded'), isA<NRouterRateLimitError>());
       expect(build('credit_check_failed'), isA<NRouterServiceError>());
       expect(build('service_unavailable'), isA<NRouterServiceError>());
+      expect(build('model_denied_by_org'), isA<NRouterOtherError>());
+      expect(build('model_denied_by_team'), isA<NRouterOtherError>());
+      expect(build('model_denied_by_key'), isA<NRouterOtherError>());
     });
 
     test('a codeless 400 is split on the message', () {

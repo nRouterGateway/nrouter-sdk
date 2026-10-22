@@ -9,11 +9,13 @@ pub const PROMPT_VARIABLES_FIELD: &str = "nrouter_prompt_variables";
 pub const CACHE_FIELD: &str = "nrouter_cache";
 pub const FALLBACKS_FIELD: &str = "nrouter_fallbacks";
 pub const GUARDRAILS_FIELD: &str = "nrouter_guardrails";
-pub const EXTRA_BODY_FIELDS: [&str; 5] = [
+pub const OPTIMIZE_FIELD: &str = "nrouter_optimize";
+pub const EXTRA_BODY_FIELDS: [&str; 6] = [
     PROMPT_TEMPLATE_ID_FIELD,
     PROMPT_VARIABLES_FIELD,
     CACHE_FIELD,
     FALLBACKS_FIELD,
+    OPTIMIZE_FIELD,
     GUARDRAILS_FIELD,
 ];
 
@@ -30,6 +32,11 @@ pub struct FeatureOptions {
     pub guardrails: Vec<String>,
     pub guardrail_ids: Vec<String>,
     pub cache: Option<bool>,
+    /// Strategy for a request on `nrouter/auto` only: `"quality"` (the
+    /// organization default) or `"cost"` (lowest list rate among models fit
+    /// for the task). Pairing it with any other model is refused by the
+    /// gateway with 400 `invalid_request`.
+    pub optimize: Option<String>,
 }
 
 fn normalize_names(values: &[String], argument: &str, ceiling: usize) -> Result<Vec<Value>, NRouterError> {
@@ -83,6 +90,16 @@ pub fn build_extra_body(opts: &FeatureOptions) -> Result<Map<String, Value>, NRo
             FALLBACKS_FIELD.into(),
             Value::Array(normalize_names(&opts.fallbacks, "fallbacks", MAX_FALLBACKS)?),
         );
+    }
+    if let Some(optimize) = opts.optimize.as_deref() {
+        if optimize != "quality" && optimize != "cost" {
+            return Err(NRouterError::Configuration(
+                "optimize must be \"quality\" or \"cost\"; it maps onto the gateway field \
+                 nrouter_optimize and applies to the model nrouter/auto only."
+                    .into(),
+            ));
+        }
+        out.insert(OPTIMIZE_FIELD.into(), Value::String(optimize.into()));
     }
     if !opts.guardrails.is_empty() {
         out.insert(

@@ -102,6 +102,25 @@ test('fallbacks MAP onto nrouter_fallbacks, and an empty list is omitted', () =>
   assert.deepEqual(buildExtraBody({ model: 'gpt-4o', fallbacks: [] }), {});
 });
 
+test('optimize MAPS onto nrouter_optimize and anything else is refused, naming the option', () => {
+  assert.deepEqual(buildExtraBody({ model: 'nrouter/auto', optimize: 'cost' }), {
+    nrouter_optimize: 'cost',
+  });
+  assert.deepEqual(buildExtraBody({ model: 'nrouter/auto', optimize: 'quality' }), {
+    nrouter_optimize: 'quality',
+  });
+  assert.deepEqual(buildExtraBody({ model: 'nrouter/auto' }), {});
+  assert.throws(
+    () => buildExtraBody({ model: 'nrouter/auto', optimize: 'cheap' as unknown as 'cost' }),
+    (err: unknown) => {
+      const e = err as { kind?: string; message?: string };
+      assert.equal(e.kind, 'configuration');
+      assert.match(String(e.message), /optimize/);
+      return true;
+    },
+  );
+});
+
 test('more than four fallbacks is refused locally, naming the option', () => {
   assert.throws(
     () => buildExtraBody({ model: 'gpt-4o', fallbacks: ['a', 'b', 'c', 'd', 'e'] }),
@@ -136,6 +155,7 @@ test('NO invented nrouter_ key can reach the wire', () => {
     promptVariables: { a: 'b' },
     guardrails: ['pii-strict'],
     fallbacks: ['gpt-4o-mini'],
+    optimize: 'quality',
     cache: false,
   });
   for (const key of Object.keys(extra)) {
@@ -197,6 +217,7 @@ test('the emittable fields and the SPEC agree in BOTH directions', () => {
       cache: false,
       fallbacks: ['gpt-4o-mini'],
       guardrails: ['pii-strict'],
+      optimize: 'cost',
     }),
   ).sort();
   assert.deepEqual(

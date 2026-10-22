@@ -360,6 +360,11 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   fallback_not_allowed: nRouterRequestError,
   guardrail_not_found: nRouterRequestError,
   image_input_unsupported: nRouterRequestError,
+  // 403 model deny lists: no permission class exists, so the base class carries
+  // the code and the status.
+  model_denied_by_org: nRouterError,
+  model_denied_by_team: nRouterError,
+  model_denied_by_key: nRouterError,
 });
 
 /** The HTTP status the spec pairs with each code. */
@@ -380,6 +385,9 @@ export const ERROR_STATUS_BY_CODE: Readonly<Record<string, number>> = Object.fre
   fallback_not_allowed: 400,
   guardrail_not_found: 400,
   image_input_unsupported: 400,
+  model_denied_by_org: 403,
+  model_denied_by_team: 403,
+  model_denied_by_key: 403,
 });
 
 /**
@@ -421,6 +429,10 @@ export function classifyErrorClass(
       return lower.trimStart().startsWith('budget')
         ? nRouterBudgetExceededError
         : nRouterCreditError;
+    case 403:
+      // A permission refusal. No dedicated class: the base class keeps the
+      // status, and a code (model_denied_by_*) rides on `code`.
+      return nRouterError;
     case 404:
       // Scoped to MODELS. A 404 is also a missing video job, an unknown MCP
       // server or an unknown agent run; calling those model_not_found is a

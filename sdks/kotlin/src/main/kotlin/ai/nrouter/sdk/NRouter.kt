@@ -974,6 +974,9 @@ private fun isKnownStreamErrorCode(code: String): Boolean = code in setOf(
     "fallback_not_allowed",
     "guardrail_not_found",
     "image_input_unsupported",
+    "model_denied_by_org",
+    "model_denied_by_team",
+    "model_denied_by_key",
 )
 
 // Android's platform org.json does not normalize Kotlin collections the same

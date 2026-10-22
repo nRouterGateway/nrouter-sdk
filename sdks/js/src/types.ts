@@ -183,6 +183,11 @@ export interface NRouterExtraBody {
    */
   nrouter_fallbacks?: string[];
   /**
+   * Selection strategy for `nrouter/auto` only: "quality" (the organization
+   * default) or "cost" (lowest list rate among models fit for the task).
+   */
+  nrouter_optimize?: 'quality' | 'cost';
+  /**
    * Up to 8 guardrail ids or names owned by this org. ADD-ONLY: they run in
    * addition to the guardrails already assigned and to the platform moderation
    * floor, and a request can never remove or relax one.
@@ -213,6 +218,14 @@ export interface NRouterFeatureOptions {
    * empty default means no selection, not an empty chain.
    */
   fallbacks?: string[];
+  /**
+   * Strategy for a request on `nrouter/auto` only: "quality" (the organization
+   * default; best model for the task) or "cost" (lowest list rate among models
+   * fit for the task). Overrides the saved Router Settings strategy for this
+   * one request. Any other value, or any model other than `nrouter/auto`, is
+   * refused with 400 `invalid_request`.
+   */
+  optimize?: 'quality' | 'cost';
   /**
    * Up to 8 guardrail ids or names owned by this organization.
    *

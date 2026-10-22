@@ -15,6 +15,7 @@ var ExtraBodyFields = []string{
 	"nrouter_prompt_variables",
 	"nrouter_cache",
 	"nrouter_fallbacks",
+	"nrouter_optimize",
 	"nrouter_guardrails",
 }
 
@@ -58,7 +59,12 @@ type FeatureOptions struct {
 	// Guardrails is up to MaxGuardrails guardrail ids or names owned by this
 	// organization.
 	Guardrails []string
-	Cache      *bool
+	// Optimize is the strategy for a request on nrouter/auto only: "quality"
+	// (the organization default) or "cost" (lowest list rate among models fit
+	// for the task). Empty omits it. Pairing it with any other model is
+	// refused by the gateway with 400 invalid_request.
+	Optimize string
+	Cache    *bool
 }
 
 // BuildExtraBody produces the nRouter extra body map.
@@ -83,6 +89,12 @@ func BuildExtraBody(opts FeatureOptions) (map[string]any, error) {
 			return nil, err
 		}
 		extra["nrouter_fallbacks"] = names
+	}
+	if opts.Optimize != "" {
+		if opts.Optimize != "quality" && opts.Optimize != "cost" {
+			return nil, configErr(`Optimize must be "quality" or "cost"; it maps onto the gateway field nrouter_optimize and applies to the model nrouter/auto only`)
+		}
+		extra["nrouter_optimize"] = opts.Optimize
 	}
 	if len(opts.Guardrails) > 0 {
 		names, err := overrideNames(opts.Guardrails, "Guardrails", MaxGuardrails)

@@ -96,6 +96,9 @@ fn each_gateway_code_maps_to_its_variant() {
         ("tpm_limit_exceeded", "RateLimit"),
         ("credit_check_failed", "Service"),
         ("service_unavailable", "Service"),
+        ("model_denied_by_org", "Other"),
+        ("model_denied_by_team", "Other"),
+        ("model_denied_by_key", "Other"),
     ] {
         let got = match NRouterError::from_code(body(code)) {
             NRouterError::Request(_) => "Request",

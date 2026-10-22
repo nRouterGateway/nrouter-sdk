@@ -123,6 +123,9 @@ public sealed class NRouterError(
             "model_not_found" -> NotFound(body)
             "rate_limit_exceeded", "tpm_limit_exceeded" -> RateLimit(body)
             "credit_check_failed", "service_unavailable" -> Service(body)
+            // 403 model deny lists: no permission class, so Other carries the
+            // code and the status.
+            "model_denied_by_org", "model_denied_by_team", "model_denied_by_key" -> Other(body)
             null -> when (body.status) {
                 400 -> if (body.guardrails == "blocked" || body.type == "guardrail_blocked" || body.message.contains("guardrail", ignoreCase = true)) {
                     GuardrailBlocked(body)
@@ -130,6 +133,8 @@ public sealed class NRouterError(
                     Request(body)
                 }
                 401 -> Authentication(body)
+                // A permission refusal with no code: Other keeps the status.
+                403 -> Other(body)
                 // The gateway's own wording is the only discriminator, and it
                 // is stable: GatewayError::{BudgetExceeded,
                 // ScopedBudgetExceeded} both start their Display with "budget".

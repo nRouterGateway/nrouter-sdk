@@ -962,4 +962,7 @@ bool _knownErrorCode(String code) => const {
       'fallback_not_allowed',
       'guardrail_not_found',
       'image_input_unsupported',
+      'model_denied_by_org',
+      'model_denied_by_team',
+      'model_denied_by_key',
     }.contains(code);

@@ -466,6 +466,23 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
             guardrails=guardrails,
             meta=meta,
         ) from err
+    if gateway_code in (
+        "model_denied_by_org",
+        "model_denied_by_team",
+        "model_denied_by_key",
+    ):
+        # 403 model deny lists. No permission class exists, so the base class
+        # carries the code and the status.
+        raise nRouterError(
+            message,
+            request_id=request_id,
+            code=gateway_code,
+            status_code=status,
+            param=param,
+            type=error_type,
+            guardrails=guardrails,
+            meta=meta,
+        ) from err
     if gateway_code:
         # A code we do NOT know must not fall through to status classification.
         # An unknown code on a 503 would become a retryable nRouterServiceError
@@ -507,6 +524,18 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
             message,
             request_id=request_id,
             auth_reason=headers.get("x-nr-auth-reason"),
+            param=param,
+            type=error_type,
+            guardrails=guardrails,
+            meta=meta,
+        ) from err
+
+    if status == 403:
+        # A permission refusal with no code: the base class keeps the status.
+        raise nRouterError(
+            message,
+            request_id=request_id,
+            status_code=status,
             param=param,
             type=error_type,
             guardrails=guardrails,
@@ -1012,6 +1041,7 @@ class _nRouterChat:
         fallbacks: list[str] | None = None,
         guardrails: list[str] | None = None,
         cache: bool | None = None,
+        optimize: str | None = None,
         advanced_sampling: bool = False,
         temperature: float | None = None,
         top_p: float | None = None,
@@ -1033,6 +1063,9 @@ class _nRouterChat:
                 ADD-ONLY — they run in addition to the guardrails already
                 assigned, and a request can never remove or relax one.
             cache: Set false to force provider egress.
+            optimize: ``"quality"`` or ``"cost"``, for ``nrouter/auto`` only.
+                Overrides the organization's saved strategy for this call;
+                any other model is refused with 400 ``invalid_request``.
             advanced_sampling: When true, send validated temperature/top_p.
             stream: Stream the response.
             **kwargs: All OpenAI chat.completions.create() params.
@@ -1051,6 +1084,7 @@ class _nRouterChat:
                 fallbacks=fallbacks,
                 guardrails=guardrails,
                 cache=cache,
+                optimize=optimize,
             )
         )
         kwargs.update(
