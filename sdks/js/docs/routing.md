@@ -43,9 +43,12 @@ A direct request can fall back to another model in two ways, both yours:
   It **replaces** the saved list for that one request; it is not merged with it.
   `model` stays the primary.
 
-`nrouter_fallbacks` is refused on a request for `nrouter/auto` with
-`400 fallback_not_allowed`, before any provider call — `nrouter/auto` already
-chooses the model. A target your key cannot route is refused the same way.
+On a request for `nrouter/auto`, `nrouter_fallbacks` replaces the fallbacks
+`nrouter/auto` would choose: the model it chooses is tried first, then your
+targets in order, and an empty list means no fallback. A target your key cannot
+route is refused with `400 fallback_not_allowed`, before any provider call. One
+hold covers the whole chain; when the funds cannot cover it the request is
+refused before any provider call, and a target is never dropped to make it fit.
 
 Entries whose circuit breaker is open are skipped. Health state is advanced when
 an attempt fails, so a provider having a bad minute drops out of the rotation

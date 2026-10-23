@@ -15,7 +15,9 @@ Proves the per-request `nrouter_fallbacks` contract on the wire:
     5. Five targets (over the 4-target ceiling) are refused 400.
     6. A self-referencing target (primary listed as its own fallback) is 400.
     7. An unknown `nrouter_*` body key is refused 400.
-    8. The auto router refuses a request fallback list.
+    8. The auto router ACCEPTS a request fallback list (served, the answering
+       model named), and holds its targets to the same key check (an
+       unpermitted one is refused 400 `fallback_not_allowed`).
     9. A non-array `nrouter_fallbacks` value is refused 400.
    10. An exhausted chain carries no `x-nr-attempts` and no cost header.
 
@@ -566,11 +568,55 @@ class FallbacksCurlHealthCheck:
             message_must_match=r"nrouter_bogus_field|unknown",
         )
 
-    def check_auto_refuses_fallbacks(self) -> Dict[str, Any]:
-        return self._refusal_check(
-            "auto_refuses_fallbacks",
-            "400; error.code == fallback_not_allowed; the auto router never walks a caller chain; no cost header",
+    def check_auto_serves_with_fallback_list(self) -> Dict[str, Any]:
+        """nrouter/auto ACCEPTS a request fallback list: served, and the served model is named."""
+        name = "auto_serves_with_fallback_list"
+        assertion = (
+            "200; the wire's served body carries a completion; x-nr-model names a concrete model "
+            "(never the alias); x-nr-routing matches ^(direct|fallback:N)$"
+        )
+        args, request = self._prepare(
+            "POST",
+            self.route,
             self._body_payload(AUTO_MODEL, nrouter_fallbacks=[self.fallback_model]),
+        )
+        status, headers, body, _ = self.curl_fn(args)
+        if status == 403 and headers.get("x-nr-auth-reason") == "key_model_not_allowed":
+            return self._record(
+                name, request, status, headers, assertion, False, False,
+                detail=f"the gateway answered 403 with x-nr-auth-reason: key_model_not_allowed — key scope excludes {AUTO_MODEL}",
+                not_configured=True,
+            )
+        unconfigured = self._unconfigured_target_detail(status, body, (FALLBACK_MODEL_ENV,))
+        if unconfigured:
+            return self._record(
+                name, request, status, headers, assertion, False, False,
+                detail=unconfigured, not_configured=True,
+            )
+        served_model = headers.get("x-nr-model") or ""
+        routing = headers.get("x-nr-routing")
+        body_ok, body_detail = served_body_ok(self.route, body)
+        ok, detail = assert_all([
+            (status == 200, f"expected 200, got {status}"),
+            (body_ok, body_detail),
+            (
+                bool(served_model) and served_model != AUTO_MODEL,
+                f"x-nr-model {served_model!r} does not name the concrete model that answered",
+            ),
+            (
+                routing is not None and bool(ROUTING_RE.match(routing)),
+                f"x-nr-routing {routing!r} is not direct|fallback:N",
+            ),
+        ])
+        return self._record(name, request, status, headers, assertion, ok, False, detail)
+
+    def check_auto_unpermitted_target_is_400(self) -> Dict[str, Any]:
+        # nrouter/auto accepts a request fallback list (it replaces the fallbacks auto would
+        # choose); its targets are held to the same key check as a direct request's.
+        return self._refusal_check(
+            "auto_unpermitted_target_is_400",
+            "400; error.code == fallback_not_allowed; an auto request's fallback target is held to the key check; no cost header",
+            self._body_payload(AUTO_MODEL, nrouter_fallbacks=[UNPERMITTED_TARGET]),
             expect_code="fallback_not_allowed",
             excluded_model=AUTO_MODEL,
         )
@@ -629,7 +675,8 @@ class FallbacksCurlHealthCheck:
                 self.check_direct_serve_with_fallback_list,
                 self.check_unpermitted_target_is_400,
                 self.check_self_reference_400,
-                self.check_auto_refuses_fallbacks,
+                self.check_auto_serves_with_fallback_list,
+                self.check_auto_unpermitted_target_is_400,
             ]
         return [
             self.check_direct_serve_with_fallback_list,
@@ -639,7 +686,8 @@ class FallbacksCurlHealthCheck:
             self.check_five_targets_400,
             self.check_self_reference_400,
             self.check_unknown_nrouter_key_400,
-            self.check_auto_refuses_fallbacks,
+            self.check_auto_serves_with_fallback_list,
+            self.check_auto_unpermitted_target_is_400,
             self.check_non_array_fallbacks_400,
             self.check_exhausted_chain_has_no_attempts_header,
         ]
@@ -757,8 +805,6 @@ def run_self_test() -> int:
         targets = body.get("nrouter_fallbacks")
         if "nrouter_bogus_field" in body:
             return 400, dict(base_headers), refusal(None, "Unknown extension: nrouter_bogus_field"), 5.0
-        if model == AUTO_MODEL and targets is not None:
-            return 400, dict(base_headers), refusal("fallback_not_allowed", "the auto router refuses request fallbacks"), 5.0
         if isinstance(targets, str):
             return 400, dict(base_headers), refusal(None, "nrouter_fallbacks must be an array"), 5.0
         if isinstance(targets, list):
@@ -778,7 +824,8 @@ def run_self_test() -> int:
         headers.update({
             "x-nr-routing": "direct",
             "x-nr-attempts": "1",
-            "x-nr-model": str(model),
+            # The auto router reveals the concrete model that answered, never the alias.
+            "x-nr-model": "vendor/auto-chosen" if model == AUTO_MODEL else str(model),
             "x-nr-request-cost": "0.000042",
             "x-nr-cost-status": "exact",
         })
@@ -796,7 +843,7 @@ def run_self_test() -> int:
     suite = checker.run_suite()
 
     assert suite["feature"] == FEATURE, "feature name missing from the JSON contract"
-    assert suite["total_checks"] == 10, f"expected 10 checks, got {suite['total_checks']}"
+    assert suite["total_checks"] == 11, f"expected 11 checks, got {suite['total_checks']}"
     assert suite["adversarial_checks"] >= suite["total_checks"] - suite["adversarial_checks"], (
         "adversarial checks must not be outnumbered by happy-path checks"
     )
@@ -957,7 +1004,7 @@ def run_self_test() -> int:
         "the message must name the override to set"
     )
 
-    # 403 key_model_not_allowed on auto_refuses_fallbacks => NOT-CONFIGURED naming key scope excludes <model>
+    # 403 key_model_not_allowed on auto_unpermitted_target_is_400 => NOT-CONFIGURED naming key scope excludes <model>
     def mock_auto_model_not_allowed(args, timeout_s=40, stdin_data=None):
         payload = payload_of(args) if isinstance(payload_of(args), dict) else {}
         if payload.get("model") == AUTO_MODEL:
@@ -971,7 +1018,7 @@ def run_self_test() -> int:
         base_url="https://mock.invalid/v1", api_key="k", curl_fn=mock_auto_model_not_allowed
     )
     auto_suite = auto_scoped.run_suite(quick=True)
-    auto_row = next(r for r in auto_suite["checks"] if r["name"] == "auto_refuses_fallbacks")
+    auto_row = next(r for r in auto_suite["checks"] if r["name"] == "auto_unpermitted_target_is_400")
     assert auto_row["result"] == NOT_CONFIGURED, auto_row
     assert f"key scope excludes {AUTO_MODEL}" in auto_row["detail"], auto_row["detail"]
     # Short-circuited: the guard stops after the first refusal rather than

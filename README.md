@@ -500,7 +500,8 @@ Also from the spec (`request_headers`, `extra_body_fields`). The body fields app
 | Option | Where | What it does |
 |---|---|---|
 | `nrouter_cache` | body, boolean, default `true` | Use the tenant-isolated response cache for buffered text requests. `false` forces a provider call; streams are never cached |
-| `nrouter_fallbacks` | body, up to 4 model names | Per-request fallback chain, tried in order. Replaces the organization's fallback policy for this call. An invalid target, or the field on a request for `nrouter/auto`, is refused with `400 fallback_not_allowed` |
+| `nrouter_fallbacks` | body, up to 4 model names | Per-request fallback chain, tried in order. Replaces the organization's fallback policy for this call. On `nrouter/auto` it replaces the fallbacks nrouter/auto would choose (`[]` = none). An invalid target is refused with `400 fallback_not_allowed` |
+| `nrouter_optimize` | body, `"quality"` or `"cost"` | `nrouter/auto` only: the selection strategy for this one request, overriding the organization's Router Settings strategy. Any other value, or the field on another model, is refused with `400 invalid_request` |
 | `nrouter_guardrails` | body, up to 8 ids or names | Guardrails to run in addition to the assigned ones; it can never remove one. An unknown id is refused with `400 guardrail_not_found` |
 | `nrouter_prompt_template_id` / `nrouter_prompt_variables` | body | Select a prompt template and supply its variables |
 | `x-nr-tags` | request header | Custom spend tags, `key=value,key2=value2` |
@@ -560,11 +561,13 @@ to drift; what you put in `model` chooses the mode.
   answered.
 - **`nrouter/auto` — nRouter chooses an eligible model for you.**
   *Best for the task* (the default) uses smart model selection when it is
-  available; *Lowest cost*, an organization setting in Router Settings, orders
-  the models fit for
+  available; *Lowest cost* orders the models fit for
   the task by their list rate (input plus output price per million tokens,
-  weighted equally, read live). `nrouter_fallbacks` is refused on a request for
-  `nrouter/auto` with `400 fallback_not_allowed`.
+  weighted equally, read live). The strategy is an organization setting in
+  Router Settings, and `nrouter_optimize: "quality" | "cost"` overrides it for
+  one request. `nrouter_fallbacks` on a request for `nrouter/auto` replaces the
+  fallbacks it would choose: its chosen model is tried first, then your targets
+  in order.
 
 Either way you pay the served model's list price: `x-nr-model` names the model
 that answered, and `x-nr-routing` says `direct` or `fallback:<n>`. Model

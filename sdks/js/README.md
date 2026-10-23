@@ -138,7 +138,7 @@ console.log(result.meta.requestId, result.meta.cost, result.meta.model);
 | `promptTemplateId` | `nrouter_prompt_template_id` | Overrides the org default prompt template. |
 | `promptVariables` | `nrouter_prompt_variables` | Jinja2 variables; meaningful on their own when an org template is assigned. |
 | `cache` | `nrouter_cache` | Only `false` is sent — `true` is the gateway default. Streams are never cached. |
-| `fallbacks` | `nrouter_fallbacks` | Up to **4** model names tried in order. **Replaces** the org fallback policy for this one call; `model` stays the primary. Refused with `fallback_not_allowed` on a request for `nrouter/auto`. |
+| `fallbacks` | `nrouter_fallbacks` | Up to **4** model names tried in order. **Replaces** the org fallback policy for this one call; `model` stays the primary. On `nrouter/auto` it replaces the fallbacks nrouter/auto would choose (`[]` = none). |
 | `guardrails` | `nrouter_guardrails` | Up to **8** guardrail ids or names your org owns. **ADD-ONLY.** |
 
 `guardrails` is add-only by design: the listed guardrails run **in addition to**

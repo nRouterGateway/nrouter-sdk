@@ -403,7 +403,7 @@ Both are text wires only (chat completions, completions, messages, responses).
 
 | Option | Wire field | Notes |
 |---|---|---|
-| `fallbacks` | `nrouter_fallbacks` | Up to **4** model names tried in order when the primary cannot be served. **Replaces** your org fallback policy for this one call; `model` stays the primary. Refused with `fallback_not_allowed` on a request for `nrouter/auto`. |
+| `fallbacks` | `nrouter_fallbacks` | Up to **4** model names tried in order when the primary cannot be served. **Replaces** your org fallback policy for this one call; `model` stays the primary. On `nrouter/auto` it replaces the fallbacks nrouter/auto would choose (`[]` = none). |
 | `guardrails` | `nrouter_guardrails` | Up to **8** guardrail ids or names your org owns. **ADD-ONLY.** |
 
 ```python
