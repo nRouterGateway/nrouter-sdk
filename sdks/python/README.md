@@ -336,7 +336,7 @@ with nRouter() as client:
 | `nRouterCreditError` | 402 | Account has insufficient credits |
 | `nRouterBudgetExceededError` | 402 / 429 | Key, team, or org spend ceiling exceeded |
 | `nRouterNotFoundError` | 404 | Model or endpoint not found |
-| `nRouterRateLimitError` | 429 | RPM or TPM rate limit exceeded |
+| `nRouterRateLimitError` | 429 | RPM, TPM, RPS or RPD rate limit exceeded |
 | `nRouterServiceError` | 503 | Gateway or upstream provider temporary outage |
 
 ---

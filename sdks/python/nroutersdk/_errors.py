@@ -357,7 +357,7 @@ class nRouterNotFoundError(nRouterError):
 
 
 class nRouterRateLimitError(nRouterError):
-    """An RPM or TPM ceiling was hit.
+    """An RPM, TPM, RPS or RPD ceiling was hit.
 
     Attributes:
         limit_source: WHICH ceiling refused — ``key``, ``plan``, ``team``,

@@ -283,7 +283,7 @@
     "rate_limit_exceeded": {
       "http": 429,
       "class": "nRouterRateLimitError",
-      "description": "RPM limit exceeded, or an 8-hour/daily/weekly nrouter/auto allowance window is used up (x-nr-limit-source: plan_window_h8|plan_window_day|plan_window_week; Retry-After and x-nr-allowance-reset carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see x-nr-limit-source"
+      "description": "A rate limit was exceeded (RPM, TPM, RPS or RPD), or an 8-hour/daily/weekly nrouter/auto allowance window is used up (x-nr-limit-source: plan_window_h8|plan_window_day|plan_window_week; Retry-After and x-nr-allowance-reset carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see x-nr-limit-source"
     },
     "tpm_limit_exceeded": {
       "http": 429,
