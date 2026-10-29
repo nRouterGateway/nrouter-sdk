@@ -1,0 +1,28 @@
+# osv-scanner reads this file for sdks/rust/Cargo.lock (it is picked up from
+# the lockfile's directory by scripts/security-audit.sh). Every entry is an
+# advisory we cannot fix from this crate today, with the reason and an expiry.
+# An expired entry fails the audit again on purpose: re-check, then renew or
+# remove it. Never add an entry without reading the advisory.
+
+[[IgnoredVulns]]
+# block-buffer 0.10.4: a panic inside the caller-supplied `compress` /
+# `gen_block` callback, if caught with `catch_unwind` and the buffer then
+# reused, can leave the inline cursor byte out of range (CWE-119). Fixed only
+# in block-buffer 0.12.1, which needs digest 0.11 (sha2 0.11 / hmac 0.13).
+#
+# Why it is not fixable here: block-buffer is reached only through
+# async-openai -> {hmac 0.12, sha2 0.10} -> digest 0.10, enabled by
+# async-openai's `webhook` feature (part of `full`). Every published
+# async-openai, up to 0.42.2, still requires hmac ^0.12 and sha2 ^0.10, so no
+# `cargo update` reaches 0.12. Dropping `webhook` from the feature set would
+# silently remove an API surface consumers of this crate may rely on through
+# feature unification, which is a breaking change for a patch release.
+#
+# Exposure: not affected. This SDK never calls async-openai's webhook
+# verification. Where a consumer does, the callback block-buffer runs is the
+# SHA-256 compression function, which does not panic, and hmac/sha2 do not use
+# `ReadBuffer`. The bug needs a panicking callback that is caught and the
+# buffer reused afterwards; neither happens on this path.
+id = "GHSA-qwgh-2vcv-g2f7"
+ignoreUntil = 2027-01-29T00:00:00Z
+reason = "block-buffer 0.10.4 via async-openai webhook hmac/sha2; no compatible fixed release (needs digest 0.11); SDK path never panics in the compress callback. Re-check 2027-01-29."

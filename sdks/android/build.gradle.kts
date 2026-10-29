@@ -53,6 +53,16 @@ dependencies {
     // lock and security audit prevent a future downgrade.
     testImplementation("org.bouncycastle:bcprov-jdk18on:1.85.2")
     testImplementation("androidx.test:core:1.6.1")
+
+    constraints {
+        // Guava reaches only the unit-test classpath, through Robolectric.
+        // Versions before 33.7.2 carry GHSA-xxph-c9ww-hj94 (unbounded allocation
+        // when deserializing CompactHashMap/CompactHashSet). Raise the floor
+        // here rather than declaring Guava directly; the lock keeps it there.
+        testImplementation("com.google.guava:guava:33.7.2-jre") {
+            because("GHSA-xxph-c9ww-hj94 is fixed in 33.7.2")
+        }
+    }
 }
 
 kotlin { jvmToolchain(11) }
