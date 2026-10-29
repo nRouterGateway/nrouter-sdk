@@ -443,6 +443,35 @@ func TestModelDenyCodesKeepCodeAndStatus(t *testing.T) {
 	}
 }
 
+// The nrouter/promo and nrouter/hack refusals. An unrecognized code returns
+// KindOther, so a missing mapping is a wrong kind here, not just a missing name.
+func TestPromoAndHackRouteCodesMapToTheirKinds(t *testing.T) {
+	cases := map[string]struct {
+		status int
+		kind   Kind
+	}{
+		"insufficient_promo_credit":     {402, KindCredit},
+		"insufficient_hack_credit":      {402, KindCredit},
+		"pot_spend_limit_exceeded":      {429, KindRateLimit},
+		"pot_route_feature_unsupported": {400, KindRequest},
+	}
+	for code, want := range cases {
+		t.Run(code, func(t *testing.T) {
+			c := newTestClient(t, jsonHandler(want.status, nil, map[string]any{
+				"error": map[string]any{"code": code, "message": "refused"},
+			}))
+			_, err := c.Models(context.Background())
+			var e *Error
+			if !errors.As(err, &e) {
+				t.Fatalf("got %#v; want *Error", err)
+			}
+			if e.Kind != want.kind || e.Code != code || e.Status != want.status {
+				t.Fatalf("code %s: kind/code/status not preserved: %+v", code, e)
+			}
+		})
+	}
+}
+
 // The gateway's MAIN error path sends {"error":{"type","message"}} with no
 // code at all, so status dispatch is the ordinary route, not a fallback.
 func TestCodelessResponsesAreClassifiedByStatusAndMessage(t *testing.T) {

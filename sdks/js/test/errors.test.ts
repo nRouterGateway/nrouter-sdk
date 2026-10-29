@@ -43,7 +43,7 @@ const SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8')) as {
 // Case 3 — the nine spec codes, asserted against the spec file.
 // ---------------------------------------------------------------------------
 
-test('the spec still declares exactly nineteen error codes', () => {
+test('the spec still declares exactly twenty-three error codes', () => {
   // Nineteen with the three 403 model deny-list codes (model_denied_by_org,
   // _team, _key), which classify as the base nRouterError.
   // If the spec grew one, this file and ERROR_CLASS_BY_CODE must grow too.
@@ -56,9 +56,14 @@ test('the spec still declares exactly nineteen error codes', () => {
   // Sixteen with image_input_unsupported: an image sent to nrouter/auto where
   // no model available for automatic routing accepts image input. Also a 400
   // in the request class.
+  //
+  // Twenty-three with the nrouter/promo and nrouter/hack refusals:
+  // insufficient_promo_credit and insufficient_hack_credit (402, credit
+  // class), pot_spend_limit_exceeded (429, rate-limit class) and
+  // pot_route_feature_unsupported (400, request class).
   assert.strictEqual(
     Object.keys(SPEC.errors).length,
-    19,
+    23,
     'The gateway shipped a new code. Map it in ERROR_CLASS_BY_CODE and add it here.',
   );
 });

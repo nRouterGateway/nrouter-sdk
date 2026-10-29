@@ -55,6 +55,7 @@ sealed class NRouterError implements Exception {
       case 'fallback_not_allowed':
       case 'guardrail_not_found':
       case 'image_input_unsupported':
+      case 'pot_route_feature_unsupported':
         return (body.guardrails == 'blocked' || body.type == 'guardrail_blocked')
             ? NRouterGuardrailBlockedError(body)
             : NRouterRequestError(body);
@@ -65,11 +66,14 @@ sealed class NRouterError implements Exception {
       case 'insufficient_credits':
       case 'plan_allowance_exhausted':
       case 'plan_required':
+      case 'insufficient_promo_credit':
+      case 'insufficient_hack_credit':
         return NRouterCreditError(body);
       case 'model_not_found':
         return NRouterNotFoundError(body);
       case 'rate_limit_exceeded':
       case 'tpm_limit_exceeded':
+      case 'pot_spend_limit_exceeded':
         return NRouterRateLimitError(body);
       case 'credit_check_failed':
       case 'service_unavailable':

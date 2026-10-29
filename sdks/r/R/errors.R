@@ -32,6 +32,10 @@ NROUTER_ERROR_CLASSES <- c(
   fallback_not_allowed     = "nrouter_request_error",
   guardrail_not_found      = "nrouter_request_error",
   image_input_unsupported  = "nrouter_request_error",
+  insufficient_promo_credit = "nrouter_credit_error",
+  insufficient_hack_credit = "nrouter_credit_error",
+  pot_spend_limit_exceeded = "nrouter_rate_limit_error",
+  pot_route_feature_unsupported = "nrouter_request_error",
   # 403 model deny lists: no permission class, so the base class carries the
   # code and the status.
   model_denied_by_org      = "nrouter_other_error",

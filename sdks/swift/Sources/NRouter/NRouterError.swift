@@ -62,13 +62,16 @@ public enum NRouterError: Error, Equatable {
              "max_output_tokens_too_large",
              "fallback_not_allowed",
              "guardrail_not_found",
-             "image_input_unsupported":
+             "image_input_unsupported",
+             "pot_route_feature_unsupported":
             return .request(body)
         case "guardrail_blocked": return .guardrailBlocked(body)
         case "invalid_api_key": return .authentication(body)
-        case "insufficient_credits", "plan_allowance_exhausted", "plan_required": return .credit(body)
+        case "insufficient_credits", "plan_allowance_exhausted", "plan_required",
+             "insufficient_promo_credit", "insufficient_hack_credit":
+            return .credit(body)
         case "model_not_found": return .notFound(body)
-        case "rate_limit_exceeded", "tpm_limit_exceeded": return .rateLimit(body)
+        case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded": return .rateLimit(body)
         case "credit_check_failed", "service_unavailable": return .service(body)
         // 403 model deny lists: no permission case, so `.other` carries the
         // code and the status.

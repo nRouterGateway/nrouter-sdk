@@ -284,17 +284,19 @@ func classify(code, message string, status int) Kind {
 		"max_output_tokens_too_large",
 		"fallback_not_allowed",
 		"guardrail_not_found",
-		"image_input_unsupported":
+		"image_input_unsupported",
+		"pot_route_feature_unsupported":
 		return KindRequest
 	case "guardrail_blocked":
 		return KindGuardrailBlocked
 	case "invalid_api_key":
 		return KindAuthentication
-	case "insufficient_credits", "plan_allowance_exhausted", "plan_required":
+	case "insufficient_credits", "plan_allowance_exhausted", "plan_required",
+		"insufficient_promo_credit", "insufficient_hack_credit":
 		return KindCredit
 	case "model_not_found":
 		return KindNotFound
-	case "rate_limit_exceeded", "tpm_limit_exceeded":
+	case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded":
 		return KindRateLimit
 	case "credit_check_failed", "service_unavailable":
 		return KindService

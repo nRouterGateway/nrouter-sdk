@@ -99,6 +99,11 @@ fn each_gateway_code_maps_to_its_variant() {
         ("model_denied_by_org", "Other"),
         ("model_denied_by_team", "Other"),
         ("model_denied_by_key", "Other"),
+        // nrouter/promo and nrouter/hack refusals.
+        ("insufficient_promo_credit", "Credit"),
+        ("insufficient_hack_credit", "Credit"),
+        ("pot_spend_limit_exceeded", "RateLimit"),
+        ("pot_route_feature_unsupported", "Request"),
     ] {
         let got = match NRouterError::from_code(body(code)) {
             NRouterError::Request(_) => "Request",

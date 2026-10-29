@@ -408,11 +408,14 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "fallback_not_allowed": nRouterRequestError,
         "guardrail_not_found": nRouterRequestError,
         "image_input_unsupported": nRouterRequestError,
+        "pot_route_feature_unsupported": nRouterRequestError,
         "guardrail_blocked": nRouterGuardrailBlockedError,
         "invalid_api_key": nRouterAuthenticationError,
         "insufficient_credits": nRouterCreditError,
         "plan_allowance_exhausted": nRouterCreditError,
         "plan_required": nRouterCreditError,
+        "insufficient_promo_credit": nRouterCreditError,
+        "insufficient_hack_credit": nRouterCreditError,
         "model_not_found": nRouterNotFoundError,
         "credit_check_failed": nRouterServiceError,
         "service_unavailable": nRouterServiceError,
@@ -453,7 +456,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
             guardrails=guardrails,
             meta=meta,
         ) from err
-    if gateway_code in ("rate_limit_exceeded", "tpm_limit_exceeded"):
+    if gateway_code in ("rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded"):
         retry_after_hdr = headers.get("retry-after")
         raise nRouterRateLimitError(
             message,
@@ -1627,7 +1630,7 @@ def parse_stream_frame(
                 meta=meta,
             )
 
-        if code in ("rate_limit_exceeded", "tpm_limit_exceeded"):
+        if code in ("rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded"):
             raise nRouterRateLimitError(
                 str(message),
                 request_id=request_id,
@@ -1637,7 +1640,13 @@ def parse_stream_frame(
                 guardrails=guardrails,
                 meta=meta,
             )
-        if code in ("insufficient_credits", "plan_allowance_exhausted", "plan_required"):
+        if code in (
+            "insufficient_credits",
+            "plan_allowance_exhausted",
+            "plan_required",
+            "insufficient_promo_credit",
+            "insufficient_hack_credit",
+        ):
             raise nRouterCreditError(
                 str(message),
                 request_id=request_id,

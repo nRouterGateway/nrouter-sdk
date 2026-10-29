@@ -100,14 +100,19 @@ impl NRouterError {
             | Some("max_output_tokens_too_large")
             | Some("fallback_not_allowed")
             | Some("guardrail_not_found")
-            | Some("image_input_unsupported") => Self::Request(body),
+            | Some("image_input_unsupported")
+            | Some("pot_route_feature_unsupported") => Self::Request(body),
             Some("guardrail_blocked") => Self::GuardrailBlocked(body),
             Some("invalid_api_key") => Self::Authentication(body),
             Some("insufficient_credits")
             | Some("plan_allowance_exhausted")
-            | Some("plan_required") => Self::Credit(body),
+            | Some("plan_required")
+            | Some("insufficient_promo_credit")
+            | Some("insufficient_hack_credit") => Self::Credit(body),
             Some("model_not_found") => Self::NotFound(body),
-            Some("rate_limit_exceeded") | Some("tpm_limit_exceeded") => Self::RateLimit(body),
+            Some("rate_limit_exceeded")
+            | Some("tpm_limit_exceeded")
+            | Some("pot_spend_limit_exceeded") => Self::RateLimit(body),
             Some("credit_check_failed") | Some("service_unavailable") => Self::Service(body),
             // 403 model deny lists: no permission variant, so `Other` carries
             // the code and the status.

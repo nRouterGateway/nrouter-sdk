@@ -75,15 +75,19 @@ public final class NRouterException extends RuntimeException {
                 case "max_output_tokens_too_large":
                 case "fallback_not_allowed":
                 case "guardrail_not_found":
-                case "image_input_unsupported": return Kind.REQUEST;
+                case "image_input_unsupported":
+                case "pot_route_feature_unsupported": return Kind.REQUEST;
                 case "guardrail_blocked": return Kind.GUARDRAIL_BLOCKED;
                 case "invalid_api_key": return Kind.AUTHENTICATION;
                 case "insufficient_credits":
                 case "plan_allowance_exhausted":
-                case "plan_required": return Kind.CREDIT;
+                case "plan_required":
+                case "insufficient_promo_credit":
+                case "insufficient_hack_credit": return Kind.CREDIT;
                 case "model_not_found": return Kind.NOT_FOUND;
                 case "rate_limit_exceeded":
-                case "tpm_limit_exceeded": return Kind.RATE_LIMIT;
+                case "tpm_limit_exceeded":
+                case "pot_spend_limit_exceeded": return Kind.RATE_LIMIT;
                 case "credit_check_failed":
                 case "service_unavailable": return Kind.SERVICE;
                 // 403 model deny lists: no permission kind, so OTHER carries

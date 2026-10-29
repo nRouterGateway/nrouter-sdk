@@ -116,12 +116,15 @@ public sealed class NRouterError(
             "fallback_not_allowed",
             "guardrail_not_found",
             "image_input_unsupported",
+            "pot_route_feature_unsupported",
             -> Request(body)
             "guardrail_blocked" -> GuardrailBlocked(body)
             "invalid_api_key" -> Authentication(body)
-            "insufficient_credits", "plan_allowance_exhausted", "plan_required" -> Credit(body)
+            "insufficient_credits", "plan_allowance_exhausted", "plan_required",
+            "insufficient_promo_credit", "insufficient_hack_credit",
+            -> Credit(body)
             "model_not_found" -> NotFound(body)
-            "rate_limit_exceeded", "tpm_limit_exceeded" -> RateLimit(body)
+            "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded" -> RateLimit(body)
             "credit_check_failed", "service_unavailable" -> Service(body)
             // 403 model deny lists: no permission class, so Other carries the
             // code and the status.

@@ -605,3 +605,26 @@ def test_credit_error_preserves_specific_gateway_codes():
         assert caught.value.request_id == "req-fund-1"
 
 
+
+
+@pytest.mark.parametrize(
+    "status, code, expected",
+    [
+        (402, "insufficient_promo_credit", nRouterCreditError),
+        (402, "insufficient_hack_credit", nRouterCreditError),
+        (429, "pot_spend_limit_exceeded", nRouterRateLimitError),
+        (400, "pot_route_feature_unsupported", nRouterRequestError),
+    ],
+)
+def test_promo_and_hack_route_refusals_classify_and_keep_their_code(status, code, expected):
+    """nrouter/promo and nrouter/hack refusals reach the class the spec names.
+
+    An unmapped code raises the base class on purpose, so a missing entry would
+    surface here as the wrong exception, not merely a missing name.
+    """
+    err = status_error(status, f"refused: {code}", {"x-nr-request-id": "req-pot-1"}, code=code)
+    with pytest.raises(expected) as caught:
+        _maybe_raise_nrouter_error(err)
+    assert type(caught.value) is expected
+    assert caught.value.code == code
+    assert caught.value.request_id == "req-pot-1"
