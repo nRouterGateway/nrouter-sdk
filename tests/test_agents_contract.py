@@ -173,9 +173,15 @@ def check_lockfile(agent: Path) -> list[str]:
                 f"package.json pins {pin!r} — fix: run npm install so the "
                 f"lockfile matches package.json"
             )
-        resolved = packages.get(f"node_modules/{SDK_PACKAGE}", {}).get("version")
+        sdk_entry = packages.get(f"node_modules/{SDK_PACKAGE}", {})
+        resolved = sdk_entry.get("version")
+        resolved_url = sdk_entry.get("resolved")
+        integrity = sdk_entry.get("integrity")
     else:  # lockfileVersion 1
-        resolved = (lock.get("dependencies") or {}).get(SDK_PACKAGE, {}).get("version")
+        sdk_entry = (lock.get("dependencies") or {}).get(SDK_PACKAGE, {})
+        resolved = sdk_entry.get("version")
+        resolved_url = sdk_entry.get("resolved")
+        integrity = sdk_entry.get("integrity")
     if resolved is None:
         problems.append(
             f"{where}: has no resolved node_modules/{SDK_PACKAGE} entry — fix: "
@@ -185,6 +191,18 @@ def check_lockfile(agent: Path) -> list[str]:
         problems.append(
             f"{where}: resolves {SDK_PACKAGE} to {resolved} but package.json pins "
             f"{pin!r} — fix: run npm install so the lockfile resolves the pin"
+        )
+    elif not isinstance(resolved_url, str) or not resolved_url.endswith(
+        f"/-/{SDK_PACKAGE.split('/')[-1]}-{pin}.tgz"
+    ):
+        problems.append(
+            f"{where}: resolved tarball URL {resolved_url!r} does not match pinned "
+            f"version {pin!r} — fix: remove node_modules and package-lock.json, then run npm install"
+        )
+    elif not isinstance(integrity, str) or not integrity.startswith("sha512-"):
+        problems.append(
+            f"{where}: integrity hash {integrity!r} is missing or not sha512 — "
+            f"fix: remove node_modules and package-lock.json, then run npm install"
         )
     return problems
 
@@ -408,13 +426,28 @@ def _manifest(agent: Path) -> dict:
     return json.loads((agent / "package.json").read_text())
 
 
-def _lock(pin: str, *, root_pin: str | None = None) -> dict:
+def _lock(
+    pin: str,
+    *,
+    root_pin: str | None = None,
+    resolved_url: str | None = "default",
+    integrity: str | None = "sha512-fixture",
+) -> dict:
+    sdk_entry: dict[str, str] = {"version": pin}
+    if resolved_url == "default":
+        sdk_entry["resolved"] = (
+            f"https://registry.npmjs.org/@nrouter_ai/sdk/-/sdk-{pin}.tgz"
+        )
+    elif resolved_url is not None:
+        sdk_entry["resolved"] = resolved_url
+    if integrity is not None:
+        sdk_entry["integrity"] = integrity
     return {
         "name": "@nrouter_ai/example-agent",
         "lockfileVersion": 3,
         "packages": {
             "": {"dependencies": {SDK_PACKAGE: root_pin if root_pin else pin}},
-            f"node_modules/{SDK_PACKAGE}": {"version": pin},
+            f"node_modules/{SDK_PACKAGE}": sdk_entry,
         },
     }
 
@@ -580,6 +613,34 @@ def test_bite_2_corrupt_lockfile_is_rejected(good_agent: Path) -> None:
     problems = check_lockfile(good_agent)
     assert problems and "not valid JSON" in problems[0], problems
     assert "fix: regenerate it" in problems[0]
+
+
+def test_bite_2_lockfile_missing_or_mismatched_resolved_url_is_rejected(
+    good_agent: Path,
+) -> None:
+    _write_json(
+        good_agent / "package-lock.json",
+        _lock(FIXTURE_SPEC, resolved_url=None),
+    )
+    problems = check_lockfile(good_agent)
+    assert any("resolved tarball URL None" in p for p in problems), problems
+
+    _write_json(
+        good_agent / "package-lock.json",
+        _lock(
+            FIXTURE_SPEC,
+            resolved_url="https://registry.npmjs.org/@nrouter_ai/sdk/-/sdk-3.1.2.tgz",
+        ),
+    )
+    problems = check_lockfile(good_agent)
+    assert any("does not match pinned version" in p for p in problems), problems
+
+    _write_json(
+        good_agent / "package-lock.json",
+        _lock(FIXTURE_SPEC, integrity=None),
+    )
+    problems = check_lockfile(good_agent)
+    assert any("integrity hash None" in p for p in problems), problems
 
 
 @pytest.mark.parametrize(

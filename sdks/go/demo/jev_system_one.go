@@ -26,7 +26,7 @@ func main() {
 			map[string]any{"role": "user", "content": "Production payment requests return HTTP 500 in two regions."},
 		},
 		"temperature": 0,
-		"max_tokens": 128,
+		"max_tokens":  128,
 	})
 	if err != nil {
 		log.Fatal(err)

@@ -78,7 +78,7 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           # crates.io is immutable: a version is spent the moment it is accepted,
           # so an ambiguous answer must stop rather than risk a second upload.
-          code="$(curl -s -o body.json -w '%{http_code}' \
+          code="$(curl -s -o "$RUNNER_TEMP/body.json" -w '%{http_code}' \
             -H 'User-Agent: nrouter-sdk-ci' "https://crates.io/api/v1/crates/nrouter/$VERSION")"
           case "$code" in
             200) echo "publish=false" >> "$GITHUB_OUTPUT"

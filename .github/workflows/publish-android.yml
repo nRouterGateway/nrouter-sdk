@@ -76,7 +76,7 @@ jobs:
 
       - name: Already on Central?
         id: check
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         working-directory: sdks/android
         run: |
           VERSION="$(sed -n 's/^version=//p' gradle.properties)"

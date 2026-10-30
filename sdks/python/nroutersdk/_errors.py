@@ -89,8 +89,8 @@ class nRouterError(Exception):
 class nRouterRequestError(nRouterError):
     """The request shape was rejected before it reached a provider."""
 
-    code = "invalid_request"
-    status_code = 400
+    code: str = "invalid_request"
+    status_code: int | None = 400
 
     def __init__(
         self,
@@ -138,8 +138,8 @@ class nRouterConfigurationError(nRouterRequestError):
     gateway ever sent.
     """
 
-    code = "configuration"
-    status_code = None
+    code: str = "configuration"
+    status_code: int | None = None
 
     def __init__(
         self,

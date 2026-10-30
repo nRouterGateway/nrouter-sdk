@@ -95,6 +95,7 @@ jobs:
           esac
 
       - name: Publish to pub.dev
+        id: publish
         if: steps.check.outputs.publish == 'true'
         # pub.dev authenticates via OIDC (id-token: write is granted at the job
         # level below), so there is no stored secret here to leak.
@@ -112,18 +113,23 @@ jobs:
           # that is configured per-package. Attempt the publish and classify the
           # failure, so this lane turns green by itself the moment automated
           # publishing is enabled -- no second commit needed.
-          if dart pub publish --force 2>publish.log; then
+          LOG_FILE="$RUNNER_TEMP/publish.log"
+          if dart pub publish --force >"$LOG_FILE" 2>&1; then
+            cat "$LOG_FILE"
+            echo "published=true" >> "$GITHUB_OUTPUT"
             echo "published"; exit 0
           fi
-          cat publish.log
+          cat "$LOG_FILE"
           # The existence check above races with any concurrent publish, and
           # pub.dev is the authority. "already exists" means the goal state
           # holds, which is success, not a failure to report.
-          if grep -qiE 'already exists' publish.log; then
+          if grep -qiE 'already exists' "$LOG_FILE"; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
             echo "::notice::pub.dev already serves this version; nothing to do."
             exit 0
           fi
-          if grep -qiE 'trusted publish|not authorized|no.*permission|OIDC|audience' publish.log; then
+          if grep -qiE 'trusted publish|not authorized|not allowed to publish|publishing is not enabled|insufficient permissions|no.*permission|OIDC|audience' "$LOG_FILE"; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
             echo "::warning::pub.dev has no trusted-publisher entry for this repo yet." \
                  "Enable it at https://pub.dev/packages/nrouter/admin ->" \
                  "Automated publishing -> GitHub Actions, repository" \
@@ -137,7 +143,7 @@ jobs:
           exit 1
 
       - name: Verify pub.dev serves it
-        if: steps.check.outputs.publish == 'true'
+        if: steps.publish.outputs.published == 'true'
         env:
           VERSION: ${{ steps.check.outputs.version }}
         run: |

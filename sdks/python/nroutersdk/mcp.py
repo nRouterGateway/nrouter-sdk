@@ -85,7 +85,8 @@ class _MCP:
             msg = err.get("message") if isinstance(err, dict) else str(err)
             raise nRouterRequestError(f"MCP {method} failed: {msg}")
 
-        return data.get("result", {})
+        result = data.get("result", {})
+        return result if isinstance(result, dict) else {}
 
 
 class _AsyncMCP:
@@ -148,4 +149,5 @@ class _AsyncMCP:
             msg = err.get("message") if isinstance(err, dict) else str(err)
             raise nRouterRequestError(f"MCP {method} failed: {msg}")
 
-        return data.get("result", {})
+        result = data.get("result", {})
+        return result if isinstance(result, dict) else {}

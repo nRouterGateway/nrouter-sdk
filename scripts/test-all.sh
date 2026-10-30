@@ -770,8 +770,8 @@ run_lane "first-party SAST (partial CodeQL stand-in; see scripts/sast.sh header)
 run_lane "JavaScript / TypeScript" "npm" \
   "cd '$ROOT/sdks/js' && npm test"
 
-run_lane "Python" "pysdk py:pytest py:pytest_asyncio pyfloor:openai" \
-  "cd '$ROOT/sdks/python' && '$PYTHON_BIN' -m pytest -q"
+run_lane "Python" "pysdk py:pytest py:pytest_asyncio py:mypy py:ruff pyfloor:openai" \
+  "cd '$ROOT/sdks/python' && '$PYTHON_BIN' -m mypy nroutersdk && '$PYTHON_BIN' -m ruff check nroutersdk && '$PYTHON_BIN' -m pytest -q"
 
 run_lane "Java" "mvn jre" \
   "cd '$ROOT/sdks/java' && mvn -q test"
@@ -783,7 +783,7 @@ run_lane "Android" "jre android" \
   "cd '$ROOT/sdks/android' && ./gradlew $GRADLE_JDK_ARGS build"
 
 run_lane "Go" "go" \
-  "cd '$ROOT/sdks/go' && go test ./... && go test -race ./... && go vet ./..."
+  "cd '$ROOT/sdks/go' && test -z \"\$(gofmt -l .)\" && go test ./... && go test -race ./... && go vet ./..."
 
 run_lane "Rust" "cargo" \
   "cd '$ROOT/sdks/rust' \

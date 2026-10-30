@@ -1725,4 +1725,3 @@ func TestGuardrailBlockedClassificationAndMetadata(t *testing.T) {
 		t.Errorf("expected code guardrail_blocked, got %q", err2.Code)
 	}
 }
-

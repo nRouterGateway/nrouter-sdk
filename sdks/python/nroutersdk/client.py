@@ -1603,7 +1603,8 @@ def parse_stream_frame(
         return None
 
     if event == "error" or "error" in raw:
-        node = raw.get("error") if isinstance(raw.get("error"), dict) else raw
+        err_val = raw.get("error")
+        node: dict[str, Any] = err_val if isinstance(err_val, dict) else raw
         explicit_code = node.get("code")
         error_type = node.get("type")
         message = node.get("message") or trimmed
