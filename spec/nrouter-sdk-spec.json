@@ -79,7 +79,7 @@
     },
     "x-nr-limit-source": {
       "type": "string",
-      "description": "Limit source on 429 and 402 responses",
+      "description": "Limit source on 429 and 402 responses; pot_window names a rolling spend-window limit on nrouter/promo or nrouter/hack",
       "always": false,
       "values": [
         "key",
@@ -92,7 +92,8 @@
         "plan_window_week",
         "capacity",
         "plan_allowance_exhausted",
-        "plan_required"
+        "plan_required",
+        "pot_window"
       ]
     },
     "x-nr-budget-warning": {
@@ -369,7 +370,7 @@
     "pot_spend_limit_exceeded": {
       "http": 429,
       "class": "nRouterRateLimitError",
-      "description": "A request for nrouter/promo or nrouter/hack would take the organization's spend on that route past one of its windows (set by nRouter; by default hourly none, daily $1, weekly $7, monthly $30). Windows are UTC calendar buckets: the hour, the day, the ISO week starting Monday 00:00 UTC, and the month. The message names the window that refused and when it resets; spend held by a request counts against the windows open when it was admitted. Refused before any provider egress; nothing was reserved and nothing was spent."
+      "description": "A request for nrouter/promo or nrouter/hack would take the organization's spend on that route past one of its windows (set by nRouter; by default hourly none, daily $1, weekly $7, monthly $30; x-nr-limit-source: pot_window). Windows are UTC calendar buckets: the hour, the day, the ISO week starting Monday 00:00 UTC, and the month. The message names the window that refused and when it resets; spend held by a request counts against the windows open when it was admitted. Refused before any provider egress; nothing was reserved and nothing was spent."
     },
     "pot_route_feature_unsupported": {
       "http": 400,
