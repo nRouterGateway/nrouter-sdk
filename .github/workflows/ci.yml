@@ -40,6 +40,15 @@ jobs:
       - name: Static catalog-count guard
         run: bash tests/sdk-static-catalog-count.test.sh
 
+      # README.md must name every spec error code and x-nr-* header, and any
+      # code count it states must equal the spec's. Pure python3 + the spec;
+      # no key, no network.
+      - name: README spec-parity guard self-test
+        run: bash tests/readme-spec-parity.test.sh --self-test
+
+      - name: README spec-parity guard
+        run: bash tests/readme-spec-parity.test.sh
+
       - name: Cross-SDK conformance gate self-test
         run: python3 conformance/check_conformance.py --self-test
 
@@ -47,7 +56,7 @@ jobs:
         run: python3 conformance/check_conformance.py
 
       - name: SDK contract tests
-        run: python3 -m pytest tests/test_sdk_contract.py tests/test_release_versions.py tests/test_tag_publish_gated.py
+        run: python3 -m pytest tests/test_sdk_contract.py tests/test_release_versions.py tests/test_tag_publish_gated.py tests/test_agents_contract.py
 
       - name: Install pinned security scanners
         run: |
@@ -218,3 +227,74 @@ jobs:
 
       - name: Run Gradle tests
         run: ./gradlew test --stacktrace
+
+  # The agent list is DERIVED from agents/*/package.json, never hand-typed, so
+  # a new agent is covered the moment it lands. An agent without a committed
+  # package-lock.json fails here rather than being silently skipped, and an
+  # empty list fails rather than letting the matrix report green over nothing.
+  agents-discover:
+    name: Discover agents
+    runs-on: ubuntu-latest
+    outputs:
+      agents: ${{ steps.list.outputs.agents }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: List agent packages
+        id: list
+        run: |
+          set -euo pipefail
+          dirs="$(find agents -mindepth 2 -maxdepth 2 -name package.json -exec dirname {} \; | sort)"
+          if [ -z "$dirs" ]; then
+            echo "::error::no agents/*/package.json found"
+            exit 1
+          fi
+          missing=0
+          while IFS= read -r d; do
+            if [ ! -f "$d/package-lock.json" ]; then
+              echo "::error::$d has no package-lock.json (npm ci needs one)"
+              missing=1
+            fi
+          done <<< "$dirs"
+          [ "$missing" -eq 0 ]
+          json="$(printf '%s\n' "$dirs" | jq -R . | jq -cs .)"
+          echo "agents=$json" >> "$GITHUB_OUTPUT"
+          echo "Agents: $json"
+
+  # Offline only: typecheck, unit tests, build and a dry-run pack. No secrets,
+  # no API key, no live calls (the Playwright `e2e` script is deliberately not
+  # run here).
+  agents:
+    name: Agent (${{ matrix.agent }})
+    needs: agents-discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        agent: ${{ fromJSON(needs.agents-discover.outputs.agents) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.agent }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.agent }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify package contents
+        run: npm pack --dry-run

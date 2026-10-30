@@ -329,15 +329,15 @@ nothing):
 | Language | Install | Registry URL | Registry status | Package | Typed errors | `x-nr-*` metadata |
 |----------|---------|--------------|---|---------|---|---|
 | **Python** | `pip install nrouter-sdk` | [pypi.org/project/nrouter-sdk](https://pypi.org/project/nrouter-sdk/) | ✅ PUBLISHED `3.1.3` | [`sdks/python/`](sdks/python/) | ✅ typed wrappers | ✅ `client.last_response` |
-| **TypeScript / JS** | `npm install @nrouter_ai/sdk` | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/js/`](sdks/js/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
-| **Java** | Maven `ai.nrouter:nrouter-sdk:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/java/`](sdks/java/) | ✅ 16 codes (native HTTP surface) | ✅ all `x-nr-*` headers (native HTTP surface) |
-| **Kotlin** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin) | ✅ PUBLISHED `3.1.3` | [`sdks/kotlin/`](sdks/kotlin/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
-| **Android** | Maven `ai.nrouter:nrouter-sdk-android:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/android/`](sdks/android/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
-| **Rust** | `cargo add nrouter@3.1.3` | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/rust/`](sdks/rust/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
-| **Dart / Flutter** | `dart pub add nrouter` | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/dart/`](sdks/dart/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
-| **Swift** | SwiftPM, this repo's URL | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | ✅ git tag `3.1.3` | [`sdks/swift/`](sdks/swift/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
-| **R** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/r/`](sdks/r/) | ✅ 16 classed conditions | ✅ all `x-nr-*` headers |
-| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.3` | [pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.1.3` | [`sdks/go/`](sdks/go/) | ✅ 16 codes | ✅ all `x-nr-*` headers |
+| **TypeScript / JS** | `npm install @nrouter_ai/sdk` | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/js/`](sdks/js/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
+| **Java** | Maven `ai.nrouter:nrouter-sdk:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | ✅ PUBLISHED `3.1.3` | [`sdks/java/`](sdks/java/) | ✅ 23 codes (native HTTP surface) | ✅ all `x-nr-*` headers (native HTTP surface) |
+| **Kotlin** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin) | ✅ PUBLISHED `3.1.3` | [`sdks/kotlin/`](sdks/kotlin/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
+| **Android** | Maven `ai.nrouter:nrouter-sdk-android:3.1.3` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/android/`](sdks/android/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
+| **Rust** | `cargo add nrouter@3.1.3` | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/rust/`](sdks/rust/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
+| **Dart / Flutter** | `dart pub add nrouter` | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/dart/`](sdks/dart/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
+| **Swift** | SwiftPM, this repo's URL | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | ✅ git tag `3.1.3` | [`sdks/swift/`](sdks/swift/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
+| **R** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW `3.1.3` | [`sdks/r/`](sdks/r/) | ✅ 23 classed conditions | ✅ all `x-nr-*` headers |
+| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.3` | [pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.1.3` | [`sdks/go/`](sdks/go/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
 
 Verify any row rather than trusting it:
 
@@ -365,7 +365,7 @@ curl -s https://nroutergateway.r-universe.dev/src/contrib/PACKAGES | grep -A4 '^
 
 Java keeps its vendor-compatible OpenAI factory and adds a Java 11 native HTTP
 surface for all 15 gateway operations, four incremental SSE wires, every
-`x-nr-*` header and sixteen typed gateway errors.
+`x-nr-*` header and 23 typed gateway errors.
 JavaScript/TypeScript and the seven first-party native transports expose the
 same contract. Android delegates those guarantees to Kotlin; Python adds the
 same nRouter typing and metadata capture around its vendor client.
@@ -690,7 +690,14 @@ The gateway classifies refusals into typed error codes:
 | `plan_required` | 402 | `nRouterCreditError` | A request for `nrouter/auto` was refused because the organization's plan usage allowance is paused pending payment. Pay-as-you-go organizations are served `nrouter/auto` from credits and do not receive this code. Named models are paid from credits. |
 | `input_too_large` | 400 | `nRouterRequestError` | The input exceeds the served model's context window. Refused before any provider call; nothing was spent |
 | `max_output_tokens_too_large` | 400 | `nRouterRequestError` | The requested output ceiling exceeds what the served model allows. It is not clamped for you; lower it |
+| `model_denied_by_org` | 403 | `nRouterError` | The requested model, or a model named in `nrouter_fallbacks`, is on the organization's model deny list. A deny always wins over an allow list, and a denied model is also removed from `nrouter/auto`, `nrouter/promo` and `nrouter/hack`. Refused before any provider egress; nothing was reserved and nothing was spent |
+| `model_denied_by_team` | 403 | `nRouterError` | The requested model, or a model named in `nrouter_fallbacks`, is on the deny list of the team this virtual key belongs to. A deny always wins over an allow list, and a denied model is also removed from `nrouter/auto`, `nrouter/promo` and `nrouter/hack`. Refused before any provider egress; nothing was reserved and nothing was spent |
+| `model_denied_by_key` | 403 | `nRouterError` | The requested model, or a model named in `nrouter_fallbacks`, is on this virtual key's own model deny list. A deny always wins over an allow list, and a denied model is also removed from `nrouter/auto`, `nrouter/promo` and `nrouter/hack`. Refused before any provider egress; nothing was reserved and nothing was spent |
 | `fallback_not_allowed` | 400 | `nRouterRequestError` | A model in `nrouter_fallbacks` is not a valid fallback target for this key; nothing was spent |
+| `insufficient_promo_credit` | 402 | `nRouterCreditError` | A request for `nrouter/promo` was refused because the organization's available promotional credit cannot cover the request's hold. Promotional credit has no cash value and is spent only through `nrouter/promo`; prepaid credits are never used instead. Refused before any provider egress; nothing was reserved and nothing was spent |
+| `insufficient_hack_credit` | 402 | `nRouterCreditError` | A request for `nrouter/hack` was refused because the organization's available hackathon credit cannot cover the request's hold. Hackathon credit has no cash value and is spent only through `nrouter/hack`; prepaid credits are never used instead. Refused before any provider egress; nothing was reserved and nothing was spent |
+| `pot_spend_limit_exceeded` | 429 | `nRouterRateLimitError` | A request for `nrouter/promo` or `nrouter/hack` would take the organization's spend on that route past one of its windows (set by nRouter; by default hourly none, daily $1, weekly $7, monthly $30; `x-nr-limit-source`: `pot_window`). Windows are UTC calendar buckets: the hour, the day, the ISO week starting Monday 00:00 UTC, and the month. The message names the window that refused and when it resets; nothing was reserved and nothing was spent |
+| `pot_route_feature_unsupported` | 400 | `nRouterRequestError` | A request for `nrouter/promo` or `nrouter/hack` asked for a feature those routes do not serve: web search (`nrouter_web_search`), more than one choice (`n > 1`), or a tool-billed feature. Nothing was reserved and nothing was spent; remove the feature or name a model directly |
 | `guardrail_not_found` | 400 | `nRouterRequestError` | A guardrail in `nrouter_guardrails` is not owned by this organization; refused rather than ignored |
 | `image_input_unsupported` | 400 | `nRouterRequestError` | The request to `nrouter/auto` includes an image, and no model available for automatic routing on this endpoint accepts image input. Remove the image or name a model that accepts images; nothing was spent |
 

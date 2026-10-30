@@ -1,349 +1,331 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createSupportAgent } from '../src/agent.js';
-import type { nRouter } from '@nrouter_ai/sdk';
-import { nRouterGuardrailBlockedError } from '@nrouter_ai/sdk';
-import { SupportAgentError } from '../src/errors.js';
+import { readFileSync } from 'node:fs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { nRouterConfigurationError, nRouterRateLimitError } from '@nrouter_ai/sdk';
+import {
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_MODEL,
+  MAX_QUERY_LENGTH,
+  VideoPromptError,
+  VideoPromptResponseError,
+  VideoPromptValidationError,
+  generateVideoPrompt,
+  listVideoModels,
+  type MessagesClient,
+  type MessagesResponse,
+} from '../src/index.js';
 
-vi.mock('../src/retrieval.js', () => ({ retrieve: vi.fn().mockResolvedValue([]) }));
-vi.mock('../src/confidence.js', () => ({ scoreConfidence: vi.fn().mockReturnValue({ level: 'high', score: 0.9 }) }));
-vi.mock('../src/prompt.js', () => ({ buildCitations: vi.fn().mockReturnValue([]), buildSystemPrompt: vi.fn().mockReturnValue('sys') }));
-vi.mock('../src/page-context.js', () => ({ sanitizePageContext: vi.fn().mockReturnValue(null) }));
-vi.mock('../src/gaps.js', () => ({ latestQuestion: vi.fn().mockReturnValue('Q'), normalizeQuestion: vi.fn().mockReturnValue('q') }));
-vi.mock('../src/tools.js', () => ({ runToolPhase: vi.fn().mockImplementation(async (c, m, e) => ({ messages: m, ranTools: false })) }));
-vi.mock('../src/web-search.js', () => ({ runWebSearch: vi.fn().mockResolvedValue([]) }));
-vi.mock('../src/client.js', () => ({
-  createClient: vi.fn(),
-  streamChat: vi.fn().mockImplementation(async (client, opts) => {
-    const res = await client.nr.stream(opts);
-    return { cost: res.meta.cost as any, chunks: res.chunks as any };
-  })
-}));
-vi.mock('../src/hooks.js', () => ({ callHook: vi.fn() }));
-vi.mock('../src/sse.js', () => ({
-  toSSE: vi.fn().mockReturnValue(new ReadableStream({
-    start(c) { c.enqueue(new TextEncoder().encode('[DONE]')); c.close(); }
-  }))
-}));
-vi.mock('../src/feedback.js', () => ({ validateFeedback: vi.fn().mockReturnValue({ rating: 'up' }) }));
+const skill = (rel: string): string =>
+  readFileSync(new URL(`../skills/${rel}`, import.meta.url), 'utf-8');
 
-describe('SupportAgent', () => {
-  let fakeClient: nRouter;
-  let streamGenerator: any;
-  const fakeIndex = { version: 1 as const, embeddingModel: 't', dimensions: 2, createdAt: '2026', chunks: [] };
+interface Call {
+  body: Record<string, unknown>;
+}
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    streamGenerator = async function* () {
-      yield 'token1';
-      yield 'token2';
-    };
-    fakeClient = {
-      nr: {
-        stream: vi.fn().mockImplementation(async () => {
-          return { meta: { cost: { costUsd: 0.05, status: 'exact' } }, chunks: streamGenerator() };
-        })
+function fakeClient(
+  respond: (body: Record<string, unknown>) => Promise<MessagesResponse> | MessagesResponse = () =>
+    textResponse('Shot Summary: slow dolly-in'),
+): { client: MessagesClient; calls: Call[] } {
+  const calls: Call[] = [];
+  const client: MessagesClient = {
+    nr: {
+      messages: async (body) => {
+        calls.push({ body });
+        return respond(body);
       },
-      embeddings: {
-        create: vi.fn().mockResolvedValue({ data: [{ embedding: [1, 0] }] })
-      }
-    } as unknown as nRouter;
+    },
+  };
+  return { client, calls };
+}
+
+function textResponse(...texts: string[]): MessagesResponse {
+  return {
+    body: { content: texts.map((text) => ({ type: 'text', text })) },
+    meta: { requestId: 'req_test' },
+  };
+}
+
+function onlyCall(calls: Call[]): Record<string, unknown> {
+  expect(calls).toHaveLength(1);
+  const call = calls[0];
+  if (!call) throw new Error('no call recorded');
+  return call.body;
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe('generateVideoPrompt — request shape', () => {
+  it('puts the instructions, brand rules and the selected model guide in the system prompt', async () => {
+    const { client, calls } = fakeClient();
+    await generateVideoPrompt({ query: 'Dashboard intro', videoModel: 'Google Veo' }, { client });
+    const system = onlyCall(calls)['system'];
+    expect(typeof system).toBe('string');
+    expect(system).toContain(skill('instructions.md').trim());
+    expect(system).toContain(skill('brand.md').trim());
+    expect(system).toContain(skill('models/google-veo.md').trim());
+    expect(system).not.toContain(skill('models/sora.md').trim());
   });
 
-  it('event ORDER (confidence, citations, tokens, cost, done)', async () => {
-    const { scoreConfidence } = await import('../src/confidence.js');
-    vi.mocked(scoreConfidence).mockReturnValue({ level: 'high', score: 0.9 });
-    
-    const { buildCitations } = await import('../src/prompt.js');
-    vi.mocked(buildCitations).mockReturnValue([{ title: 'Doc', url: 'http' }]);
-
-    const agent = createSupportAgent({ client: fakeClient, model: 'm', knowledge: fakeIndex });
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    expect(events.map(e => e.type)).toEqual(['confidence', 'citations', 'token', 'token', 'cost', 'done']);
-    expect(events[0]).toMatchObject({ level: 'high', score: 0.9, webSearched: false });
-    expect(events[1]).toMatchObject({ citations: [{ title: 'Doc', url: 'http' }] });
-    expect(events[2]).toMatchObject({ text: 'token1' });
-  });
-
-  it('low confidence → onGap called, web search path', async () => {
-    const { scoreConfidence } = await import('../src/confidence.js');
-    vi.mocked(scoreConfidence).mockReturnValue({ level: 'low', score: 0.1 });
-    const { callHook } = await import('../src/hooks.js');
-
-    const agent = createSupportAgent({ 
-      client: fakeClient, 
-      model: 'm', 
-      knowledge: fakeIndex,
-      webSearch: { label: 'Google', search: vi.fn() },
-      hooks: { onGap: vi.fn() }
-    });
-    
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    const types = events.map(e => e.type);
-    expect(types).toContain('tool_call');
-    expect(events.find(e => e.type === 'tool_call' && e.status === 'running')).toBeDefined();
-    
-    expect(callHook).toHaveBeenCalledWith(expect.anything(), 'onGap', expect.objectContaining({ confidence: 'low', webSearched: true }));
-  });
-
-  it('guardrail retry once', async () => {
-    const { streamChat } = await import('../src/client.js');
-    const { scoreConfidence } = await import('../src/confidence.js');
-    vi.mocked(scoreConfidence).mockReturnValue({ level: 'low', score: 0.1 });
-    
-    let calls = 0;
-    vi.mocked(streamChat).mockImplementation(async (client, opts) => {
-       calls++;
-       if (calls === 1) throw new nRouterGuardrailBlockedError('blocked', {} as any);
-       const chunks = async function*() { yield 'retry_ok'; }();
-       return { cost: { costUsd: null, status: 'unpriced' }, chunks };
-    });
-
-    const agent = createSupportAgent({ 
-      client: fakeClient, 
-      model: 'm', 
-      knowledge: fakeIndex,
-      webSearch: { label: 'B', search: vi.fn() }
-    });
-    
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    expect(calls).toBe(2);
-    expect(events.find(e => e.type === 'token' && e.text === 'retry_ok')).toBeDefined();
-    expect(events.map(e => e.type)).toContain('done');
-    expect(events.map(e => e.type)).not.toContain('error');
-  });
-
-  it('error event never contains the api key', async () => {
-    const { streamChat } = await import('../src/client.js');
-    vi.mocked(streamChat).mockRejectedValue(new SupportAgentError('upstream_error', 'failed sk-nrouter-secret-key'));
-
-    const agent = createSupportAgent({ 
-      apiKey: 'sk-nrouter-secret-key',
-      model: 'm', 
-      knowledge: fakeIndex 
-    });
-    
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    const errEvent = events.find(e => e.type === 'error') as any;
-    expect(errEvent).toBeDefined();
-    expect(errEvent.message).not.toContain('sk-nrouter-secret-key');
-    expect(errEvent.message).toContain('[redacted]');
-  });
-
-  it('abort → aborted + done', async () => {
-    const { streamChat } = await import('../src/client.js');
-    vi.mocked(streamChat).mockImplementation(async () => {
-       const err = new Error('abort');
-       err.name = 'AbortError';
-       throw err;
-    });
-
-    const agent = createSupportAgent({ client: fakeClient, model: 'm', knowledge: fakeIndex });
-    
-    const events = [];
-    const ac = new AbortController();
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }], signal: ac.signal })) {
-      events.push(ev);
-    }
-    
-    expect(events.map(e => e.type)).toEqual(['confidence', 'citations', 'error', 'done']);
-    expect(events[2]).toMatchObject({ code: 'aborted' });
-  });
-
-  it('DOUBLE BILLED CALL: tools configured → exactly ONE model call (streamChat skipped)', async () => {
-    const { runToolPhase } = await import('../src/tools.js');
-    vi.mocked(runToolPhase).mockResolvedValue({
-      messages: [{ role: 'assistant', content: 'tool answer' }] as any,
-      ranTools: false,
-      text: 'tool answer',
-      cost: { costUsd: 0.1, status: 'exact' }
-    });
-    const { streamChat } = await import('../src/client.js');
-    vi.mocked(streamChat).mockClear();
-
-    const agent = createSupportAgent({ 
-      client: fakeClient, 
-      model: 'm', 
-      knowledge: fakeIndex,
-      tools: [{ definition: { type: 'function', function: { name: 't1' } }, execute: vi.fn() }] as any
-    });
-    
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    expect(streamChat).not.toHaveBeenCalled();
-    expect(events.find(e => e.type === 'token' && e.text === 'tool answer')).toBeDefined();
-  });
-
-  it('TRUSTED CONTEXT: req body with audiences must NOT unlock chunk; ctx.audiences must', async () => {
-    const { retrieve } = await import('../src/retrieval.js');
-    vi.mocked(retrieve).mockClear();
-    
-    const agent = createSupportAgent({ client: fakeClient, model: 'm', knowledge: fakeIndex });
-    
-    // Pass audiences in untrusted req body
-    const reqWithAudiences = { messages: [{ role: 'user', content: 'hi' }], audiences: ['gated'] };
-    for await (const ev of agent.chat(reqWithAudiences, {})) {
-       // iterate
-    }
-    
-    // The retrieve call should NOT have 'gated' in its audiences options
-    expect(retrieve).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ audiences: undefined, signal: undefined }));
-    
-    vi.mocked(retrieve).mockClear();
-    
-    // Pass audiences in trusted ctx
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] }, { audiences: ['gated'] })) {
-       // iterate
-    }
-    
-    // The retrieve call MUST have 'gated' in its audiences options
-    expect(retrieve).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ audiences: ['gated'] }));
-  });
-
-  it('chatSSE ends with [DONE]', async () => {
-    const agent = createSupportAgent({ client: fakeClient, model: 'm', knowledge: fakeIndex });
-    const stream = agent.chatSSE({ messages: [{ role: 'user', content: 'hi' }] });
-    const reader = stream.getReader();
-    const result = await reader.read();
-    expect(new TextDecoder().decode(result.value)).toBe('[DONE]');
-  });
-
-  it('MEMORY DUPLICATION: two consecutive turns store holds exactly [user1, assistant1, user2, assistant2]', async () => {
-    const { createArrayStore } = await import('@nrouter_ai/sdk');
-    const store = createArrayStore();
-    
-    // We must unmock tools.js and client.js enough so it doesn't crash?
-    const { streamChat } = await import('../src/client.js');
-    vi.mocked(streamChat).mockImplementation(async (client, opts) => {
-      const res = await client.nr.stream(opts);
-      return { cost: res.meta.cost as any, chunks: res.chunks as any };
-    });
-    const agent = createSupportAgent({ 
-      client: fakeClient, 
-      model: 'm', 
-      knowledge: fakeIndex,
-      memoryStore: () => store
-    });
-    
-    // Turn 1
-    const events1 = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'user1' }] }, { sessionId: 'session1' })) {
-       events1.push(ev);
-    }
-    
-    // Turn 2
-    // A real client would send the full conversation, so messages is [user1, assistant1, user2].
-    const events2 = [];
-    for await (const ev of agent.chat({ 
-       messages: [
-         { role: 'user', content: 'user1' }, 
-         { role: 'assistant', content: 'token1token2' }, 
-         { role: 'user', content: 'user2' }
-       ] 
-    }, { sessionId: 'session1' })) {
-       events2.push(ev);
-    }
-    console.log(JSON.stringify(events1));
-    console.log(JSON.stringify(events2));
-    const msgs = await store.load();
-    expect(msgs.map(m => m.content)).toEqual(['user1', 'token1token2', 'user2', 'token1token2']);
-  });
-
-  it('PII MASKING: masks messages to runToolPhase and passes maskPii to streamChat', async () => {
-    const { runToolPhase } = await import('../src/tools.js');
-    let capturedToolMessages: any[] = [];
-    vi.mocked(runToolPhase).mockImplementation(async (cfg, msgs, cb) => {
-      capturedToolMessages = msgs;
-      return { messages: msgs, ranTools: false };
-    });
-
-    const { streamChat } = await import('../src/client.js');
-    let capturedStreamOpts: any = null;
-    vi.mocked(streamChat).mockImplementation(async (client, opts) => {
-      capturedStreamOpts = opts;
-      async function* chunks() { yield 'answer'; }
-      return { cost: { costUsd: null, status: 'unpriced' }, chunks: chunks() };
-    });
-
-    const agent = createSupportAgent({
-      client: fakeClient,
-      model: 'm',
-      knowledge: fakeIndex,
-      maskPii: true
-    });
-
-    for await (const _ of agent.chat({
-      messages: [{ role: 'user', content: 'Contact me at admin@corp.com or 555-123-4567' }]
-    })) {
-      // iterate
-    }
-
-    // runToolPhase received masked messages
-    const userMsgInTool = capturedToolMessages.find(m => m.role === 'user');
-    expect(userMsgInTool?.content).toBe('Contact me at [email] or [phone]');
-
-    // streamChat received maskPii: true
-    expect(capturedStreamOpts.maskPii).toBe(true);
-  });
-
-  it('PII MASKING: masks multi-part array content in tool phase', async () => {
-    const { runToolPhase } = await import('../src/tools.js');
-    let capturedToolMessages: any[] = [];
-    vi.mocked(runToolPhase).mockImplementation(async (cfg, msgs, cb) => {
-      capturedToolMessages = msgs;
-      return { messages: msgs, ranTools: false };
-    });
-
-    const { createArrayStore } = await import('@nrouter_ai/sdk');
-    const store = createArrayStore([
+  it('sends the query as the final user turn after the conversation', async () => {
+    const { client, calls } = fakeClient();
+    await generateVideoPrompt(
       {
-        role: 'user',
+        query: 'Make it 10 seconds',
+        videoModel: 'sora',
+        conversation: [
+          { role: 'user', content: 'A routing montage' },
+          { role: 'assistant', content: 'What duration?' },
+        ],
+      },
+      { client },
+    );
+    expect(onlyCall(calls)['messages']).toEqual([
+      { role: 'user', content: 'A routing montage' },
+      { role: 'assistant', content: 'What duration?' },
+      { role: 'user', content: 'Make it 10 seconds' },
+    ]);
+  });
+
+  it('returns the text blocks joined, ignoring non-text blocks', async () => {
+    const { client } = fakeClient(() => ({
+      body: {
         content: [
-          { type: 'text', text: 'my email is user@domain.com' },
-          { type: 'image_url', image_url: { url: 'https://example.com/img.png' } }
-        ] as any
-      }
-    ]);
-
-    const agent = createSupportAgent({
-      client: fakeClient,
-      model: 'm',
-      knowledge: fakeIndex,
-      maskPii: true,
-      memoryStore: () => store
-    });
-
-    for await (const _ of agent.chat({
-      messages: [{ role: 'user', content: 'hello' }]
-    }, { sessionId: 'sess-1' })) {
-      // iterate
-    }
-
-    const userMsg = capturedToolMessages.find(m => Array.isArray(m.content));
-    expect(userMsg?.content).toEqual([
-      { type: 'text', text: 'my email is [email]' },
-      { type: 'image_url', image_url: { url: 'https://example.com/img.png' } }
-    ]);
+          { type: 'thinking', thinking: 'hidden' },
+          { type: 'text', text: 'Part one.' },
+          { type: 'text', text: 'Part two.' },
+        ],
+      },
+    }));
+    await expect(
+      generateVideoPrompt({ query: 'x', videoModel: 'sora' }, { client }),
+    ).resolves.toBe('Part one.\n\nPart two.');
   });
 });
 
+describe('generateVideoPrompt — videoModel selection', () => {
+  it('derives the allowed set from skills/models/*.md', () => {
+    const slugs = listVideoModels().map((m) => m.slug);
+    expect(slugs).toEqual(['google-veo', 'luma-dream-machine', 'runway-gen3', 'sora']);
+    const names = listVideoModels().map((m) => m.name);
+    expect(names).toEqual(['Google Veo', 'Luma Dream Machine', 'Runway Gen-3', 'OpenAI Sora']);
+  });
 
+  it.each([
+    ['Google Veo', 'models/google-veo.md'],
+    ['google-veo', 'models/google-veo.md'],
+    ['Luma Dream Machine', 'models/luma-dream-machine.md'],
+    ['Runway Gen-3', 'models/runway-gen3.md'],
+    ['runway-gen3', 'models/runway-gen3.md'],
+    ['Sora', 'models/sora.md'],
+    ['OpenAI Sora', 'models/sora.md'],
+  ])('accepts %s and sends %s', async (videoModel, guide) => {
+    const { client, calls } = fakeClient();
+    await generateVideoPrompt({ query: 'x', videoModel }, { client });
+    expect(onlyCall(calls)['system']).toContain(skill(guide).trim());
+  });
 
+  it('rejects an unknown videoModel with the allowed values and sends nothing', async () => {
+    const { client, calls } = fakeClient();
+    const err = await generateVideoPrompt({ query: 'x', videoModel: 'Higgsfield' }, { client }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(VideoPromptValidationError);
+    expect(err).toBeInstanceOf(VideoPromptError);
+    const v = err as VideoPromptValidationError;
+    expect(v.field).toBe('videoModel');
+    for (const allowed of ['google-veo', 'luma-dream-machine', 'runway-gen3', 'sora', 'Google Veo']) {
+      expect(v.message).toContain(allowed);
+    }
+    expect(calls).toHaveLength(0);
+  });
+
+  it('does not allow path traversal through videoModel', async () => {
+    const { client, calls } = fakeClient();
+    await expect(
+      generateVideoPrompt({ query: 'x', videoModel: '../instructions' }, { client }),
+    ).rejects.toBeInstanceOf(VideoPromptValidationError);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('validates every model file in skills/models/*.md has a valid prompt architecture heading', () => {
+    const models = listVideoModels();
+    expect(models.length).toBeGreaterThanOrEqual(4);
+    for (const m of models) {
+      expect(m.slug).toMatch(/^[a-z0-9-]+$/);
+      expect(m.name.length).toBeGreaterThan(0);
+      const raw = skill(`models/${m.slug}.md`);
+      expect(raw.trim().length).toBeGreaterThan(0);
+      expect(raw.split(/\r?\n/, 1)[0]).toMatch(/^#+\s*.+\s+Prompt Architecture$/);
+    }
+  });
+
+  it('validates every model file in skills/models/*.md can be resolved dynamically by slug and by name', async () => {
+    const models = listVideoModels();
+    for (const m of models) {
+      const { client: clientBySlug, calls: callsBySlug } = fakeClient();
+      await generateVideoPrompt({ query: 'test query', videoModel: m.slug }, { client: clientBySlug });
+      expect(onlyCall(callsBySlug)['system']).toContain(skill(`models/${m.slug}.md`).trim());
+
+      const { client: clientByName, calls: callsByName } = fakeClient();
+      await generateVideoPrompt({ query: 'test query', videoModel: m.name }, { client: clientByName });
+      expect(onlyCall(callsByName)['system']).toContain(skill(`models/${m.slug}.md`).trim());
+    }
+  });
+
+  it.each(['', '   ', '\t\n'])('rejects blank videoModel %j', async (videoModel) => {
+    const { client, calls } = fakeClient();
+    const err = await generateVideoPrompt({ query: 'x', videoModel }, { client }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(VideoPromptValidationError);
+    expect((err as VideoPromptValidationError).field).toBe('videoModel');
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([null, undefined, 42, {}])('rejects non-string videoModel %j', async (videoModel) => {
+    const { client, calls } = fakeClient();
+    const err = await generateVideoPrompt(
+      { query: 'x', videoModel: videoModel as unknown as string },
+      { client },
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(VideoPromptValidationError);
+    expect((err as VideoPromptValidationError).field).toBe('videoModel');
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('generateVideoPrompt — model and maxTokens', () => {
+  it('uses options.model first', async () => {
+    vi.stubEnv('NROUTER_MODEL', 'env-model');
+    const { client, calls } = fakeClient();
+    await generateVideoPrompt({ query: 'x', videoModel: 'sora', model: 'option-model' }, { client });
+    expect(onlyCall(calls)['model']).toBe('option-model');
+  });
+
+  it('falls back to NROUTER_MODEL', async () => {
+    vi.stubEnv('NROUTER_MODEL', 'env-model');
+    const { client, calls } = fakeClient();
+    await generateVideoPrompt({ query: 'x', videoModel: 'sora' }, { client });
+    expect(onlyCall(calls)['model']).toBe('env-model');
+  });
+
+  it('falls back to DEFAULT_MODEL when NROUTER_MODEL is unset or blank', async () => {
+    vi.stubEnv('NROUTER_MODEL', '  ');
+    const { client, calls } = fakeClient();
+    await generateVideoPrompt({ query: 'x', videoModel: 'sora' }, { client });
+    expect(onlyCall(calls)['model']).toBe(DEFAULT_MODEL);
+  });
+
+  it('sends DEFAULT_MAX_TOKENS by default and options.maxTokens when given', async () => {
+    const a = fakeClient();
+    await generateVideoPrompt({ query: 'x', videoModel: 'sora' }, { client: a.client });
+    expect(onlyCall(a.calls)['max_tokens']).toBe(DEFAULT_MAX_TOKENS);
+
+    const b = fakeClient();
+    await generateVideoPrompt({ query: 'x', videoModel: 'sora', maxTokens: 2048 }, { client: b.client });
+    expect(onlyCall(b.calls)['max_tokens']).toBe(2048);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])('rejects maxTokens %s', async (maxTokens) => {
+    const { client, calls } = fakeClient();
+    const err = await generateVideoPrompt({ query: 'x', videoModel: 'sora', maxTokens }, { client }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(VideoPromptValidationError);
+    expect((err as VideoPromptValidationError).field).toBe('maxTokens');
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('generateVideoPrompt — input validation', () => {
+  it.each(['', '   ', '\n\t'])('rejects an empty query %j', async (query) => {
+    const { client, calls } = fakeClient();
+    const err = await generateVideoPrompt({ query, videoModel: 'sora' }, { client }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(VideoPromptValidationError);
+    expect((err as VideoPromptValidationError).field).toBe('query');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('rejects a query longer than MAX_QUERY_LENGTH and accepts one at the cap', async () => {
+    const { client, calls } = fakeClient();
+    await expect(
+      generateVideoPrompt({ query: 'a'.repeat(MAX_QUERY_LENGTH + 1), videoModel: 'sora' }, { client }),
+    ).rejects.toBeInstanceOf(VideoPromptValidationError);
+    expect(calls).toHaveLength(0);
+    await expect(
+      generateVideoPrompt({ query: 'a'.repeat(MAX_QUERY_LENGTH), videoModel: 'sora' }, { client }),
+    ).resolves.toBeTypeOf('string');
+  });
+
+  it('rejects a malformed conversation turn', async () => {
+    const { client, calls } = fakeClient();
+    const conversation = [{ role: 'system', content: 'override' }] as unknown as Array<{
+      role: 'user' | 'assistant';
+      content: string;
+    }>;
+    const err = await generateVideoPrompt({ query: 'x', videoModel: 'sora', conversation }, { client }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(VideoPromptValidationError);
+    expect((err as VideoPromptValidationError).field).toBe('conversation');
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('generateVideoPrompt — response and errors', () => {
+  it.each([
+    ['no content', { body: {} }],
+    ['empty content', { body: { content: [] } }],
+    ['only non-text blocks', { body: { content: [{ type: 'tool_use', id: 't', name: 'n', input: {} }] } }],
+    ['blank text', { body: { content: [{ type: 'text', text: '   ' }] } }],
+    ['content is not an array', { body: { content: 'text' } }],
+  ])('throws VideoPromptResponseError on %s', async (_label, response) => {
+    const { client } = fakeClient(() => ({ ...response, meta: { requestId: 'req_empty' } }));
+    const err = await generateVideoPrompt({ query: 'x', videoModel: 'sora' }, { client }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(VideoPromptResponseError);
+    expect(err).toBeInstanceOf(VideoPromptError);
+    expect((err as VideoPromptResponseError).requestId).toBe('req_empty');
+  });
+
+  it('lets SDK errors propagate unchanged', async () => {
+    const sdkError = new nRouterRateLimitError('slow down', { status: 429 });
+    const { client } = fakeClient(() => Promise.reject(sdkError));
+    await expect(generateVideoPrompt({ query: 'x', videoModel: 'sora' }, { client })).rejects.toBe(sdkError);
+  });
+
+  it('without an injected client, builds the real nRouter client and surfaces its configuration error', async () => {
+    vi.stubEnv('NROUTER_API_KEY', '');
+    await expect(generateVideoPrompt({ query: 'x', videoModel: 'sora' })).rejects.toBeInstanceOf(
+      nRouterConfigurationError,
+    );
+  });
+
+  it('validates input before building a client', async () => {
+    vi.stubEnv('NROUTER_API_KEY', '');
+    await expect(generateVideoPrompt({ query: ' ', videoModel: 'sora' })).rejects.toBeInstanceOf(
+      VideoPromptValidationError,
+    );
+  });
+
+  it('never puts the API key in a thrown error', async () => {
+    const apiKey = 'sk-nrouter-secret-test-value';
+    const { client } = fakeClient(() => ({ body: { content: [] } }));
+    const err = await generateVideoPrompt({ query: 'x', videoModel: 'sora', apiKey }, { client }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(VideoPromptResponseError);
+    expect(String(err)).not.toContain(apiKey);
+    expect(JSON.stringify(err)).not.toContain(apiKey);
+
+    const bad = await generateVideoPrompt({ query: ' ', videoModel: 'sora', apiKey }, { client }).catch(
+      (e: unknown) => e,
+    );
+    expect(String(bad)).not.toContain(apiKey);
+    expect(JSON.stringify(bad)).not.toContain(apiKey);
+  });
+});

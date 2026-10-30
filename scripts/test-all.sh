@@ -65,6 +65,31 @@
 # a synthetic pass, a synthetic failure and a synthetic missing prerequisite,
 # and asserts both the counts and the exit code. It shares the engine with the
 # real run, so it cannot drift from it.
+#
+# ---------------------------------------------------------------------------
+# DISCOVERED LANES: NOTHING IN tests/ OR agents/ CAN BE SILENTLY OMITTED
+# ---------------------------------------------------------------------------
+#
+# The repo-level gate list used to be hand-maintained, and it drifted:
+# tests/readme-spec-parity.test.sh went red and nothing here ran it, so nobody
+# noticed. Two kinds of lane are therefore DISCOVERED, never listed:
+#
+#   repo gates   every tests/*.test.sh, tests/test_*.py and conformance/test_*.py
+#                that no explicit lane above already runs gets ONE lane of its
+#                own. "Already runs" is derived from the bodies of the lanes
+#                that actually executed (LANE_BODIES), not from a second list,
+#                so a gate is never run twice and never dropped. Shell gates
+#                need only bash. tests/test_*.py gates carry the same
+#                prerequisites as the repository contract lane (PY_GATE_REQS);
+#                conformance/test_*.py gates need an interpreter with pytest.
+#   agents       one lane per agents/*/package.json:
+#                `npm ci && npm run typecheck && npm test && npm run build`.
+#                Prerequisite: npm.
+#
+# Python interpreter resolution, in order: PYTHON_BIN if set; else a repo-local
+# prepared venv ($ROOT/.venv/bin/python, then $ROOT/sdks/python/.venv/bin/python);
+# else python3.13; else python3. The script never creates a venv and never
+# installs anything — an interpreter missing a prerequisite still SKIPS by name.
 
 set -uo pipefail
 # NOTE: deliberately no `-e`. This driver's whole job is to continue past a
@@ -83,6 +108,9 @@ SKIPPED=0
 # assumed. A report that kills the reporter is worse than no report.
 FAILED_LANES=""
 SKIPPED_LANES=""
+# Every body handed to run_lane, run or skipped. Discovery reads it to decide
+# which repo gates an explicit lane already owns — see run_discovered_gates.
+LANE_BODIES=""
 
 step() { printf '\n== %s ==\n' "$1"; }
 
@@ -209,6 +237,12 @@ run_lane() {
   local name="$1" reqs="$2" body="$3"
   local req missing=""
 
+  # Recorded BEFORE the prerequisite check: a gate inside a skipped lane is
+  # still owned by that lane (and reported as skipped by name), so discovery
+  # must not run it a second time under a different lane.
+  LANE_BODIES="${LANE_BODIES}${body}
+"
+
   if [ "$reqs" != "-" ]; then
     for req in $reqs; do
       have "$req" || missing="$missing $req"
@@ -243,6 +277,97 @@ run_lane() {
     printf '\nFAILED: %s (exit %s)\n' "$name" "$status"
   fi
   return 0
+}
+
+# ---------------------------------------------------------------------------
+# Discovered lanes — see "DISCOVERED LANES" in the header
+# ---------------------------------------------------------------------------
+
+# The prerequisites of the repository contract lane, shared with every
+# discovered tests/test_*.py gate: a new gate there may import the SDK, httpx2,
+# openai or yaml exactly as its neighbours do, and must SKIP by name rather
+# than die in collection when they are absent.
+PY_GATE_REQS="pysdk py:httpx2 py:openai pyfloor:openai py:pytest py:yaml git"
+
+# resolve_python <root>
+#
+# Python interpreter resolution, in order: PYTHON_BIN if set and executable;
+# else a repo-local prepared venv ($root/.venv/bin/python, then
+# $root/sdks/python/.venv/bin/python); else python3.13; else python3.
+resolve_python() {
+  local root="$1"
+  if [ -n "${PYTHON_BIN:-}" ] && [ -x "$PYTHON_BIN" ]; then
+    printf '%s\n' "$PYTHON_BIN"
+    return 0
+  fi
+  if [ -x "$root/.venv/bin/python" ]; then
+    printf '%s\n' "$root/.venv/bin/python"
+  elif [ -x "$root/sdks/python/.venv/bin/python" ]; then
+    printf '%s\n' "$root/sdks/python/.venv/bin/python"
+  elif command -v python3.13 >/dev/null 2>&1; then
+    command -v python3.13
+  else
+    command -v python3 2>/dev/null || true
+  fi
+}
+
+# discover_gates <root> <owned-bodies>
+#
+# Prints, one repo-relative path per line, every tests/*.test.sh,
+# tests/test_*.py and conformance/test_*.py under <root> that <owned-bodies>
+# (the text of the lane bodies already handed to run_lane) does not mention.
+# A mention counts only after a path boundary — `/`, a space or a quote — so
+# `tests/a.test.sh` is not mistaken for part of some longer path.
+discover_gates() {
+  local root="$1" owned="$2" f rel
+  for f in "$root"/tests/*.test.sh "$root"/tests/test_*.py "$root"/conformance/test_*.py; do
+    # An unmatched glob stays literal; it is not a gate.
+    [ -f "$f" ] || continue
+    rel="${f#"$root"/}"
+    case "$owned" in
+      *"/$rel"* | *" $rel"* | *"'$rel"* | *"\"$rel"*) continue ;;
+    esac
+    printf '%s\n' "$rel"
+  done
+}
+
+# run_discovered_gates <root> <owned-bodies> — one lane per discovered gate.
+run_discovered_gates() {
+  local root="$1" owned="$2" rel
+  # The list is read on fd 3, NOT stdin: each lane's `bash -c` inherits stdin,
+  # and a gate that reads it would silently swallow the remaining gate names.
+  while IFS= read -r rel <&3; do
+    [ -n "$rel" ] || continue
+    case "$rel" in
+      *.test.sh)
+        run_lane "repo gate: $rel" "-" \
+          "cd '$root' && bash '$root/$rel'"
+        ;;
+      conformance/*)
+        run_lane "repo gate: $rel" "python py:pytest" \
+          "cd '$root' && '$PYTHON_BIN' -m pytest -q '$rel'"
+        ;;
+      *)
+        run_lane "repo gate: $rel" "$PY_GATE_REQS" \
+          "cd '$root' && '$PYTHON_BIN' -m pytest -q '$rel'"
+        ;;
+    esac
+  done 3<<GATES
+$(discover_gates "$root" "$owned")
+GATES
+}
+
+# run_agent_lanes <root> — one lane per agents/*/package.json. A package with
+# no lockfile FAILS at `npm ci`, which is the honest verdict: it cannot be
+# installed reproducibly.
+run_agent_lanes() {
+  local root="$1" manifest dir
+  for manifest in "$root"/agents/*/package.json; do
+    [ -f "$manifest" ] || continue
+    dir="${manifest%/package.json}"
+    run_lane "agent: ${dir#"$root"/}" "npm" \
+      "cd '$dir' && npm ci && npm run typecheck && npm test && npm run build"
+  done
 }
 
 # summary — prints the verdict and RETURNS the script's exit status.
@@ -313,6 +438,9 @@ summary() {
 # Three synthetic lanes exercise the three outcomes, then the counters and the
 # exit status of `summary` are asserted. If someone reintroduces the
 # errexit-suppression bug, or makes a skip count as a pass, this goes red.
+# Synthetic temp trees then prove the discovered lanes: a new tests/*.test.sh
+# is found and run, a failing one fails the run, an owned gate is not run
+# twice, and an agent whose `npm test` fails is FAILED and never built.
 self_test() {
   local fails=0
   assert_eq() {
@@ -324,11 +452,13 @@ self_test() {
     fi
   }
 
-  local scratch_floor_root scratch_floor
+  local scratch_floor_root scratch_floor scratch_lanes
   scratch_floor_root="$(mktemp -d "${TMPDIR:-/tmp}/nrouter-testall-floor.XXXXXX")"
   scratch_floor="$scratch_floor_root/sdks/python"
+  # Synthetic trees for the discovery and agents controls. Never the real tree.
+  scratch_lanes="$(mktemp -d "${TMPDIR:-/tmp}/nrouter-testall-lanes.XXXXXX")"
   # shellcheck disable=SC2064
-  trap "rm -rf '$scratch_floor_root'" RETURN
+  trap "rm -rf '$scratch_floor_root' '$scratch_lanes'" RETURN
 
   printf '== engine self-test ==\n'
 
@@ -350,12 +480,27 @@ self_test() {
   # network and no install.
   local floor_fixture="$scratch_floor/pyproject.toml"
   mkdir -p "$scratch_floor"
-  printf 'dependencies = [\n  "pip>=0.1",\n]\n' > "$floor_fixture"
-  # `--self-test` dispatches BEFORE the PYTHON_BIN preflight runs, so the
-  # fixture resolves its own interpreter; without this both controls read as
-  # "no interpreter" and proved nothing about the comparison.
-  local floor_py="${PYTHON_BIN:-$(command -v python3 || true)}"
-  if PYTHON_BIN="$floor_py" ROOT="$scratch_floor_root" have "pyfloor:pip"; then
+  local floor_py="${PYTHON_BIN:-$(resolve_python "$ROOT")}"
+  local floor_dist="pip"
+  if [ -n "$floor_py" ] && [ -x "$floor_py" ]; then
+    floor_dist="$("$floor_py" -c '
+try:
+    import importlib.metadata
+    dists = [d.metadata["Name"] for d in importlib.metadata.distributions() if d.metadata.get("Name")]
+    if "packaging" in dists:
+        print("packaging")
+    elif "pip" in dists:
+        print("pip")
+    elif dists:
+        print(dists[0])
+    else:
+        print("pip")
+except Exception:
+    print("pip")
+' 2>/dev/null || echo "pip")"
+  fi
+  printf 'dependencies = [\n  "%s>=0.1",\n]\n' "$floor_dist" > "$floor_fixture"
+  if PYTHON_BIN="$floor_py" ROOT="$scratch_floor_root" have "pyfloor:$floor_dist"; then
     printf '  ok   a SATISFIED floor passes the prerequisite\n'
   else
     printf '  FAIL a satisfied floor was reported unsatisfied — the branch may be broken shut\n'
@@ -364,8 +509,8 @@ self_test() {
 
   # And an UNDER-floor version must not pass, which the missing-distribution
   # case cannot prove: it never reaches the comparison at all.
-  printf 'dependencies = [\n  "pip>=99999.0",\n]\n' > "$floor_fixture"
-  if PYTHON_BIN="$floor_py" ROOT="$scratch_floor_root" have "pyfloor:pip"; then
+  printf 'dependencies = [\n  "%s>=99999.0",\n]\n' "$floor_dist" > "$floor_fixture"
+  if PYTHON_BIN="$floor_py" ROOT="$scratch_floor_root" have "pyfloor:$floor_dist"; then
     printf '  FAIL an under-floor version satisfied the prerequisite\n'
     fails=$((fails + 1))
   else
@@ -408,6 +553,119 @@ self_test() {
   REQUIRE_ALL=0; summary >/dev/null 2>&1; rc=$?
   assert_eq "exit status, all green" "$rc" "0"
 
+  # ---- discovery: no repo gate can be silently omitted, none runs twice ----
+  #
+  # A synthetic tree with two shell gates (one passing, one failing), one gate
+  # an explicit lane already owns, one Python gate in each discovered location,
+  # and two decoys that match neither glob.
+  printf '\n== discovery self-test ==\n'
+  PASSED=0; FAILED=0; SKIPPED=0; FAILED_LANES=""; SKIPPED_LANES=""
+  local disc="$scratch_lanes/disc"
+  mkdir -p "$disc/tests" "$disc/conformance"
+  printf 'touch "%s/alpha.ran"\n' "$disc" > "$disc/tests/alpha.test.sh"
+  printf 'echo planted discovered-gate failure >&2\nexit 1\n' > "$disc/tests/beta.test.sh"
+  printf 'touch "%s/owned.ran"\n' "$disc" > "$disc/tests/owned.test.sh"
+  printf 'def test_ok():\n    pass\n' > "$disc/tests/test_gamma.py"
+  printf 'def test_ok():\n    pass\n' > "$disc/conformance/test_delta.py"
+  printf 'exit 1\n' > "$disc/tests/helper.sh"
+  printf 'raise SystemExit(1)\n' > "$disc/tests/fixture_test.py"
+  # What an explicit lane's body looks like when it owns a gate.
+  local owned_bodies="cd '$disc' && bash '$disc/tests/owned.test.sh'"
+
+  local found
+  found="$(discover_gates "$disc" "$owned_bodies" | tr '\n' ' ')"
+  assert_eq "discovered gates" "$found" \
+    "tests/alpha.test.sh tests/beta.test.sh tests/test_gamma.py conformance/test_delta.py "
+
+  local disc_py="${PYTHON_BIN:-$(resolve_python "$ROOT")}"
+  PYTHON_BIN="$disc_py" run_discovered_gates "$disc" "$owned_bodies" >/dev/null 2>&1
+
+  if [ -f "$disc/alpha.ran" ]; then
+    printf '  ok   a synthetic tests/*.test.sh was discovered AND executed\n'
+  else
+    printf '  FAIL the synthetic tests/*.test.sh never ran\n'; fails=$((fails + 1))
+  fi
+  if [ -f "$disc/owned.ran" ]; then
+    printf '  FAIL a gate an explicit lane owns ran a second time\n'; fails=$((fails + 1))
+  else
+    printf '  ok   a gate an explicit lane owns is not run twice\n'
+  fi
+  assert_eq "discovered FAILED" "$FAILED" "1"
+  # The two Python gates pass or SKIP depending on this interpreter; either is
+  # honest. What must hold is that all four discovered gates became lanes.
+  assert_eq "discovered lanes (PASSED+FAILED+SKIPPED)" "$((PASSED + FAILED + SKIPPED))" "4"
+  case "$FAILED_LANES" in
+    *tests/beta.test.sh*) printf '  ok   the failing discovered gate is named in the report\n' ;;
+    *) printf '  FAIL the failing discovered gate is not named\n'; fails=$((fails + 1)) ;;
+  esac
+  REQUIRE_ALL=0; summary >/dev/null 2>&1; rc=$?
+  assert_eq "exit status with a failing discovered gate" "$rc" "1"
+
+  # ---- agents: one lane per agents/*/package.json, failing npm test = FAILED ----
+  printf '\n== agents self-test ==\n'
+  PASSED=0; FAILED=0; SKIPPED=0; FAILED_LANES=""; SKIPPED_LANES=""
+  local ag="$scratch_lanes/agents-root" pkg
+  mkdir -p "$ag/agents/red-agent" "$ag/agents/green-agent" "$ag/agents/no-manifest"
+  printf 'console.log(1)\n' > "$ag/agents/loose-script.js"
+  for pkg in red-agent green-agent; do
+    # A dependency-free lockfile, so `npm ci` succeeds offline.
+    printf '{"name":"%s","version":"0.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"%s","version":"0.0.0"}}}\n' \
+      "$pkg" "$pkg" > "$ag/agents/$pkg/package-lock.json"
+  done
+  # `build` leaves a marker, so the red agent also proves the chain STOPS at
+  # the failing test instead of building past it.
+  printf '{"name":"red-agent","version":"0.0.0","private":true,"scripts":{"typecheck":"exit 0","test":"echo planted agent test failure >&2; exit 7","build":"touch built.marker"}}\n' \
+    > "$ag/agents/red-agent/package.json"
+  printf '{"name":"green-agent","version":"0.0.0","private":true,"scripts":{"typecheck":"exit 0","test":"exit 0","build":"touch built.marker"}}\n' \
+    > "$ag/agents/green-agent/package.json"
+
+  npm_config_audit=false npm_config_fund=false npm_config_update_notifier=false \
+    run_agent_lanes "$ag" >/dev/null 2>&1
+
+  if have npm; then
+    assert_eq "agents FAILED" "$FAILED" "1"
+    assert_eq "agents PASSED" "$PASSED" "1"
+    case "$FAILED_LANES" in
+      *agents/red-agent*) printf '  ok   the agent with a failing npm test is FAILED by name\n' ;;
+      *) printf '  FAIL the failing agent is not named FAILED\n'; fails=$((fails + 1)) ;;
+    esac
+    if [ -f "$ag/agents/red-agent/built.marker" ]; then
+      printf '  FAIL the red agent built past its failing test\n'; fails=$((fails + 1))
+    else
+      printf '  ok   the red agent stopped at its failing test\n'
+    fi
+    if [ -f "$ag/agents/green-agent/built.marker" ]; then
+      printf '  ok   the green agent ran typecheck, test AND build\n'
+    else
+      printf '  FAIL the green agent never reached build\n'; fails=$((fails + 1))
+    fi
+    REQUIRE_ALL=0; summary >/dev/null 2>&1; rc=$?
+    assert_eq "exit status with a failing agent lane" "$rc" "1"
+  else
+    # Without npm the lanes must SKIP by name — never pass.
+    assert_eq "agents SKIPPED without npm" "$SKIPPED" "2"
+    assert_eq "agents PASSED without npm" "$PASSED" "0"
+    printf '  NOTE npm absent: the failing-agent control could not execute here\n'
+  fi
+
+  # ---- python resolution: .venv/bin/python preferred, sdks fallback, PYTHON_BIN override ----
+  printf '\n== python resolution self-test ==\n'
+  local pyroot="$scratch_lanes/pyroot"
+  mkdir -p "$pyroot/.venv/bin" "$pyroot/sdks/python/.venv/bin"
+  touch "$pyroot/.venv/bin/python" "$pyroot/sdks/python/.venv/bin/python"
+  chmod +x "$pyroot/.venv/bin/python" "$pyroot/sdks/python/.venv/bin/python"
+
+  local resolved
+  resolved="$(PYTHON_BIN="" resolve_python "$pyroot")"
+  assert_eq ".venv/bin/python preferred" "$resolved" "$pyroot/.venv/bin/python"
+
+  rm -f "$pyroot/.venv/bin/python"
+  resolved="$(PYTHON_BIN="" resolve_python "$pyroot")"
+  assert_eq "sdks/python/.venv/bin/python fallback" "$resolved" "$pyroot/sdks/python/.venv/bin/python"
+
+  resolved="$(PYTHON_BIN="/bin/sh" resolve_python "$pyroot")"
+  assert_eq "PYTHON_BIN override respected" "$resolved" "/bin/sh"
+
   if [ "$fails" -eq 0 ]; then
     printf '\nok: test-all.sh engine is honest about pass, fail and skip\n'
     return 0
@@ -416,27 +674,18 @@ self_test() {
   return 1
 }
 
-if [ "${1:-}" = "--self-test" ]; then
-  self_test
-  exit $?
-fi
-
 # ---------------------------------------------------------------------------
 # Preflight: resolve interpreters and SDK roots. NON-FATAL by design — an
 # unresolved one turns into a named SKIP, not a dead run.
 # ---------------------------------------------------------------------------
 
-if [ -z "${PYTHON_BIN:-}" ]; then
-  if command -v python3.13 >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python3.13)"
-  else
-    PYTHON_BIN="$(command -v python3 2>/dev/null || true)"
-  fi
-fi
-if [ -n "${PYTHON_BIN:-}" ] && [ ! -x "$PYTHON_BIN" ]; then
-  PYTHON_BIN=""
-fi
+PYTHON_BIN="$(resolve_python "$ROOT")"
 export PYTHON_BIN
+
+if [ "${1:-}" = "--self-test" ]; then
+  self_test
+  exit $?
+fi
 
 if [ -z "${JAVA_HOME:-}" ] && [ -d /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ]; then
   export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
@@ -489,7 +738,7 @@ run_lane "cross-SDK conformance" "python" \
 # widened tag pattern because the SDK path also appears a few lines below in the
 # pull_request filter. Without PyYAML the lane must SKIP by name, not silently
 # lose that check.
-run_lane "repository contract and catalog guards" "pysdk py:httpx2 py:openai pyfloor:openai py:pytest py:yaml git" \
+run_lane "repository contract and catalog guards" "$PY_GATE_REQS" \
   "cd '$ROOT' \
    && '$PYTHON_BIN' -m unittest tests/test_sdk_contract.py \
    && '$PYTHON_BIN' -m pytest -q tests/test_release_versions.py \
@@ -552,6 +801,14 @@ run_lane "Dart" "dart" \
 
 run_lane "R" "Rscript" \
   "cd '$ROOT/sdks/r' && Rscript -e 'testthat::test_local(\".\", reporter=\"summary\")'"
+
+# DISCOVERED repo gates. This MUST stay after every explicit lane: ownership is
+# read from the bodies already handed to run_lane, so an explicit lane added
+# below this line would run its gate a second time.
+run_discovered_gates "$ROOT" "$LANE_BODIES"
+
+# DISCOVERED agent packages.
+run_agent_lanes "$ROOT"
 
 summary
 exit $?

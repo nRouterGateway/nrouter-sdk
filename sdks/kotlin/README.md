@@ -124,8 +124,8 @@ held against this SDK by
 ## Errors
 
 Every refusal is a typed subclass of `NRouterError`, chosen from the gateway's
-stable `code` — not the HTTP status, which cannot separate the two 400s or the
-two 429s.
+stable `code` — not the HTTP status alone, which cannot separate multiple `400`, `402`
+or `429` conditions.
 
 ```kotlin
 try {
@@ -144,14 +144,14 @@ try {
 
 | Class | Code(s) | HTTP |
 |---|---|---|
-| `NRouterError.Request` | `invalid_request` | 400 |
+| `NRouterError.Request` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported` | 400 |
 | `NRouterError.GuardrailBlocked` | `guardrail_blocked` | 400 |
 | `NRouterError.Authentication` | `invalid_api_key` | 401 |
-| `NRouterError.Credit` | `insufficient_credits` | 402 |
+| `NRouterError.Credit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit` | 402 |
 | `NRouterError.NotFound` | `model_not_found` | 404 |
-| `NRouterError.RateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded` | 429 |
+| `NRouterError.RateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded` | 429 |
 | `NRouterError.Service` | `credit_check_failed`, `service_unavailable` | 503 |
-| `NRouterError.Other` | anything newer than this SDK | — |
+| `NRouterError.Other` | `model_denied_by_org`, `model_denied_by_team`, `model_denied_by_key`, anything newer than this SDK | 403 / — |
 | `NRouterError.Transport` | never reached the gateway | — |
 
 `isRetryable` is true only for `RateLimit`, `Service` and `Transport`. Every

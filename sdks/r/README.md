@@ -142,14 +142,14 @@ tryCatch(
 
 | Class | Code(s) | HTTP |
 |---|---|---|
-| `nrouter_request_error` | `invalid_request` | 400 |
+| `nrouter_request_error` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported` | 400 |
 | `nrouter_guardrail_blocked_error` | `guardrail_blocked` | 400 |
 | `nrouter_authentication_error` | `invalid_api_key` | 401 |
-| `nrouter_credit_error` | `insufficient_credits` | 402 |
+| `nrouter_credit_error` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit` | 402 |
 | `nrouter_not_found_error` | `model_not_found` | 404 |
-| `nrouter_rate_limit_error` | `rate_limit_exceeded`, `tpm_limit_exceeded` | 429 |
+| `nrouter_rate_limit_error` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded` | 429 |
 | `nrouter_service_error` | `credit_check_failed`, `service_unavailable` | 503 |
-| `nrouter_other_error` | anything newer than this SDK | — |
+| `nrouter_other_error` | `model_denied_by_org`, `model_denied_by_team`, `model_denied_by_key`, anything newer than this SDK | 403 / — |
 | `nrouter_transport_error` | never reached the gateway | — |
 
 Every one also carries `nrouter_error`, `error` and `condition`.

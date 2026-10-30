@@ -1,7 +1,7 @@
 {
   "name": "@nrouter_ai/video-prompt-generator",
   "version": "0.1.0",
-  "description": "A video prompt generator agent for AI video models.",
+  "description": "Generate production-ready prompts for AI video tools (Google Veo, Luma Dream Machine, Runway Gen-3, OpenAI Sora) through nRouter.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -18,22 +18,19 @@
   },
   "files": [
     "dist",
-    "bin",
+    "skills",
     "README.md",
-    "LICENSE",
-    "skills"
+    "LICENSE"
   ],
   "scripts": {
     "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "e2e": "npm run build && playwright test"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@nrouter_ai/sdk": "3.1.2"
+    "@nrouter_ai/sdk": "3.1.3"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.1",
     "@types/node": "22.18.0",
     "typescript": "5.9.2",
     "vitest": "3.2.4"

@@ -1,349 +1,359 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createSupportAgent } from '../src/agent.js';
-import type { nRouter } from '@nrouter_ai/sdk';
-import { nRouterGuardrailBlockedError } from '@nrouter_ai/sdk';
-import { SupportAgentError } from '../src/errors.js';
+import { readFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  nRouter,
+  nRouterAuthenticationError,
+  nRouterConfigurationError,
+  nRouterCreditError,
+  nRouterRateLimitError,
+  nRouterServiceError,
+} from '@nrouter_ai/sdk';
+import {
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_MODEL,
+  ImagePromptError,
+  ImagePromptInputError,
+  ImagePromptResponseError,
+  MAX_QUERY_LENGTH,
+  generateImagePrompt,
+  loadSystemPrompt,
+  type MessagesClient,
+} from '../src/index.js';
 
-vi.mock('../src/retrieval.js', () => ({ retrieve: vi.fn().mockResolvedValue([]) }));
-vi.mock('../src/confidence.js', () => ({ scoreConfidence: vi.fn().mockReturnValue({ level: 'high', score: 0.9 }) }));
-vi.mock('../src/prompt.js', () => ({ buildCitations: vi.fn().mockReturnValue([]), buildSystemPrompt: vi.fn().mockReturnValue('sys') }));
-vi.mock('../src/page-context.js', () => ({ sanitizePageContext: vi.fn().mockReturnValue(null) }));
-vi.mock('../src/gaps.js', () => ({ latestQuestion: vi.fn().mockReturnValue('Q'), normalizeQuestion: vi.fn().mockReturnValue('q') }));
-vi.mock('../src/tools.js', () => ({ runToolPhase: vi.fn().mockImplementation(async (c, m, e) => ({ messages: m, ranTools: false })) }));
-vi.mock('../src/web-search.js', () => ({ runWebSearch: vi.fn().mockResolvedValue([]) }));
-vi.mock('../src/client.js', () => ({
-  createClient: vi.fn(),
-  streamChat: vi.fn().mockImplementation(async (client, opts) => {
-    const res = await client.nr.stream(opts);
-    return { cost: res.meta.cost as any, chunks: res.chunks as any };
-  })
-}));
-vi.mock('../src/hooks.js', () => ({ callHook: vi.fn() }));
-vi.mock('../src/sse.js', () => ({
-  toSSE: vi.fn().mockReturnValue(new ReadableStream({
-    start(c) { c.enqueue(new TextEncoder().encode('[DONE]')); c.close(); }
-  }))
-}));
-vi.mock('../src/feedback.js', () => ({ validateFeedback: vi.fn().mockReturnValue({ rating: 'up' }) }));
+// Compile-time proof that the real SDK client satisfies the injectable seam:
+// if `nRouter['nr']['messages']` ever drifts from `MessagesClient`, typecheck fails.
+const realClientFits: nRouter extends MessagesClient ? true : false = true;
+void realClientFits;
 
-describe('SupportAgent', () => {
-  let fakeClient: nRouter;
-  let streamGenerator: any;
-  const fakeIndex = { version: 1 as const, embeddingModel: 't', dimensions: 2, createdAt: '2026', chunks: [] };
+const BRAND = readFileSync(new URL('../skills/brand.md', import.meta.url), 'utf8');
+const INSTRUCTIONS = readFileSync(new URL('../skills/instructions.md', import.meta.url), 'utf8');
+
+interface Call {
+  body: Record<string, unknown>;
+}
+
+function fakeClient(reply: unknown | (() => Promise<unknown>)): { client: MessagesClient; calls: Call[] } {
+  const calls: Call[] = [];
+  const client: MessagesClient = {
+    nr: {
+      async messages(body: Record<string, unknown>) {
+        calls.push({ body });
+        if (typeof reply === 'function') {
+          return { body: (await (reply as () => Promise<unknown>)()) as Record<string, unknown>, meta: {} };
+        }
+        return { body: reply as Record<string, unknown>, meta: {} };
+      },
+    },
+  };
+  return { client, calls };
+}
+
+const TEXT_REPLY = {
+  content: [{ type: 'text', text: 'A geometric obsidian gateway with mint light paths.' }],
+  stop_reason: 'end_turn',
+};
+
+function onlyCall(calls: Call[]): Record<string, unknown> {
+  expect(calls).toHaveLength(1);
+  const first = calls[0];
+  if (!first) throw new Error('no call recorded');
+  return first.body;
+}
+
+describe('generateImagePrompt', () => {
+  let savedModel: string | undefined;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    streamGenerator = async function* () {
-      yield 'token1';
-      yield 'token2';
-    };
-    fakeClient = {
-      nr: {
-        stream: vi.fn().mockImplementation(async () => {
-          return { meta: { cost: { costUsd: 0.05, status: 'exact' } }, chunks: streamGenerator() };
-        })
-      },
-      embeddings: {
-        create: vi.fn().mockResolvedValue({ data: [{ embedding: [1, 0] }] })
+    savedModel = process.env.NROUTER_MODEL;
+    delete process.env.NROUTER_MODEL;
+  });
+
+  afterEach(() => {
+    if (savedModel === undefined) delete process.env.NROUTER_MODEL;
+    else process.env.NROUTER_MODEL = savedModel;
+  });
+
+  it('returns the text of the reply', async () => {
+    const { client } = fakeClient(TEXT_REPLY);
+    await expect(generateImagePrompt({ query: 'routing hero' }, { client })).resolves.toBe(
+      'A geometric obsidian gateway with mint light paths.',
+    );
+  });
+
+  it('joins multiple text blocks and skips non-text blocks', async () => {
+    const { client } = fakeClient({
+      content: [
+        { type: 'thinking', thinking: 'internal' },
+        { type: 'text', text: 'First part.' },
+        { type: 'tool_use', id: 'x', name: 'y', input: {} },
+        { type: 'text', text: 'Second part.' },
+      ],
+    });
+    await expect(generateImagePrompt({ query: 'q' }, { client })).resolves.toBe('First part.\nSecond part.');
+  });
+
+  it('sends the brand rules AND the instructions in the system prompt', async () => {
+    const { client, calls } = fakeClient(TEXT_REPLY);
+    await generateImagePrompt({ query: 'q' }, { client });
+    const body = onlyCall(calls);
+    expect(typeof body.system).toBe('string');
+    const system = body.system as string;
+    expect(system).toContain(INSTRUCTIONS.trim());
+    expect(system).toContain(BRAND.trim());
+    // Brand invariants that must survive any tidy-up of the skill files.
+    expect(system).toContain('#90FCA6');
+    expect(system).toContain('#0a0a0b');
+    expect(system).toMatch(/NEVER as an AI model/);
+  });
+
+  it('sends the trimmed query as the only user message', async () => {
+    const { client, calls } = fakeClient(TEXT_REPLY);
+    await generateImagePrompt({ query: '  launch banner  ' }, { client });
+    expect(onlyCall(calls).messages).toEqual([{ role: 'user', content: 'launch banner' }]);
+  });
+
+  describe('model resolution', () => {
+    it('uses options.model first', async () => {
+      process.env.NROUTER_MODEL = 'env-model';
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await generateImagePrompt({ query: 'q', model: 'option-model' }, { client });
+      expect(onlyCall(calls).model).toBe('option-model');
+    });
+
+    it('falls back to NROUTER_MODEL', async () => {
+      process.env.NROUTER_MODEL = 'env-model';
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await generateImagePrompt({ query: 'q' }, { client });
+      expect(onlyCall(calls).model).toBe('env-model');
+    });
+
+    it('treats an empty NROUTER_MODEL as unset', async () => {
+      process.env.NROUTER_MODEL = '   ';
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await generateImagePrompt({ query: 'q' }, { client });
+      expect(onlyCall(calls).model).toBe(DEFAULT_MODEL);
+    });
+
+    it('falls back to DEFAULT_MODEL', async () => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await generateImagePrompt({ query: 'q' }, { client });
+      expect(onlyCall(calls).model).toBe(DEFAULT_MODEL);
+    });
+
+    it('rejects an empty options.model', async () => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await expect(generateImagePrompt({ query: 'q', model: ' ' }, { client })).rejects.toMatchObject({
+        name: 'ImagePromptInputError',
+        field: 'model',
+      });
+      expect(calls).toHaveLength(0);
+    });
+
+    it('rejects a non-string options.model', async () => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      const options = { query: 'q', model: 123 as unknown as string };
+      await expect(generateImagePrompt(options, { client })).rejects.toMatchObject({
+        name: 'ImagePromptInputError',
+        field: 'model',
+      });
+      expect(calls).toHaveLength(0);
+    });
+  });
+
+  describe('maxTokens', () => {
+    it('defaults to DEFAULT_MAX_TOKENS', async () => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await generateImagePrompt({ query: 'q' }, { client });
+      expect(onlyCall(calls).max_tokens).toBe(DEFAULT_MAX_TOKENS);
+    });
+
+    it('passes options.maxTokens through', async () => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await generateImagePrompt({ query: 'q', maxTokens: 256 }, { client });
+      expect(onlyCall(calls).max_tokens).toBe(256);
+    });
+
+    it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])('rejects maxTokens=%s', async (maxTokens) => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await expect(generateImagePrompt({ query: 'q', maxTokens }, { client })).rejects.toMatchObject({
+        name: 'ImagePromptInputError',
+        field: 'maxTokens',
+      });
+      expect(calls).toHaveLength(0);
+    });
+
+    it('rejects a non-number options.maxTokens', async () => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      const options = { query: 'q', maxTokens: '256' as unknown as number };
+      await expect(generateImagePrompt(options, { client })).rejects.toMatchObject({
+        name: 'ImagePromptInputError',
+        field: 'maxTokens',
+      });
+      expect(calls).toHaveLength(0);
+    });
+  });
+
+  describe('input validation', () => {
+    it.each(['', '   ', '\n\t'])('rejects blank query %j without calling the gateway', async (query) => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      const err = await generateImagePrompt({ query }, { client }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ImagePromptInputError);
+      expect(err).toBeInstanceOf(ImagePromptError);
+      expect((err as ImagePromptInputError).field).toBe('query');
+      expect(calls).toHaveLength(0);
+    });
+
+    it('rejects a non-string query from untyped callers', async () => {
+      const { client } = fakeClient(TEXT_REPLY);
+      const options = { query: 42 } as unknown as { query: string };
+      await expect(generateImagePrompt(options, { client })).rejects.toBeInstanceOf(ImagePromptInputError);
+    });
+
+    it('rejects null or undefined query from untyped callers', async () => {
+      const { client } = fakeClient(TEXT_REPLY);
+      const options = { query: null as unknown as string };
+      await expect(generateImagePrompt(options, { client })).rejects.toMatchObject({
+        name: 'ImagePromptInputError',
+        field: 'query',
+      });
+    });
+
+    it('accepts a query of exactly MAX_QUERY_LENGTH characters', async () => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await generateImagePrompt({ query: 'a'.repeat(MAX_QUERY_LENGTH) }, { client });
+      expect(calls).toHaveLength(1);
+    });
+
+    it('rejects a query longer than MAX_QUERY_LENGTH', async () => {
+      const { client, calls } = fakeClient(TEXT_REPLY);
+      await expect(
+        generateImagePrompt({ query: 'a'.repeat(MAX_QUERY_LENGTH + 1) }, { client }),
+      ).rejects.toMatchObject({ name: 'ImagePromptInputError', field: 'query' });
+      expect(calls).toHaveLength(0);
+    });
+  });
+
+  describe('empty responses', () => {
+    it.each([
+      ['no content array', {}],
+      ['empty content', { content: [] }],
+      ['only non-text blocks', { content: [{ type: 'tool_use', id: 'x', name: 'y', input: {} }] }],
+      ['blank text', { content: [{ type: 'text', text: '   ' }] }],
+      ['text that is not a string', { content: [{ type: 'text', text: 7 }] }],
+    ])('throws ImagePromptResponseError for %s', async (_label, reply) => {
+      const { client } = fakeClient(reply);
+      await expect(generateImagePrompt({ query: 'q' }, { client })).rejects.toBeInstanceOf(
+        ImagePromptResponseError,
+      );
+    });
+
+    it('reports stop_reason and request id on an empty response', async () => {
+      const client: MessagesClient = {
+        nr: {
+          async messages() {
+            return {
+              body: { content: [], stop_reason: 'max_tokens' },
+              meta: { requestId: 'req_123' },
+            };
+          },
+        },
+      };
+      const err = await generateImagePrompt({ query: 'q' }, { client }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ImagePromptResponseError);
+      expect((err as ImagePromptResponseError).stopReason).toBe('max_tokens');
+      expect((err as ImagePromptResponseError).requestId).toBe('req_123');
+      expect((err as Error).message).toContain('max_tokens');
+    });
+  });
+
+  describe('SDK errors', () => {
+    it('propagates an SDK error unchanged', async () => {
+      const sdkError = new nRouterRateLimitError('rate limited', { status: 429 });
+      const { client } = fakeClient(() => Promise.reject(sdkError));
+      const err = await generateImagePrompt({ query: 'q' }, { client }).catch((e: unknown) => e);
+      expect(err).toBe(sdkError);
+    });
+
+    it('propagates an authentication error unchanged', async () => {
+      const sdkError = new nRouterAuthenticationError('bad key', { status: 401 });
+      const { client } = fakeClient(() => Promise.reject(sdkError));
+      await expect(generateImagePrompt({ query: 'q' }, { client })).rejects.toBe(sdkError);
+    });
+
+    it('surfaces the SDK configuration error when no API key is available', async () => {
+      const savedKey = process.env.NROUTER_API_KEY;
+      delete process.env.NROUTER_API_KEY;
+      try {
+        await expect(generateImagePrompt({ query: 'q' })).rejects.toBeInstanceOf(nRouterConfigurationError);
+      } finally {
+        if (savedKey !== undefined) process.env.NROUTER_API_KEY = savedKey;
       }
-    } as unknown as nRouter;
-  });
-
-  it('event ORDER (confidence, citations, tokens, cost, done)', async () => {
-    const { scoreConfidence } = await import('../src/confidence.js');
-    vi.mocked(scoreConfidence).mockReturnValue({ level: 'high', score: 0.9 });
-    
-    const { buildCitations } = await import('../src/prompt.js');
-    vi.mocked(buildCitations).mockReturnValue([{ title: 'Doc', url: 'http' }]);
-
-    const agent = createSupportAgent({ client: fakeClient, model: 'm', knowledge: fakeIndex });
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    expect(events.map(e => e.type)).toEqual(['confidence', 'citations', 'token', 'token', 'cost', 'done']);
-    expect(events[0]).toMatchObject({ level: 'high', score: 0.9, webSearched: false });
-    expect(events[1]).toMatchObject({ citations: [{ title: 'Doc', url: 'http' }] });
-    expect(events[2]).toMatchObject({ text: 'token1' });
-  });
-
-  it('low confidence → onGap called, web search path', async () => {
-    const { scoreConfidence } = await import('../src/confidence.js');
-    vi.mocked(scoreConfidence).mockReturnValue({ level: 'low', score: 0.1 });
-    const { callHook } = await import('../src/hooks.js');
-
-    const agent = createSupportAgent({ 
-      client: fakeClient, 
-      model: 'm', 
-      knowledge: fakeIndex,
-      webSearch: { label: 'Google', search: vi.fn() },
-      hooks: { onGap: vi.fn() }
-    });
-    
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    const types = events.map(e => e.type);
-    expect(types).toContain('tool_call');
-    expect(events.find(e => e.type === 'tool_call' && e.status === 'running')).toBeDefined();
-    
-    expect(callHook).toHaveBeenCalledWith(expect.anything(), 'onGap', expect.objectContaining({ confidence: 'low', webSearched: true }));
-  });
-
-  it('guardrail retry once', async () => {
-    const { streamChat } = await import('../src/client.js');
-    const { scoreConfidence } = await import('../src/confidence.js');
-    vi.mocked(scoreConfidence).mockReturnValue({ level: 'low', score: 0.1 });
-    
-    let calls = 0;
-    vi.mocked(streamChat).mockImplementation(async (client, opts) => {
-       calls++;
-       if (calls === 1) throw new nRouterGuardrailBlockedError('blocked', {} as any);
-       const chunks = async function*() { yield 'retry_ok'; }();
-       return { cost: { costUsd: null, status: 'unpriced' }, chunks };
     });
 
-    const agent = createSupportAgent({ 
-      client: fakeClient, 
-      model: 'm', 
-      knowledge: fakeIndex,
-      webSearch: { label: 'B', search: vi.fn() }
-    });
-    
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    expect(calls).toBe(2);
-    expect(events.find(e => e.type === 'token' && e.text === 'retry_ok')).toBeDefined();
-    expect(events.map(e => e.type)).toContain('done');
-    expect(events.map(e => e.type)).not.toContain('error');
-  });
-
-  it('error event never contains the api key', async () => {
-    const { streamChat } = await import('../src/client.js');
-    vi.mocked(streamChat).mockRejectedValue(new SupportAgentError('upstream_error', 'failed sk-nrouter-secret-key'));
-
-    const agent = createSupportAgent({ 
-      apiKey: 'sk-nrouter-secret-key',
-      model: 'm', 
-      knowledge: fakeIndex 
-    });
-    
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    const errEvent = events.find(e => e.type === 'error') as any;
-    expect(errEvent).toBeDefined();
-    expect(errEvent.message).not.toContain('sk-nrouter-secret-key');
-    expect(errEvent.message).toContain('[redacted]');
-  });
-
-  it('abort → aborted + done', async () => {
-    const { streamChat } = await import('../src/client.js');
-    vi.mocked(streamChat).mockImplementation(async () => {
-       const err = new Error('abort');
-       err.name = 'AbortError';
-       throw err;
-    });
-
-    const agent = createSupportAgent({ client: fakeClient, model: 'm', knowledge: fakeIndex });
-    
-    const events = [];
-    const ac = new AbortController();
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }], signal: ac.signal })) {
-      events.push(ev);
-    }
-    
-    expect(events.map(e => e.type)).toEqual(['confidence', 'citations', 'error', 'done']);
-    expect(events[2]).toMatchObject({ code: 'aborted' });
-  });
-
-  it('DOUBLE BILLED CALL: tools configured → exactly ONE model call (streamChat skipped)', async () => {
-    const { runToolPhase } = await import('../src/tools.js');
-    vi.mocked(runToolPhase).mockResolvedValue({
-      messages: [{ role: 'assistant', content: 'tool answer' }] as any,
-      ranTools: false,
-      text: 'tool answer',
-      cost: { costUsd: 0.1, status: 'exact' }
-    });
-    const { streamChat } = await import('../src/client.js');
-    vi.mocked(streamChat).mockClear();
-
-    const agent = createSupportAgent({ 
-      client: fakeClient, 
-      model: 'm', 
-      knowledge: fakeIndex,
-      tools: [{ definition: { type: 'function', function: { name: 't1' } }, execute: vi.fn() }] as any
-    });
-    
-    const events = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] })) {
-      events.push(ev);
-    }
-    
-    expect(streamChat).not.toHaveBeenCalled();
-    expect(events.find(e => e.type === 'token' && e.text === 'tool answer')).toBeDefined();
-  });
-
-  it('TRUSTED CONTEXT: req body with audiences must NOT unlock chunk; ctx.audiences must', async () => {
-    const { retrieve } = await import('../src/retrieval.js');
-    vi.mocked(retrieve).mockClear();
-    
-    const agent = createSupportAgent({ client: fakeClient, model: 'm', knowledge: fakeIndex });
-    
-    // Pass audiences in untrusted req body
-    const reqWithAudiences = { messages: [{ role: 'user', content: 'hi' }], audiences: ['gated'] };
-    for await (const ev of agent.chat(reqWithAudiences, {})) {
-       // iterate
-    }
-    
-    // The retrieve call should NOT have 'gated' in its audiences options
-    expect(retrieve).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ audiences: undefined, signal: undefined }));
-    
-    vi.mocked(retrieve).mockClear();
-    
-    // Pass audiences in trusted ctx
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'hi' }] }, { audiences: ['gated'] })) {
-       // iterate
-    }
-    
-    // The retrieve call MUST have 'gated' in its audiences options
-    expect(retrieve).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ audiences: ['gated'] }));
-  });
-
-  it('chatSSE ends with [DONE]', async () => {
-    const agent = createSupportAgent({ client: fakeClient, model: 'm', knowledge: fakeIndex });
-    const stream = agent.chatSSE({ messages: [{ role: 'user', content: 'hi' }] });
-    const reader = stream.getReader();
-    const result = await reader.read();
-    expect(new TextDecoder().decode(result.value)).toBe('[DONE]');
-  });
-
-  it('MEMORY DUPLICATION: two consecutive turns store holds exactly [user1, assistant1, user2, assistant2]', async () => {
-    const { createArrayStore } = await import('@nrouter_ai/sdk');
-    const store = createArrayStore();
-    
-    // We must unmock tools.js and client.js enough so it doesn't crash?
-    const { streamChat } = await import('../src/client.js');
-    vi.mocked(streamChat).mockImplementation(async (client, opts) => {
-      const res = await client.nr.stream(opts);
-      return { cost: res.meta.cost as any, chunks: res.chunks as any };
-    });
-    const agent = createSupportAgent({ 
-      client: fakeClient, 
-      model: 'm', 
-      knowledge: fakeIndex,
-      memoryStore: () => store
-    });
-    
-    // Turn 1
-    const events1 = [];
-    for await (const ev of agent.chat({ messages: [{ role: 'user', content: 'user1' }] }, { sessionId: 'session1' })) {
-       events1.push(ev);
-    }
-    
-    // Turn 2
-    // A real client would send the full conversation, so messages is [user1, assistant1, user2].
-    const events2 = [];
-    for await (const ev of agent.chat({ 
-       messages: [
-         { role: 'user', content: 'user1' }, 
-         { role: 'assistant', content: 'token1token2' }, 
-         { role: 'user', content: 'user2' }
-       ] 
-    }, { sessionId: 'session1' })) {
-       events2.push(ev);
-    }
-    console.log(JSON.stringify(events1));
-    console.log(JSON.stringify(events2));
-    const msgs = await store.load();
-    expect(msgs.map(m => m.content)).toEqual(['user1', 'token1token2', 'user2', 'token1token2']);
-  });
-
-  it('PII MASKING: masks messages to runToolPhase and passes maskPii to streamChat', async () => {
-    const { runToolPhase } = await import('../src/tools.js');
-    let capturedToolMessages: any[] = [];
-    vi.mocked(runToolPhase).mockImplementation(async (cfg, msgs, cb) => {
-      capturedToolMessages = msgs;
-      return { messages: msgs, ranTools: false };
-    });
-
-    const { streamChat } = await import('../src/client.js');
-    let capturedStreamOpts: any = null;
-    vi.mocked(streamChat).mockImplementation(async (client, opts) => {
-      capturedStreamOpts = opts;
-      async function* chunks() { yield 'answer'; }
-      return { cost: { costUsd: null, status: 'unpriced' }, chunks: chunks() };
-    });
-
-    const agent = createSupportAgent({
-      client: fakeClient,
-      model: 'm',
-      knowledge: fakeIndex,
-      maskPii: true
-    });
-
-    for await (const _ of agent.chat({
-      messages: [{ role: 'user', content: 'Contact me at admin@corp.com or 555-123-4567' }]
-    })) {
-      // iterate
-    }
-
-    // runToolPhase received masked messages
-    const userMsgInTool = capturedToolMessages.find(m => m.role === 'user');
-    expect(userMsgInTool?.content).toBe('Contact me at [email] or [phone]');
-
-    // streamChat received maskPii: true
-    expect(capturedStreamOpts.maskPii).toBe(true);
-  });
-
-  it('PII MASKING: masks multi-part array content in tool phase', async () => {
-    const { runToolPhase } = await import('../src/tools.js');
-    let capturedToolMessages: any[] = [];
-    vi.mocked(runToolPhase).mockImplementation(async (cfg, msgs, cb) => {
-      capturedToolMessages = msgs;
-      return { messages: msgs, ranTools: false };
-    });
-
-    const { createArrayStore } = await import('@nrouter_ai/sdk');
-    const store = createArrayStore([
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'my email is user@domain.com' },
-          { type: 'image_url', image_url: { url: 'https://example.com/img.png' } }
-        ] as any
+    it('passes apiKey and baseUrl to the SDK client (rejected offline by its constructor)', async () => {
+      const savedKey = process.env.NROUTER_API_KEY;
+      delete process.env.NROUTER_API_KEY;
+      try {
+        // apiKey reaches the client: otherwise the SDK would report a missing key.
+        // baseUrl reaches the client as baseURL: the SDK refuses a non-http(s) scheme.
+        const err = await generateImagePrompt({
+          query: 'q',
+          apiKey: 'sk-nrouter-offline-test',
+          baseUrl: 'ftp://gateway.example.com',
+        }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(nRouterConfigurationError);
+        expect((err as Error).message).toMatch(/scheme/);
+        expect((err as Error).message).not.toContain('offline-test');
+      } finally {
+        if (savedKey !== undefined) process.env.NROUTER_API_KEY = savedKey;
       }
-    ]);
-
-    const agent = createSupportAgent({
-      client: fakeClient,
-      model: 'm',
-      knowledge: fakeIndex,
-      maskPii: true,
-      memoryStore: () => store
     });
 
-    for await (const _ of agent.chat({
-      messages: [{ role: 'user', content: 'hello' }]
-    }, { sessionId: 'sess-1' })) {
-      // iterate
-    }
+    it('propagates a credit error unchanged', async () => {
+      const sdkError = new nRouterCreditError('insufficient funds', { status: 402 });
+      const { client } = fakeClient(() => Promise.reject(sdkError));
+      await expect(generateImagePrompt({ query: 'q' }, { client })).rejects.toBe(sdkError);
+    });
 
-    const userMsg = capturedToolMessages.find(m => Array.isArray(m.content));
-    expect(userMsg?.content).toEqual([
-      { type: 'text', text: 'my email is [email]' },
-      { type: 'image_url', image_url: { url: 'https://example.com/img.png' } }
-    ]);
+    it('propagates a 500 service error unchanged', async () => {
+      const sdkError = new nRouterServiceError('internal gateway failure', { status: 500 });
+      const { client } = fakeClient(() => Promise.reject(sdkError));
+      await expect(generateImagePrompt({ query: 'q' }, { client })).rejects.toBe(sdkError);
+    });
+
+    it('never puts the API key in an error message', async () => {
+      const apiKey = 'not-a-valid-key-SECRET-VALUE';
+      const err = await generateImagePrompt({ query: 'q', apiKey }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).not.toContain('SECRET-VALUE');
+    });
   });
 });
 
+describe('loadSystemPrompt', () => {
+  it('loads and combines instructions and brand rules in order', async () => {
+    const prompt = await loadSystemPrompt();
+    expect(prompt).toContain(INSTRUCTIONS.trim());
+    expect(prompt).toContain(BRAND.trim());
+    expect(prompt.indexOf(INSTRUCTIONS.trim())).toBeLessThan(prompt.indexOf(BRAND.trim()));
+  });
+});
 
+describe('error classes', () => {
+  it('ImagePromptError sets name and preserves cause', () => {
+    const cause = new Error('root cause');
+    const err = new ImagePromptError('failed', { cause });
+    expect(err.name).toBe('ImagePromptError');
+    expect(err.message).toBe('failed');
+    expect(err.cause).toBe(cause);
+    expect(err).toBeInstanceOf(Error);
+  });
 
+  it('ImagePromptResponseError defaults requestId and stopReason to null', () => {
+    const err = new ImagePromptResponseError('empty');
+    expect(err.name).toBe('ImagePromptResponseError');
+    expect(err.requestId).toBeNull();
+    expect(err.stopReason).toBeNull();
+    expect(err).toBeInstanceOf(ImagePromptError);
+  });
+});

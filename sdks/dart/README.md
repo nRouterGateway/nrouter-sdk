@@ -126,8 +126,8 @@ it becomes a false claim of exhaustiveness rather than a stale number.
 ## Errors
 
 Every refusal is a subclass of the sealed `NRouterError`, chosen from the
-gateway's stable `code` — not the HTTP status, which cannot separate the two
-400s or the two 429s. Because it is sealed, a `switch` over it is exhaustive and
+gateway's stable `code` — not the HTTP status alone, which cannot separate multiple
+`400`, `402` or `429` conditions. Because it is sealed, a `switch` over it is exhaustive and
 the analyzer tells you when a new case appears.
 
 ```dart
@@ -147,14 +147,14 @@ try {
 
 | Type | Code(s) | HTTP |
 |---|---|---|
-| `NRouterRequestError` | `invalid_request` | 400 |
+| `NRouterRequestError` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported` | 400 |
 | `NRouterGuardrailBlockedError` | `guardrail_blocked` | 400 |
 | `NRouterAuthenticationError` | `invalid_api_key` | 401 |
-| `NRouterCreditError` | `insufficient_credits` | 402 |
+| `NRouterCreditError` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit` | 402 |
 | `NRouterNotFoundError` | `model_not_found` | 404 |
-| `NRouterRateLimitError` | `rate_limit_exceeded`, `tpm_limit_exceeded` | 429 |
+| `NRouterRateLimitError` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded` | 429 |
 | `NRouterServiceError` | `credit_check_failed`, `service_unavailable` | 503 |
-| `NRouterOtherError` | anything newer than this SDK | — |
+| `NRouterOtherError` | `model_denied_by_org`, `model_denied_by_team`, `model_denied_by_key`, anything newer than this SDK | 403 / — |
 | `NRouterTransportError` | never reached the gateway | — |
 
 `isRetryable` is true only for rate-limit, service and transport failures.

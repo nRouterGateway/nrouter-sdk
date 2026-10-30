@@ -12,7 +12,10 @@
     "rootDir": ".",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@nrouter_ai/image-prompt-generator": ["./src/index.ts"]
+    }
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "examples"]
 }
