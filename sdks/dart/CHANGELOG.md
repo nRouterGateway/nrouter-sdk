@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.4
+
+- Tracks the coordinated 3.1.4 nRouter SDK release.
+- Added `nrouter/promo` and `nrouter/hack` pool routes, four pot refusal error codes, and `model_denied_by_*` policy refusal documentation.
+- Unified `retry_after` on service errors (`NRouterServiceError`).
+
 ## 3.1.3
 
 - Tracks the coordinated 3.1.3 nRouter SDK release.

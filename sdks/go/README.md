@@ -13,7 +13,7 @@ audio, images and video.
 ## Installation
 
 ```bash
-go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.2
+go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.4
 ```
 
 ## TypeSafe Jev System One

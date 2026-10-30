@@ -16,7 +16,7 @@ cd sdks/kotlin
 ```kotlin
 repositories { mavenLocal() }
 dependencies {
-    implementation("ai.nrouter:nrouter-sdk-kotlin:3.1.2")
+    implementation("ai.nrouter:nrouter-sdk-kotlin:3.1.4")
 }
 ```
 

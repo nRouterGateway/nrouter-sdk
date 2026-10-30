@@ -9,6 +9,51 @@ Dates are the registry upload date, which is the only date a consumer can
 observe. Versions are immutable once published; nothing here is ever rewritten
 to correct a release, only appended to.
 
+## [3.1.4] - 2026-10-30
+
+- Coordinated release 3.1.4 across all ten SDKs.
+- **Dedicated Pool Routes & Pot Refusals (`nrouter/promo`, `nrouter/hack`)**:
+  - Added support for promotional and hackathon credit pool selection routes (`nrouter/promo`, `nrouter/hack`). Promotional credit is spent exclusively through `nrouter/promo` and hackathon credit through `nrouter/hack`; neither route draws from prepaid credits or plan allowances. Requests naming any other model never draw promotional or hackathon credit.
+  - Added and mapped the four pot refusal error codes across all 10 SDKs:
+    - `insufficient_promo_credit` (HTTP 402, `nRouterCreditError`): Available promotional credit cannot cover the request's hold. Refused before provider egress ($0 reserved, $0 spent).
+    - `insufficient_hack_credit` (HTTP 402, `nRouterCreditError`): Available hackathon credit cannot cover the request's hold. Refused before provider egress ($0 reserved, $0 spent).
+    - `pot_spend_limit_exceeded` (HTTP 429, `nRouterRateLimitError`): Request would take organization spend past configured UTC calendar windows (hourly, daily, weekly, monthly).
+    - `pot_route_feature_unsupported` (HTTP 400, `nRouterRequestError`): Request asked for features unsupported on pot routes (web search, multiple completions `n > 1`, or tool-billed features).
+  - Updated `x-nr-funding-source` response header values to include `"promo"` and `"hack"` alongside `"allowance"` and `"credits"`.
+- **Optimization Strategy & Policy Access Refusals**:
+  - Added `nrouter_optimize` option (`"quality"` | `"cost"`) for `nrouter/auto` requests, with strongly typed options builders and local validation in JavaScript, Python, Go, and Rust.
+  - Supported per-request `nrouter_fallbacks` on `nrouter/auto`, allowing callers to supply an explicit fallback chain of up to 4 models that overrides the server-chosen pool.
+  - Added and documented the three HTTP 403 policy refusal codes across all 10 SDKs (preserved on the base `nRouterError` class in JavaScript/Python and the `Other` variant in Java, Kotlin, Android, Go, Rust, Swift, Dart, and R):
+    - `model_denied_by_org` (HTTP 403): Model is prohibited by organization-level policy. Deny lists take absolute precedence over allow lists and strip the model from `nrouter/auto`, `nrouter/promo`, and `nrouter/hack` candidate pools; refused before provider egress.
+    - `model_denied_by_team` (HTTP 403): Model is prohibited by team-level policy.
+    - `model_denied_by_key` (HTTP 403): Model is prohibited by virtual key policy.
+- **Transport Reliability & Options Conformance**:
+  - Unified `retry_after` on service errors (`nRouterServiceError`) across Python, Kotlin, Swift, and Dart for consistent backoff evaluation on transient gateway refusals.
+  - Hardened transport retryable classification (`is_retryable()`) in Python and other SDKs to treat low-level connection and timeout errors (`ConnectionError`, `TimeoutError`, httpx `TransportError`, `APIConnectionError`, `APITimeoutError`) as retryable alongside transient HTTP statuses (408, 425, 429, 502, 503, 504), while preserving non-retryable invariants (aborted operations, configuration errors, response too large).
+  - Achieved full request options conformance in the Rust SDK (`sdks/rust/src/options.rs`), adding `nrouter_fallbacks` (max 4), `nrouter_guardrails` (max 8), and `nrouter_optimize` to `FeatureOptions` and extra body generation; removed Rust's temporary builder exemption in `check_conformance.py`.
+- **Documentation & Spec Parity (All 23 Error Codes)**:
+  - Synchronized documentation across all 10 SDK READMEs with complete reference tables mapping all 23 gateway error codes to their canonical HTTP status codes and typed exception classes.
+  - Clarified that `rate_limit_exceeded` (HTTP 429) covers RPM, TPM, RPS, and RPD limits as well as sub-monthly allowance windows (not RPM alone).
+  - Clarified `plan_required` and allowance refusal semantics: pay-as-you-go organizations use credits with 0% platform fee and do not receive `plan_required`; monthly allowance exhaustion returns 402 `plan_allowance_exhausted`, while sub-monthly windows return 429 `rate_limit_exceeded` with `Retry-After`.
+  - Added documentation and runnable examples for TypeSafe Jev System One decision models, deprecation headers (`x-nr-model-deprecated`, `x-nr-deprecation-notice`), and two-mode routing (Direct model access vs `nrouter/auto`).
+- **Rebuilt First-Party SDK Agents & Automated Gate Coverage**:
+  - Rebuilt all three first-party SDK agents (`image-prompt-generator`, `video-prompt-generator`, `social-media-content-generator`) with streamlined architectures, isolated prompt skills (`skills/brand.md`, `skills/instructions.md`), runnable examples (`examples/basic.ts`), and typed error handling (`src/errors.ts`).
+  - Removed obsolete Playwright scaffolding, mock flags, and duplicate test fixtures across agent directories.
+  - Added comprehensive automated contract and release gate coverage (`tests/test_agents_contract.py`) and wired agent suites into `scripts/test-all.sh`.
+- **Dependency Security Updates**:
+  - Upgraded `Guava` to `33.7.2` on the Android test classpath (`sdks/android/build.gradle.kts`, `gradle.lockfile`).
+  - Upgraded `Tokio` to `1.53.3` in the Rust SDK (`sdks/rust/Cargo.lock`).
+  - Upgraded `rustls-webpki` to `0.103.16` and `webpki-root-certs` to `1.0.10` in the Rust SDK.
+  - Upgraded `rustls` to `0.23.46` in the Rust SDK addressing `RUSTSEC-2026-0346..0349`.
+  - Upgraded `jackson-databind` to `2.22.3` in the Java SDK resolving published CVEs.
+  - Documented unreachable `block-buffer` advisory until 2027-01-29 in `sdks/rust/osv-scanner.toml`.
+
+## Coordinated SDK release — 3.1.3 — 2026-10-15
+
+- Coordinated release 3.1.3 across all ten SDKs.
+- Synchronized OpenAPI spec contract and response header metadata (`x-nr-funding-source`, `x-nr-allowance-reset`, `x-nr-model-deprecated`, `x-nr-deprecation-notice`).
+- Added initial `nrouter/promo` and `nrouter/hack` route aliases, `nrouter_optimize` option on `nrouter/auto`, and error-code mappings across all 10 SDKs.
+
 ## Coordinated SDK release — 3.1.2 — 2026-09-10
 
 - Coordinated release 3.1.2 across all ten SDKs.

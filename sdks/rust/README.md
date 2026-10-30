@@ -15,7 +15,7 @@ Add `nrouter` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-nrouter = "3.1.2"
+nrouter = "3.1.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 

@@ -17,7 +17,7 @@ Or specify directly in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  nrouter: ^3.1.2
+  nrouter: ^3.1.4
 ```
 
 For development from a local repository checkout:
