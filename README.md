@@ -67,11 +67,9 @@ The conformance gate derives and compares every manifest to the canonical
 version in `spec/nrouter-sdk-spec.json`; release metadata cannot drift silently.
 
 
-One API key for models across six provider clouds — Alibaba US, OpenAI, AWS Bedrock, Azure Foundry, Google Vertex AI and Anthropic. nRouter serves the OpenAI wire format and Anthropic's Messages API natively, plus embeddings, audio, images and video.
+One API key for models across six provider clouds — Alibaba US, OpenAI, AWS Bedrock, Azure Foundry, Google Vertex AI and Anthropic. nRouter serves OpenAI and Anthropic wires natively, alongside embeddings, audio, images, and video.
 
-One key. One bill. The live multi-provider catalog. Guardrails, prompt templates, and cost
-tracking built in. Browse the exact models available now at
-[nrouter.ai/api/public/models](https://nrouter.ai/api/public/models).
+Unified billing across the live multi-provider catalog with built-in guardrails, prompt templates, and cost tracking. Browse available models at [nrouter.ai/api/public/models](https://nrouter.ai/api/public/models).
 
 ### The model decides the route — a Claude id is not callable on every endpoint
 
