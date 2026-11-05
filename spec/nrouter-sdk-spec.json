@@ -5,16 +5,16 @@
   "env_var": "NROUTER_API_KEY",
   "selection_routes": {
     "nrouter/auto": {
-      "funded_by": "credits or the plan's usage allowance",
-      "description": "nRouter chooses the model for the task from the models available for automatic routing."
+      "funded_by": "subscription plan usage allowance first when active, then prepaid wallet credits at the served model's exact list price",
+      "description": "nRouter chooses the model for the task from the models available for automatic routing. Draws from the organization's subscription plan usage allowance first when an active plan period exists (x-nr-funding-source: allowance), and falls back to prepaid wallet credits at the served model's exact list price (x-nr-funding-source: credits) for pay-as-you-go (PAYG) or post-allowance organizations. Pay-as-you-go organizations are never refused with 402 plan_required. Promo and Hack are direct promotional/hackathon models that draw from promotional/event pots first and fall back to prepaid credits."
     },
     "nrouter/promo": {
-      "funded_by": "promotional credit only",
-      "description": "nRouter chooses the model from the promotional model set and charges the request to the organization's promotional credit, never to prepaid credits or a plan allowance. Promotional credit is spent only through this route: a request naming any other model, nrouter/auto included, never draws it. Spend is capped per organization by UTC windows set by nRouter (by default hourly none, daily $1, weekly $7, monthly $30; a week starts Monday 00:00 UTC). An empty balance is refused 402 insufficient_promo_credit and a used-up window 429 pot_spend_limit_exceeded, both before any provider egress. Text wires only (/v1/chat/completions, /v1/completions, /v1/messages, /v1/responses); response caching is off on this route, and web search, n > 1 and tool-billed features are refused 400 pot_route_feature_unsupported. x-nr-funding-source is promo."
+      "funded_by": "promotional credit first, then prepaid wallet credits",
+      "description": "Promo-labeled models are direct promotional models that draw from the organization's promotional credit pot first (x-nr-funding-source: promo) within UTC spend windows set by nRouter (by default hourly none, daily $1, weekly $7, monthly $30; a week starts Monday 00:00 UTC), and fall back to prepaid wallet credits at the served model's exact list price when available. Promotional credit has no cash value and is spent only on promo-labeled models; nrouter/auto never draws from it. When neither promotional credit nor prepaid credits can cover the hold, the request is refused 402 insufficient_promo_credit; when a promo spend window is exhausted with no prepaid credits to overflow into, it is refused 429 pot_spend_limit_exceeded, both before any provider egress."
     },
     "nrouter/hack": {
-      "funded_by": "hackathon credit only",
-      "description": "nRouter chooses the model from the hackathon model set and charges the request to the organization's hackathon credit, never to prepaid credits or a plan allowance. Hackathon credit is spent only through this route. Same spend windows as nrouter/promo (by default hourly none, daily $1, weekly $7, monthly $30, UTC). An empty balance is refused 402 insufficient_hack_credit and a used-up window 429 pot_spend_limit_exceeded, both before any provider egress. Text wires only; response caching is off, and web search, n > 1 and tool-billed features are refused 400 pot_route_feature_unsupported. x-nr-funding-source is hack."
+      "funded_by": "hackathon credit first, then prepaid wallet credits",
+      "description": "Hack-labeled models are direct hackathon models that draw from the organization's hackathon credit pot first (x-nr-funding-source: hack) within UTC spend windows set by nRouter (by default hourly none, daily $1, weekly $7, monthly $30; a week starts Monday 00:00 UTC), and fall back to prepaid wallet credits at the served model's exact list price when available. Hackathon credit has no cash value and is spent only on hack-labeled models; nrouter/auto never draws from it. When neither hackathon credit nor prepaid credits can cover the hold, the request is refused 402 insufficient_hack_credit; when a hack spend window is exhausted with no prepaid credits to overflow into, it is refused 429 pot_spend_limit_exceeded, both before any provider egress."
     }
   },
   "response_headers": {
@@ -79,7 +79,7 @@
     },
     "x-nr-limit-source": {
       "type": "string",
-      "description": "Limit source on 429 and 402 responses; pot_window names a rolling spend-window limit on nrouter/promo or nrouter/hack",
+      "description": "Limit source on 429 and 402 responses; pot_window names a rolling spend-window limit on promo or hack pots",
       "always": false,
       "values": [
         "key",
@@ -257,7 +257,7 @@
     },
     "no_code_field": false,
     "code_optional": true,
-    "description": "A refusal body always carries `error.type` and `error.message`, and carries `error.code` only where the gateway can name one of the keys under `errors` — that table is the whole set, and it spans refusals at every status, for example a guardrail refusal at either end, a guardrail-capacity 503, the 402 budget refusals, and request-shape 400s such as `input_too_large`, `fallback_not_allowed`, `guardrail_not_found` and `invalid_request`. It is ABSENT elsewhere rather than invented, because a code outside this spec is a code no client's table contains. Classify on `code` when present, then on `type`, then on the HTTP status. Never classify on `message`: it is prose written for a person and it changes.",
+    "description": "A refusal body always carries `error.type` and `error.message`, and carries `error.code` only where the gateway can name one of the keys under `errors` — that table is the whole set, and it spans refusals at every status, for example a guardrail refusal at either end, a guardrail-capacity 503, the 402 budget refusals, and request-shape 400s such as `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported` and `invalid_request`. It is ABSENT elsewhere rather than invented, because a code outside this spec is a code no client's table contains. Classify on `code` when present, then on `type`, then on the HTTP status. Never classify on `message`: it is prose written for a person and it changes.",
     "type_values": {
       "gateway_error": "The gateway's own error type for a refusal that carries no more specific type — authentication, credits, model, rate limit. The HTTP status is the discriminator.",
       "guardrail_blocked": "A guardrail refused this request: the PROMPT was refused pre-call (HTTP 400), or an OUTPUT guardrail withheld an otherwise successful provider response (HTTP 400, or a terminal SSE error frame inside a 200 on a stream). One `type` for both ends, so a client branches once.",
@@ -385,7 +385,7 @@
     "image_input_unsupported": {
       "http": 400,
       "class": "nRouterRequestError",
-      "description": "The request to nrouter/auto includes an image, and no model available for automatic routing on this endpoint accepts image input. Refused before any provider egress, so nothing was reserved and nothing was spent. Permanent for this body: remove the image or name a model that accepts images."
+      "description": "The request to nrouter/auto (on /v1/chat/completions or another multimodal text wire) includes an image, and no model available for automatic routing on this endpoint accepts image input. Refused before any provider egress, so nothing was reserved and nothing was spent. Permanent for this body: remove the image or name a model that accepts images."
     }
   },
   "supported_endpoints": [
@@ -591,7 +591,7 @@
     },
     "nrouter_model": {
       "type": "string",
-      "description": "The model actually served: the model named in the request, a fallback you configured, or the model nrouter/auto, nrouter/promo or nrouter/hack chose."
+      "description": "The model actually served: the model named in the request, a fallback you configured, or the model nrouter/auto chose."
     },
     "nrouter_routing": {
       "type": "object",
