@@ -82,17 +82,17 @@ Python 3 only — it greps SDK source text, so a missing toolchain never reads a
 
 ### Curl proof harness — what the wire actually answers
 
-`scripts/curl_health_checks/` (its `README.md` is authoritative) is the only contract proof in this repo.
+`nrouter-sdk/scripts/curl_health_checks/` (its `README.md` is authoritative) is the only contract proof in this repo.
 
 ```bash
-python3 scripts/curl_health_checks/run_all.py --self-test            # offline, proves checks bite
+python3 nrouter-sdk/scripts/curl_health_checks/run_all.py --self-test            # offline, proves checks bite
 export NROUTER_API_KEY="sk-nrouter-..."
-python3 scripts/curl_health_checks/run_all.py --route /messages --model <a model this key may use>
-python3 scripts/curl_health_checks/run_all.py --quick                # sampled
-python3 scripts/curl_health_checks/run_all.py --json > report.json   # stdout is one document
+python3 nrouter-sdk/scripts/curl_health_checks/run_all.py --route /messages --model <a model this key may use>
+python3 nrouter-sdk/scripts/curl_health_checks/run_all.py --quick                # sampled
+python3 nrouter-sdk/scripts/curl_health_checks/run_all.py --json > report.json   # stdout is one document
 ```
 
-- Modules (`ls scripts/curl_health_checks/*_curl.py`) run standalone; `fallbacks_curl`, `guardrails_request_curl`, `cache_curl` pin the body options; `contract_curl` diffs the live wire against the spec.
+- Modules (`ls nrouter-sdk/scripts/curl_health_checks/*_curl.py`) run standalone; `fallbacks_curl`, `guardrails_request_curl`, `cache_curl` pin the body options; `contract_curl` diffs the live wire against the spec.
 - **Only `PASS` passes**; `NOT-CONFIGURED` / `NOT-EVALUATED` make the run PARTIAL, never release evidence.
 - Key only from `NROUTER_API_KEY` (or `--api-key`, which leaks to history); no credentials-file fallback.
 - Pass a `--route` (and `--fallback-model`) the key may use, or you test key policy, not the gateway.
