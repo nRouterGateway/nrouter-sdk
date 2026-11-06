@@ -5,9 +5,10 @@ Skills: `nrouter-sdk`, `deploy-nrouter-sdk` (`/deploy-nrouter-sdk`).
 
 ## Architecture & Contract (Rule #14)
 - **Ten client SDKs (`sdks/`):** JS/TS, Python, Java, Kotlin, Android, Go, Rust, Swift, Dart, and R speak one wire contract (`api.nrouter.ai/v1/*`).
+- **Dev-server testing & authentication:** Client SDKs connect to inference gateway at `https://api.dev.nrouter.ai/v1/*` during dev-server testing. Initialized with standard API key (`Authorization: Bearer sk-nrouter-...`) without any Nginx basic auth headers (auth_basic is off).
 - **Canonical spec:** `spec/nrouter-sdk-spec.json` is authoritative for routes, headers (`x-nr-*`), and errors. Disagreement means the SDK is wrong.
 - **Invariants:** `x-nr-request-cost` absent when unpriced (never zero, Rule #28); API keys redacted in logs; coordinated version releases.
-- **Branching (Rule #20):** Active SDK development happens on the `development` branch (`origin/development`); `main` is locked down and updated **only via Pull Request (`development` → `main`)** before coordinated SDK releases.
+- **Branching (Rule #20):** Develops on `development` (`origin/development`), `main` locked down (PR only) before coordinated SDK releases.
 
 ## Commands
 ```bash
