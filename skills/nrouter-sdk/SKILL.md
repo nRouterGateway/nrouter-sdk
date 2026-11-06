@@ -30,6 +30,7 @@ A new wire is `parity` (all SDKs) + `testing` (a contract test per SDK); a class
 
 - SDKs live under `sdks/<tech>/` (`js python java go rust kotlin android swift dart r`); derive: `ls -d sdks/*/ | wc -l`.
 - `spec/nrouter-sdk-spec.json` (derived from the gateway) is the sole source of truth for base URL, `NROUTER_API_KEY`, `sk-nrouter-` prefix, headers and value enums, error codes, body fields, version. **Read values from it; never retype.** SDK ≠ spec → the SDK is wrong; a contract change is never single-language.
+- **Branching & release workflow (Rule #20):** Active SDK changes and coordinated version bumps are authored and verified on `development` (`origin/development`), merged into locked-down `main` **only via Pull Request (`development` → `main`)**, and published/tagged from `main`.
 
 ```bash
 python3 - <<'PY'

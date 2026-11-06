@@ -32,16 +32,15 @@ All ten SDKs share the single coordinated release version **`3.1.4`**.
 
 ## To release
 
-Bump the canonical version and every manifest together, then merge to `main`.
-The shared gate makes a partial bump impossible. After all hosted workflows are
-green, create the Swift and Go tags from that exact commit.
+Author and verify all SDK changes and the coordinated version bump across `spec/nrouter-sdk-spec.json` and every manifest on the `development` branch (`origin/development`), then open a Pull Request (`development` → `main`) into locked-down `main`.
+The shared gate makes a partial bump impossible. After the `development` → `main` PR merges and all hosted workflows on `main` are green, create the Swift and Go tags from that exact `main` commit.
 
 ```bash
 $EDITOR spec/nrouter-sdk-spec.json    # "version": "3.0.0"
 $EDITOR sdks/js/package.json          # "version": "3.0.0"
 $EDITOR sdks/python/pyproject.toml    # version = "3.0.0"
 $EDITOR sdks/java/pom.xml             # <version>3.0.0</version>
-# ...open a PR, get it merged...
+# commit and push to origin/development, then open a PR (development -> main) and merge
 ```
 
 The supported-package workflows run tests and conformance, then publish only if

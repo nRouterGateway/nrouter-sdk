@@ -7,6 +7,7 @@ Skills: `nrouter-sdk`, `deploy-nrouter-sdk` (`/deploy-nrouter-sdk`).
 - **Ten client SDKs (`sdks/`):** JS/TS, Python, Java, Kotlin, Android, Go, Rust, Swift, Dart, and R speak one wire contract (`api.nrouter.ai/v1/*`).
 - **Canonical spec:** `spec/nrouter-sdk-spec.json` is authoritative for routes, headers (`x-nr-*`), and errors. Disagreement means the SDK is wrong.
 - **Invariants:** `x-nr-request-cost` absent when unpriced (never zero, Rule #28); API keys redacted in logs; coordinated version releases.
+- **Branching (Rule #20):** Active SDK development happens on the `development` branch (`origin/development`); `main` is locked down and updated **only via Pull Request (`development` → `main`)** before coordinated SDK releases.
 
 ## Commands
 ```bash
