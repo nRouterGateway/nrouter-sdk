@@ -99,6 +99,11 @@ type ResponseMeta struct {
 	// FundingSource is how this response was funded.
 	FundingSource string
 
+	// PotFallback is why promo/hack credit did not fund a request charged to
+	// prepaid credits under the organization's paid fallback (e.g. "pot_empty",
+	// "window_day"). Empty on every other response.
+	PotFallback string
+
 	// AllowanceReset is when the current usage allowance resets.
 	AllowanceReset *uint64
 
@@ -148,6 +153,7 @@ var HeaderNames = []string{
 	"x-nr-response-cache",
 	"x-nr-response-cache-age",
 	"x-nr-funding-source",
+	"x-nr-pot-fallback",
 	"x-nr-allowance-reset",
 	"x-nr-compression",
 	"x-nr-routing",
@@ -210,6 +216,7 @@ func MetaFromLookup(get func(string) string) ResponseMeta {
 		ResponseCache:     get("x-nr-response-cache"),
 		ResponseCacheAge:  num("x-nr-response-cache-age"),
 		FundingSource:     get("x-nr-funding-source"),
+		PotFallback:       get("x-nr-pot-fallback"),
 		AllowanceReset:    num("x-nr-allowance-reset"),
 		Compression:       get("x-nr-compression"),
 		Routing:           get("x-nr-routing"),

@@ -266,6 +266,7 @@ func TestEveryDeclaredHeaderIsRead(t *testing.T) {
 		"x-nr-budget-warning":     "org soft_budget 80.00/100.00",
 		"x-nr-guardrails":         "pass",
 		"x-nr-funding-source":     "allowance",
+		"x-nr-pot-fallback":       "pot_empty",
 		"x-nr-allowance-reset":    "86400",
 		"x-nr-compression":        "applied",
 		"x-nr-routing":            "fallback:1",
@@ -316,6 +317,9 @@ func TestEveryDeclaredHeaderIsRead(t *testing.T) {
 	}
 	if m.FundingSource != "allowance" || m.AllowanceReset == nil || *m.AllowanceReset != 86400 {
 		t.Fatalf("funding headers not parsed: %+v", m)
+	}
+	if m.PotFallback != "pot_empty" {
+		t.Fatalf("pot fallback header not parsed: %q", m.PotFallback)
 	}
 	if m.Compression != "applied" || m.Routing != "fallback:1" || m.Intent != "chitchat" {
 		t.Fatalf("compression/routing/intent headers not parsed: %+v", m)

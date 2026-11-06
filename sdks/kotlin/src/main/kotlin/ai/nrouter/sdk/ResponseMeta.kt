@@ -85,6 +85,12 @@ public data class NRouterResponseMeta(
     val modelDeprecated: Boolean? = null,
     /** Human-readable retirement warning when `x-nr-model-deprecated` is `true`. */
     val deprecationNotice: String? = null,
+    /**
+     * Why promo/hack credit did not fund a request charged to prepaid credits
+     * under the organization's paid fallback (e.g. `pot_empty`, `window_day`);
+     * `null` on every other response. Last so positional callers keep working.
+     */
+    val potFallback: String? = null,
 ) {
     /** True when the gateway priced this request exactly. */
     val isPriced: Boolean get() = costStatus == "exact" && cost != null
@@ -139,6 +145,7 @@ public data class NRouterResponseMeta(
             "x-nr-attempts",
             "x-nr-intent",
             "x-nr-funding-source",
+            "x-nr-pot-fallback",
             "x-nr-allowance-reset",
             "x-nr-model-deprecated",
             "x-nr-deprecation-notice",
@@ -184,6 +191,7 @@ public data class NRouterResponseMeta(
                 attempts = num("x-nr-attempts"),
                 intent = lookup("x-nr-intent"),
                 fundingSource = lookup("x-nr-funding-source"),
+                potFallback = lookup("x-nr-pot-fallback"),
                 allowanceReset = num("x-nr-allowance-reset"),
                 modelDeprecated = flag("x-nr-model-deprecated"),
                 deprecationNotice = lookup("x-nr-deprecation-notice"),

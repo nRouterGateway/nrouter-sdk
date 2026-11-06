@@ -90,6 +90,10 @@ class nRouterResponseMeta:
     attempts: int | None = None
     intent: str | None = None
     funding_source: str | None = None
+    #: Why promo/hack credit did not fund a request charged to prepaid credits
+    #: under the organization's paid fallback (e.g. ``pot_empty``,
+    #: ``window_day``). ``None`` on every other response.
+    pot_fallback: str | None = None
     allowance_reset: int | None = None
     model_deprecated: bool | None = None
     deprecation_notice: str | None = None
@@ -125,6 +129,7 @@ class nRouterResponseMeta:
         "x-nr-attempts",
         "x-nr-intent",
         "x-nr-funding-source",
+        "x-nr-pot-fallback",
         "x-nr-allowance-reset",
         "x-nr-model-deprecated",
         "x-nr-deprecation-notice",
@@ -202,6 +207,7 @@ class nRouterResponseMeta:
             attempts=optional_int("x-nr-attempts"),
             intent=norm.get("x-nr-intent"),
             funding_source=norm.get("x-nr-funding-source"),
+            pot_fallback=norm.get("x-nr-pot-fallback"),
             allowance_reset=optional_int("x-nr-allowance-reset"),
             model_deprecated=optional_bool("x-nr-model-deprecated"),
             deprecation_notice=norm.get("x-nr-deprecation-notice"),

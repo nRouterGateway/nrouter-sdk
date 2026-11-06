@@ -9,6 +9,12 @@ Dates are the registry upload date, which is the only date a consumer can
 observe. Versions are immutable once published; nothing here is ever rewritten
 to correct a release, only appended to.
 
+## [Unreleased]
+
+- **Paid fallback for promo- and hack-labeled models**:
+  - New `x-nr-pot-fallback` response header, read as typed metadata by every SDK (`pot_fallback` / `potFallback` / `PotFallback`). Present only when a request for a `promo`- or `hack`-labeled model was charged to prepaid credits because the organization turned on paid fallback in Settings; values `pot_empty`, `pot_insufficient`, `window_hour`, `window_day`, `window_week`, `window_month`, `platform_day`, `platform_month`, `policy_excluded`, `feature`, `fallbacks_ineligible`. Absent otherwise.
+  - An organization that holds promotional or hackathon credit is no longer charged prepaid credits for those models unless it turns on paid fallback; until then `insufficient_promo_credit` / `insufficient_hack_credit` (402), `pot_spend_limit_exceeded` (429) and `pot_route_feature_unsupported` (400) refuse instead, and the message names the remedy. Frozen promotional or hackathon credit answers the same 402 codes even with paid fallback on. No new error codes.
+
 ## [3.1.4] - 2026-10-30
 
 - Coordinated release 3.1.4 across all ten SDKs.

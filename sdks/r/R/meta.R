@@ -85,6 +85,9 @@ nrouter_meta <- function(headers = list()) {
       attempts           = get_int("x-nr-attempts"),
       intent             = get_chr("x-nr-intent"),
       funding_source     = get_chr("x-nr-funding-source"),
+      # Why promo/hack credit did not fund a request charged to prepaid
+      # credits under the organization's paid fallback; NULL otherwise.
+      pot_fallback       = get_chr("x-nr-pot-fallback"),
       allowance_reset    = get_int("x-nr-allowance-reset"),
       model_deprecated   = get_bool("x-nr-model-deprecated"),
       deprecation_notice = get_chr("x-nr-deprecation-notice"),
@@ -123,6 +126,7 @@ nrouter_header_names <- function() {
     "x-nr-attempts",
     "x-nr-intent",
     "x-nr-funding-source",
+    "x-nr-pot-fallback",
     "x-nr-allowance-reset",
     "x-nr-model-deprecated",
     "x-nr-deprecation-notice"

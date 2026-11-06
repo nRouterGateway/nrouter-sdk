@@ -47,6 +47,7 @@ fn every_spec_header_is_read() {
         "x-nr-budget-warning",
         "x-nr-guardrails",
         "x-nr-funding-source",
+        "x-nr-pot-fallback",
         "x-nr-allowance-reset",
         "x-nr-model-deprecated",
         "x-nr-deprecation-notice",

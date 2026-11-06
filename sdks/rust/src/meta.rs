@@ -68,6 +68,10 @@ pub struct ResponseMeta {
     pub intent: Option<String>,
     /// How this response was funded.
     pub funding_source: Option<String>,
+    /// Why promo/hack credit did not fund a request charged to prepaid credits
+    /// under the organization's paid fallback (e.g. `pot_empty`, `window_day`).
+    /// `None` on every other response.
+    pub pot_fallback: Option<String>,
     /// When the current usage allowance resets.
     pub allowance_reset: Option<u64>,
     /// True when the served model carries a retirement date in the gateway catalog.
@@ -77,7 +81,7 @@ pub struct ResponseMeta {
 }
 
 /// Every header this SDK reads, exactly as the spec names them.
-pub const HEADER_NAMES: [&str; 25] = [
+pub const HEADER_NAMES: [&str; 26] = [
     "x-nr-request-id",
     "x-nr-latency-ms",
     "x-nr-trace-id",
@@ -100,6 +104,7 @@ pub const HEADER_NAMES: [&str; 25] = [
     "x-nr-attempts",
     "x-nr-intent",
     "x-nr-funding-source",
+    "x-nr-pot-fallback",
     "x-nr-allowance-reset",
     "x-nr-model-deprecated",
     "x-nr-deprecation-notice",
@@ -146,6 +151,7 @@ impl ResponseMeta {
             attempts: num("x-nr-attempts"),
             intent: get("x-nr-intent"),
             funding_source: get("x-nr-funding-source"),
+            pot_fallback: get("x-nr-pot-fallback"),
             allowance_reset: num("x-nr-allowance-reset"),
             model_deprecated: flag("x-nr-model-deprecated"),
             deprecation_notice: get("x-nr-deprecation-notice"),

@@ -30,6 +30,7 @@ class NRouterResponseMeta {
     this.attempts,
     this.intent,
     this.fundingSource,
+    this.potFallback,
     this.allowanceReset,
     this.modelDeprecated,
     this.deprecationNotice,
@@ -111,6 +112,10 @@ class NRouterResponseMeta {
 
   /// How this response was funded.
   final String? fundingSource;
+  /// Why promo/hack credit did not fund a request charged to prepaid credits
+  /// under the organization's paid fallback (e.g. `pot_empty`, `window_day`);
+  /// `null` on every other response.
+  final String? potFallback;
   /// When the current usage allowance resets.
   final int? allowanceReset;
   /// True when the served model carries a retirement date in the gateway catalog.
@@ -142,6 +147,7 @@ class NRouterResponseMeta {
     'x-nr-attempts',
     'x-nr-intent',
     'x-nr-funding-source',
+    'x-nr-pot-fallback',
     'x-nr-allowance-reset',
     'x-nr-model-deprecated',
     'x-nr-deprecation-notice',
@@ -188,6 +194,7 @@ class NRouterResponseMeta {
       attempts: asInt('x-nr-attempts'),
       intent: get('x-nr-intent'),
       fundingSource: get('x-nr-funding-source'),
+      potFallback: get('x-nr-pot-fallback'),
       allowanceReset: asInt('x-nr-allowance-reset'),
       modelDeprecated: asBool('x-nr-model-deprecated'),
       deprecationNotice: get('x-nr-deprecation-notice'),

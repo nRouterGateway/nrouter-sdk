@@ -67,6 +67,10 @@ public struct NRouterResponseMeta: Equatable, Sendable {
     public var intent: String?
     /// How this response was funded.
     public var fundingSource: String?
+    /// Why promo/hack credit did not fund a request charged to prepaid credits
+    /// under the organization's paid fallback (e.g. `pot_empty`, `window_day`);
+    /// `nil` on every other response.
+    public var potFallback: String?
     /// When the current usage allowance resets.
     public var allowanceReset: Int?
     /// True when the served model carries a retirement date in the gateway catalog.
@@ -98,6 +102,7 @@ public struct NRouterResponseMeta: Equatable, Sendable {
         "x-nr-attempts",
         "x-nr-intent",
         "x-nr-funding-source",
+        "x-nr-pot-fallback",
         "x-nr-allowance-reset",
         "x-nr-model-deprecated",
         "x-nr-deprecation-notice",
@@ -143,6 +148,7 @@ public struct NRouterResponseMeta: Equatable, Sendable {
         attempts = int("x-nr-attempts")
         intent = lookup("x-nr-intent")
         fundingSource = lookup("x-nr-funding-source")
+        potFallback = lookup("x-nr-pot-fallback")
         allowanceReset = int("x-nr-allowance-reset")
         modelDeprecated = flag("x-nr-model-deprecated")
         deprecationNotice = lookup("x-nr-deprecation-notice")

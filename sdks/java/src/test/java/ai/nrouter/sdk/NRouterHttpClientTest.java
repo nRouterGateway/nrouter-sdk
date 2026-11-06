@@ -135,6 +135,7 @@ class NRouterHttpClientTest {
                 "x-nr-attempts",
                 "x-nr-intent",
                 "x-nr-funding-source",
+                "x-nr-pot-fallback",
                 "x-nr-allowance-reset",
                 "x-nr-model-deprecated",
                 "x-nr-deprecation-notice");

@@ -532,6 +532,17 @@ def test_funding_source_and_allowance_reset_are_parsed_from_headers():
     assert meta.allowance_reset == 86400
 
 
+def test_pot_fallback_is_parsed_and_absent_means_none():
+    from nroutersdk import nRouterResponseMeta
+    meta = nRouterResponseMeta.from_headers({
+        "x-nr-funding-source": "credits",
+        "x-nr-pot-fallback": "window_day",
+    })
+    assert meta.funding_source == "credits"
+    assert meta.pot_fallback == "window_day"
+    assert nRouterResponseMeta.from_headers({"x-nr-funding-source": "promo"}).pot_fallback is None
+
+
 def test_model_deprecated_and_deprecation_notice_are_parsed_from_headers():
     from nroutersdk import nRouterResponseMeta
     meta = nRouterResponseMeta.from_headers({

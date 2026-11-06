@@ -6,15 +6,15 @@
   "selection_routes": {
     "nrouter/auto": {
       "funded_by": "subscription plan usage allowance first when active, then prepaid wallet credits at the served model's exact list price",
-      "description": "nRouter chooses the model for the task from the models available for automatic routing. Draws from the organization's subscription plan usage allowance first when an active plan period exists (x-nr-funding-source: allowance), and falls back to prepaid wallet credits at the served model's exact list price (x-nr-funding-source: credits) for pay-as-you-go (PAYG) or post-allowance organizations. Pay-as-you-go organizations are never refused with 402 plan_required. Promo and Hack are direct promotional/hackathon models that draw from promotional/event pots first and fall back to prepaid credits."
+      "description": "nRouter chooses the model for the task from the models available for automatic routing. Draws from the organization's subscription plan usage allowance first when an active plan period exists (x-nr-funding-source: allowance), and falls back to prepaid wallet credits at the served model's exact list price (x-nr-funding-source: credits) for pay-as-you-go (PAYG) or post-allowance organizations. Pay-as-you-go organizations are never refused with 402 plan_required. Promo and Hack are direct promotional/hackathon models that draw from promotional/event pots first and fall back to prepaid credits only when the organization has turned on paid fallback in Settings (x-nr-pot-fallback names why)."
     },
     "nrouter/promo": {
-      "funded_by": "promotional credit first, then prepaid wallet credits",
-      "description": "Promo-labeled models are direct promotional models that draw from the organization's promotional credit pot first (x-nr-funding-source: promo) within UTC spend windows set by nRouter (by default hourly none, daily $1, weekly $7, monthly $30; a week starts Monday 00:00 UTC), and fall back to prepaid wallet credits at the served model's exact list price when available. Promotional credit has no cash value and is spent only on promo-labeled models; nrouter/auto never draws from it. When neither promotional credit nor prepaid credits can cover the hold, the request is refused 402 insufficient_promo_credit; when a promo spend window is exhausted with no prepaid credits to overflow into, it is refused 429 pot_spend_limit_exceeded, both before any provider egress."
+      "funded_by": "promotional credit first, then prepaid wallet credits only when the organization has turned on paid fallback",
+      "description": "Promo-labeled models are direct promotional models that draw from the organization's promotional credit pot first (x-nr-funding-source: promo) within UTC spend windows set by nRouter (by default hourly none, daily $1, weekly $7, monthly $30; a week starts Monday 00:00 UTC). An organization that has never held promotional credit pays for these models from prepaid credits like any other model. An organization that holds promotional credit is charged prepaid credits at the served model's exact list price only after it turns on paid fallback in Settings; the response then carries x-nr-funding-source: credits and x-nr-pot-fallback naming why promotional credit did not fund the request. Without paid fallback, a request promotional credit cannot fund is refused before any provider egress: 402 insufficient_promo_credit when the pot cannot cover the hold, 429 pot_spend_limit_exceeded when a spend window is exhausted, 400 pot_route_feature_unsupported for a feature the pot does not fund. Promotional credit that nRouter has frozen is refused 402 insufficient_promo_credit even with paid fallback on. Promotional credit has no cash value and is spent only on promo-labeled models; nrouter/auto never draws from it."
     },
     "nrouter/hack": {
-      "funded_by": "hackathon credit first, then prepaid wallet credits",
-      "description": "Hack-labeled models are direct hackathon models that draw from the organization's hackathon credit pot first (x-nr-funding-source: hack) within UTC spend windows set by nRouter (by default hourly none, daily $1, weekly $7, monthly $30; a week starts Monday 00:00 UTC), and fall back to prepaid wallet credits at the served model's exact list price when available. Hackathon credit has no cash value and is spent only on hack-labeled models; nrouter/auto never draws from it. When neither hackathon credit nor prepaid credits can cover the hold, the request is refused 402 insufficient_hack_credit; when a hack spend window is exhausted with no prepaid credits to overflow into, it is refused 429 pot_spend_limit_exceeded, both before any provider egress."
+      "funded_by": "hackathon credit first, then prepaid wallet credits only when the organization has turned on paid fallback",
+      "description": "Hack-labeled models are direct hackathon models that draw from the organization's hackathon credit pot first (x-nr-funding-source: hack) within UTC spend windows set by nRouter (by default hourly none, daily $1, weekly $7, monthly $30; a week starts Monday 00:00 UTC). An organization that has never held hackathon credit pays for these models from prepaid credits like any other model. An organization that holds hackathon credit is charged prepaid credits at the served model's exact list price only after it turns on paid fallback in Settings; the response then carries x-nr-funding-source: credits and x-nr-pot-fallback naming why hackathon credit did not fund the request. Without paid fallback, a request hackathon credit cannot fund is refused before any provider egress: 402 insufficient_hack_credit when the pot cannot cover the hold, 429 pot_spend_limit_exceeded when a spend window is exhausted, 400 pot_route_feature_unsupported for a feature the pot does not fund. Hackathon credit that nRouter has frozen is refused 402 insufficient_hack_credit even with paid fallback on. Hackathon credit has no cash value and is spent only on hack-labeled models; nrouter/auto never draws from it."
     }
   },
   "response_headers": {
@@ -209,6 +209,24 @@
         "hack"
       ]
     },
+    "x-nr-pot-fallback": {
+      "type": "string",
+      "description": "Present only when a request for a promo- or hack-labeled model was charged to prepaid credits because the organization turned on paid fallback; names why promotional or hackathon credit did not fund it. Absent otherwise, including on every pot-funded response and for organizations that never held that credit",
+      "always": false,
+      "values": [
+        "pot_empty",
+        "pot_insufficient",
+        "window_hour",
+        "window_day",
+        "window_week",
+        "window_month",
+        "platform_day",
+        "platform_month",
+        "policy_excluded",
+        "feature",
+        "fallbacks_ineligible"
+      ]
+    },
     "x-nr-allowance-reset": {
       "type": "integer",
       "description": "Seconds until the tightest usage-allowance window resets; sent on allowance-window 429s (equal to Retry-After) and the monthly 402 plan_allowance_exhausted",
@@ -325,7 +343,7 @@
     "plan_required": {
       "http": 402,
       "class": "nRouterCreditError",
-      "description": "An organization's legacy subscription plan usage allowance is paused pending payment. Pay-as-you-go organizations are served nrouter/auto and named models from credits and do not receive this code. Promo- and hack-labeled models are funded from their promotional or hackathon credit first (falling back to credits when available) and never receive this code."
+      "description": "An organization's legacy subscription plan usage allowance is paused pending payment. Pay-as-you-go organizations are served nrouter/auto and named models from credits and do not receive this code. Promo- and hack-labeled models are funded from their promotional or hackathon credit first (falling back to credits only when the organization has turned on paid fallback, or never held that credit) and never receive this code."
     },
     "input_too_large": {
       "http": 400,
@@ -360,22 +378,22 @@
     "insufficient_promo_credit": {
       "http": 402,
       "class": "nRouterCreditError",
-      "description": "A request for a promo-labeled model was refused because neither the organization's available promotional credit nor its prepaid credit balance can cover the request's hold. Promotional credit has no cash value and is spent only on promo-labeled models. Refused before any provider egress; nothing was reserved and nothing was spent."
+      "description": "A request for a promo-labeled model was refused because the organization's available promotional credit cannot cover the request's hold and prepaid credits could not be used: the organization has not turned on paid fallback in Settings (the message then names that remedy), or its prepaid credit balance cannot cover the hold either. Also returned when nRouter has frozen the organization's promotional credit; paid fallback does not apply then and the message names no remedy. Promotional credit has no cash value and is spent only on promo-labeled models. Refused before any provider egress; nothing was reserved and nothing was spent."
     },
     "insufficient_hack_credit": {
       "http": 402,
       "class": "nRouterCreditError",
-      "description": "A request for a hack-labeled model was refused because neither the organization's available hackathon credit nor its prepaid credit balance can cover the request's hold. Hackathon credit has no cash value and is spent only on hack-labeled models. Refused before any provider egress; nothing was reserved and nothing was spent."
+      "description": "A request for a hack-labeled model was refused because the organization's available hackathon credit cannot cover the request's hold and prepaid credits could not be used: the organization has not turned on paid fallback in Settings (the message then names that remedy), or its prepaid credit balance cannot cover the hold either. Also returned when nRouter has frozen the organization's hackathon credit; paid fallback does not apply then and the message names no remedy. Hackathon credit has no cash value and is spent only on hack-labeled models. Refused before any provider egress; nothing was reserved and nothing was spent."
     },
     "pot_spend_limit_exceeded": {
       "http": 429,
       "class": "nRouterRateLimitError",
-      "description": "A promo- or hack-funded request would take the organization's spend on that pot past one of its windows (set by nRouter; by default hourly none, daily $1, weekly $7, monthly $30; x-nr-limit-source: pot_window) and no prepaid credit balance was available to overflow into. Windows are UTC calendar buckets: the hour, the day, the ISO week starting Monday 00:00 UTC, and the month. The message names the window that refused and when it resets. Refused before any provider egress; nothing was reserved and nothing was spent."
+      "description": "A promo- or hack-funded request would take the organization's spend on that pot past one of its windows (set by nRouter; by default hourly none, daily $1, weekly $7, monthly $30; x-nr-limit-source: pot_window) and prepaid credits could not be used: the organization has not turned on paid fallback in Settings (the message then names that remedy), or no prepaid credit balance was available to overflow into. Windows are UTC calendar buckets: the hour, the day, the ISO week starting Monday 00:00 UTC, and the month. The message names the window that refused and when it resets. Refused before any provider egress; nothing was reserved and nothing was spent."
     },
     "pot_route_feature_unsupported": {
       "http": 400,
       "class": "nRouterRequestError",
-      "description": "A promo- or hack-funded request asked for a feature those pots do not fund when no prepaid credit balance is available: web search (nrouter_web_search), more than one choice (n > 1), or a tool-billed feature. Refused before any provider egress; nothing was reserved and nothing was spent. Remove the feature or add prepaid credits."
+      "description": "A promo- or hack-funded request asked for a feature those pots do not fund when no prepaid credit balance is available: web search (nrouter_web_search), more than one choice (n > 1), or a tool-billed feature, and prepaid credits could not be used because the organization has not turned on paid fallback in Settings or holds no prepaid credit balance. Refused before any provider egress; nothing was reserved and nothing was spent. Remove the feature, or turn on paid fallback and hold prepaid credits."
     },
     "guardrail_not_found": {
       "http": 400,

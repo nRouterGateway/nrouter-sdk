@@ -100,8 +100,14 @@ export interface ResponseMeta {
   attempts: number | null;
   /** Top evaluated intent category if intent routing was requested. */
   intent: string | null;
-  /** Which balance paid for this request: allowance or credits. */
+  /** Which balance paid for this request: allowance, credits, promo or hack. */
   fundingSource: string | null;
+  /**
+   * Why promo/hack credit did not fund a request charged to prepaid credits
+   * under the organization's paid fallback (e.g. `pot_empty`, `window_day`).
+   * `null` on every other response.
+   */
+  potFallback: string | null;
   /** Seconds until the tightest usage-allowance window resets. */
   allowanceReset: number | null;
   /**
@@ -142,6 +148,7 @@ export const HEADER_NAMES = [
   'x-nr-attempts',
   'x-nr-intent',
   'x-nr-funding-source',
+  'x-nr-pot-fallback',
   'x-nr-allowance-reset',
   'x-nr-model-deprecated',
   'x-nr-deprecation-notice',

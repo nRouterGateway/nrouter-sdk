@@ -75,6 +75,9 @@ const FIXTURE: Record<string, string> = {
   // Posture only — one of the five tokens, matched case-sensitively.
   'x-nr-guardrails': 'pass',
   'x-nr-funding-source': 'allowance',
+  // Sent only when a promo/hack request was charged to prepaid credits under
+  // the organization's paid fallback.
+  'x-nr-pot-fallback': 'pot_empty',
   'x-nr-allowance-reset': '86400',
   // Sent only for a deprecated model, and then always as the literal `true`.
   'x-nr-model-deprecated': 'true',
@@ -131,6 +134,7 @@ test('every one of the declared headers is actually read', () => {
   assert.equal(parsed.intent, 'chitchat');
   assert.equal(parsed.budgetWarning, 'org soft_budget 80.00/100.00');
   assert.equal(parsed.guardrails, 'pass');
+  assert.equal(parsed.potFallback, 'pot_empty');
   assert.equal(isPriced(parsed), true);
 
   // Nothing was invented: the parsed object has exactly the declared fields.

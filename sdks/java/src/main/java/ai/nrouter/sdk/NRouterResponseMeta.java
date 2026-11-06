@@ -29,6 +29,7 @@ public final class NRouterResponseMeta {
             "x-nr-attempts",
             "x-nr-intent",
             "x-nr-funding-source",
+            "x-nr-pot-fallback",
             "x-nr-allowance-reset",
             "x-nr-model-deprecated",
             "x-nr-deprecation-notice");
@@ -55,6 +56,7 @@ public final class NRouterResponseMeta {
     private final Long attempts;
     private final String intent;
     private final String fundingSource;
+    private final String potFallback;
     private final Long allowanceReset;
     private final Boolean modelDeprecated;
     private final String deprecationNotice;
@@ -85,6 +87,7 @@ public final class NRouterResponseMeta {
         attempts = integer(headers, "x-nr-attempts");
         intent = value(headers, "x-nr-intent");
         fundingSource = value(headers, "x-nr-funding-source");
+        potFallback = value(headers, "x-nr-pot-fallback");
         allowanceReset = integer(headers, "x-nr-allowance-reset");
         modelDeprecated = flag(headers, "x-nr-model-deprecated");
         deprecationNotice = value(headers, "x-nr-deprecation-notice");
@@ -173,6 +176,12 @@ public final class NRouterResponseMeta {
     public Long attempts() { return attempts; }
     public String intent() { return intent; }
     public String fundingSource() { return fundingSource; }
+    /**
+     * Why promo/hack credit did not fund a request charged to prepaid credits
+     * under the organization's paid fallback (e.g. {@code pot_empty},
+     * {@code window_day}); {@code null} on every other response.
+     */
+    public String potFallback() { return potFallback; }
     public Long allowanceReset() { return allowanceReset; }
     public Boolean modelDeprecated() { return modelDeprecated; }
     public String deprecationNotice() { return deprecationNotice; }
