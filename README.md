@@ -37,7 +37,7 @@ flowchart LR
 
 ## All Ten SDKs Supported
 
-All ten SDKs are officially maintained, tested against the identical gateway wire contract, and share coordinated releases under [Rule #14](https://github.com/nRouterGateway/nrouter-sdk#the-one-rule-that-matters-here). Every package manifest, lockfile, documentation, and installation snippet is synchronized.
+All ten SDKs are officially maintained, tested against the identical gateway wire contract, and share coordinated releases under [Rule #14](https://github.com/nRouterGateway/nrouter-sdk#the-one-rule-that-matters-here) (v3.1.4). Every package manifest, lockfile, documentation, and installation snippet is synchronized.
 
 | SDK | Registry / Distribution | Registry URL | Package |
 |---|---|---|---|
@@ -52,121 +52,36 @@ All ten SDKs are officially maintained, tested against the identical gateway wir
 | Dart / Flutter | pub.dev | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | `nrouter` |
 | R | R-universe / CRAN | [nroutergateway.r-universe.dev](https://nroutergateway.r-universe.dev/nrouter) | `nrouter` |
 
-All ten SDKs are held to the same public wire contract. The conformance gate
-accounts for all 150 route-ownership cells (15 routes × 10 SDKs): seven
-first-party transports expose native helpers with the exact path and HTTP verb,
-Android delegates the exact surface to Kotlin, and the JS/Python hybrid clients
-explicitly partition native helpers from their bounded vendor-client
-inheritance seam. Python's native route cells require both sync and async
-implementations. For inherited routes, the source gate proves ownership and a
-compiled resource—not the vendor package's internal HTTP implementation. The
-complete local gate compiles and runs the package suites against their locked
-dependencies.
+### Model Wire Resolution & Live Catalog
 
-The conformance gate derives and compares every manifest to the canonical
-version in `spec/nrouter-sdk-spec.json`; release metadata cannot drift silently.
+The gateway resolves provider endpoints per wire. Anthropic serves `/v1/messages` only; chat completion wires (`/v1/chat/completions`, `/v1/completions`, `/v1/responses`) serve OpenAI, Azure Foundry, Vertex AI, and Alibaba models (e.g. `gpt-5.4-mini`). Calling a model on an unserved wire returns `404 model_unavailable_on_route`.
 
+The JS/TS SDK's `client.nr.chat()` automatically selects `/v1/messages` for `claude-*` IDs and translates the response back.
 
-One API key for models across six provider clouds — Alibaba US, OpenAI, AWS Bedrock, Azure Foundry, Google Vertex AI and Anthropic. nRouter serves OpenAI and Anthropic wires natively, alongside embeddings, audio, images, and video.
-
-Unified billing across the live multi-provider catalog with built-in guardrails, prompt templates, and cost tracking. Browse available models at [nrouter.ai/api/public/models](https://nrouter.ai/api/public/models).
-
-### The model decides the route — a Claude id is not callable on every endpoint
-
-The gateway resolves a provider endpoint **per wire**, and a provider that
-serves no endpoint for a wire answers `404 model_unavailable_on_route`: the
-model exists, just not on the route it was asked for. Anthropic serves
-**`/v1/messages` only** — it has neither chat-completions nor Responses — so a
-`claude-*` id posted to `/v1/chat/completions` fails for a customer holding a
-valid key and a real model id.
-
-| You are calling | Use a model from |
-|---|---|
-| `/v1/chat/completions`, `/v1/completions`, `/v1/responses` | OpenAI, Azure Foundry, Vertex AI or Alibaba (for example `gpt-5.4-mini`) |
-| `/v1/messages`, `/v1/messages/count_tokens` | Anthropic (`claude-sonnet-4-5-20250929`) or any provider serving that wire |
-
-The JS/TS SDK is the one exception: `client.nr.chat()` selects `/v1/messages`
-itself for `claude-*` ids and translates the response back, so the examples
-below pass a Claude id to it deliberately.
-
-Every example here uses a model measured in the live catalogue on 2026-08-31.
-Confirm against your own key before spending — the catalogue is per-org:
-
-```bash
-curl -s https://api.nrouter.ai/v1/models -H "Authorization: Bearer $NROUTER_API_KEY"
-```
-
-`gpt-5.4-mini` is a reasoning model: give it a real token budget (~1024), or a
-small `max_tokens` is spent on hidden reasoning and the reply comes back empty.
-
-`conformance/doc_wires.py` gates every snippet in this repository against that
-table.
-
-## Why Use the nRouter SDK?
-
-Rather than juggling separate provider SDKs (OpenAI, Anthropic, Bedrock, Vertex AI, Azure Foundry), nRouter provides:
-
-1. **One API Key Across 6 Provider Clouds**: Call OpenAI, Claude, Vertex, Bedrock, and Azure models with a single client and unified billing.
-2. **Built-in Spend & Observability**: Every response captures exact latency, model ID, and request cost (`x-nr-request-cost`) with no extra telemetry instrumentation needed.
-3. **Automated Guardrails & Compliance**: PII redaction, prompt injection protection, and keyword scanning configured once in the dashboard apply automatically.
-4. **Two Ways to Ask for a Model**: Name a model directly (it is never swapped; only fallbacks you configure can take over), or send `nrouter/auto` and let nRouter choose an eligible model.
-5. **Universal Enterprise Features**: Unified conversation memory, Jinja2 prompt variable injection, and RFC 9110 retry-after exponential backoff across all 10 SDKs.
+Browse available models at [nrouter.ai/api/public/models](https://nrouter.ai/api/public/models).
 
 ---
 
-## Authentication, Environment & `.env` Setup
+## Why Use the nRouter SDK?
 
-All nRouter SDKs automatically read your API key from the `NROUTER_API_KEY` environment variable.
+1. **One API Key Across 6 Provider Clouds**: Call OpenAI, Claude, Vertex, Bedrock, and Azure models with unified billing.
+2. **Built-in Spend & Observability**: Every response captures latency, model ID, and request cost (`x-nr-request-cost`).
+3. **Automated Guardrails**: PII redaction, prompt injection protection, and keyword scanning apply automatically.
+4. **Universal Enterprise Features**: Unified conversation memory, Jinja2 prompt variable injection, and RFC 9110 retry-after backoff across all 10 SDKs.
 
-### 1. Where to Get Your API Key
-1. Sign in to your dashboard: [app.nrouter.ai](https://app.nrouter.ai).
-2. Open **API Keys** in your organization.
-3. Click **Create Key**. The full key is shown once, at creation — copy it then. Virtual keys start with `sk-nrouter-`. Assign key budgets, rate limits, and guardrails directly in the dashboard.
+---
 
-### 2. Configure Local `.env`
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
+## Authentication & Environment Setup
 
-Edit `.env` and set your key:
-```bash
-NROUTER_API_KEY="sk-nrouter-your-api-key-here"
-NROUTER_BASE_URL="https://api.nrouter.ai/v1"
-```
+All nRouter SDKs read your virtual API key from the `NROUTER_API_KEY` environment variable.
 
-### 3. How to Source `.env`
-- **Shell (Bash / Zsh)**:
-  ```bash
-  export $(grep -v '^#' .env | xargs)
-  ```
-- **Node.js / TypeScript**:
-  ```bash
-  npm install dotenv
-  ```
-  ```typescript
-  import "dotenv/config";
-  import { nRouter } from "@nrouter_ai/sdk";
-  const client = new nRouter(); // reads process.env.NROUTER_API_KEY
-  ```
-- **Python**:
-  ```bash
-  pip install python-dotenv
-  ```
-  ```python
-  from dotenv import load_dotenv
-  load_dotenv()
-  from nroutersdk import nRouter
-  client = nRouter() # reads os.environ["NROUTER_API_KEY"]
-  ```
-- **Go**:
-  ```go
-  import "github.com/joho/godotenv"
-  _ = godotenv.Load()
-  client, err := nrouter.NewFromEnv()
-  ```
-
-All API keys must start with the `sk-nrouter-` prefix. You can also pass the key explicitly in code via `apiKey` / `api_key` in any SDK constructor.
+1. **Get an API Key**: Sign in to [app.nrouter.ai](https://app.nrouter.ai) → **API Keys** → **Create Key**. Virtual keys start with `sk-nrouter-`.
+2. **Configure `.env`**:
+   ```bash
+   NROUTER_API_KEY="sk-nrouter-your-api-key-here"
+   NROUTER_BASE_URL="https://api.nrouter.ai/v1"
+   ```
+3. Pass explicitly in any SDK constructor via `apiKey` / `api_key` or source from `.env`.
 
 ---
 
@@ -316,151 +231,26 @@ dependencies {
 }
 ```
 
-### SDK Ecosystem & Status
-
-Ten branded packages, each pre-configured for nRouter. Every one validates the
-`sk-nrouter-` prefix before any request and points at `https://api.nrouter.ai/v1`; all
-but Dart also resolve `NROUTER_API_KEY` (Dart requires an explicit key — `dart:io` does
-not exist in a Flutter web build, so an environment fallback would silently resolve to
-nothing):
-
-| Language | Install | Registry URL | Registry status | Package | Typed errors | `x-nr-*` metadata |
-|----------|---------|--------------|---|---------|---|---|
-| **Python** | `pip install nrouter-sdk` | [pypi.org/project/nrouter-sdk](https://pypi.org/project/nrouter-sdk/) | ✅ PUBLISHED `3.1.4` | [`sdks/python/`](sdks/python/) | ✅ typed wrappers | ✅ `client.last_response` |
-| **TypeScript / JS** | `npm install @nrouter_ai/sdk` | [npmjs.com/package/@nrouter_ai/sdk](https://www.npmjs.com/package/@nrouter_ai/sdk) | ✅ PUBLISHED `3.1.4` | [`sdks/js/`](sdks/js/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
-| **Java** | Maven `ai.nrouter:nrouter-sdk:3.1.4` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk) | ✅ PUBLISHED `3.1.4` | [`sdks/java/`](sdks/java/) | ✅ 23 codes (native HTTP surface) | ✅ all `x-nr-*` headers (native HTTP surface) |
-| **Kotlin** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.4` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-kotlin) | ✅ PUBLISHED `3.1.4` | [`sdks/kotlin/`](sdks/kotlin/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
-| **Android** | Maven `ai.nrouter:nrouter-sdk-android:3.1.4` | [central.sonatype.com](https://central.sonatype.com/artifact/ai.nrouter/nrouter-sdk-android) | 🧪 PUBLIC PREVIEW `3.1.4` | [`sdks/android/`](sdks/android/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
-| **Rust** | `cargo add nrouter@3.1.4` | [crates.io/crates/nrouter](https://crates.io/crates/nrouter) | 🧪 PUBLIC PREVIEW `3.1.4` | [`sdks/rust/`](sdks/rust/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
-| **Dart / Flutter** | `dart pub add nrouter` | [pub.dev/packages/nrouter](https://pub.dev/packages/nrouter) | 🧪 PUBLIC PREVIEW `3.1.4` | [`sdks/dart/`](sdks/dart/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
-| **Swift** | SwiftPM, this repo's URL | [github.com/nRouterGateway/nrouter-sdk](https://github.com/nRouterGateway/nrouter-sdk) | ✅ git tag `3.1.4` | [`sdks/swift/`](sdks/swift/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
-| **R** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [nroutergateway.r-universe.dev/nrouter](https://nroutergateway.r-universe.dev/nrouter) | 🧪 PUBLIC PREVIEW `3.1.4` | [`sdks/r/`](sdks/r/) | ✅ 23 classed conditions | ✅ all `x-nr-*` headers |
-| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.4` | [pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3](https://pkg.go.dev/github.com/nRouterGateway/nrouter-sdk/sdks/go/v3) | ✅ git tag `sdks/go/v3.1.4` | [`sdks/go/`](sdks/go/) | ✅ 23 codes | ✅ all `x-nr-*` headers |
-
-Verify any row rather than trusting it:
-
-```bash
-# Ask each registry what it SERVES, not whether a page exists.
-curl -s https://pypi.org/pypi/nrouter-sdk/json | python3 -c 'import sys,json;print("pypi",json.load(sys.stdin)["info"]["version"])'
-curl -s https://registry.npmjs.org/@nrouter_ai%2Fsdk | python3 -c 'import sys,json;print("npm",json.load(sys.stdin)["dist-tags"]["latest"])'
-
-# Maven Central. Use repo1 metadata, NOT search.maven.org — its solr index
-# returns zero hits for ai.nrouter while the artifacts are demonstrably there,
-# so an "empty" search page is an index gap, never proof of an absent release.
-for a in nrouter-sdk nrouter-sdk-kotlin nrouter-sdk-android; do
-  echo -n "maven $a "
-  curl -s "https://repo1.maven.org/maven2/ai/nrouter/$a/maven-metadata.xml" | grep -o '<release>[^<]*'
-done
-
-curl -s -H 'User-Agent: nrouter-check' https://crates.io/api/v1/crates/nrouter | python3 -c 'import sys,json;print("crates.io",json.load(sys.stdin)["crate"]["max_version"])'
-curl -s https://pub.dev/api/packages/nrouter | python3 -c 'import sys,json;print("pub.dev",json.load(sys.stdin)["latest"]["version"])'
-
-# Go has no registry: proxy.golang.org serves whatever a git tag points at, and
-# it case-encodes the path (each uppercase letter becomes '!' + lowercase).
-curl -s https://proxy.golang.org/github.com/n!router!a!i/nrouter-sdk/sdks/go/v3/@v/list
-curl -s https://nroutergateway.r-universe.dev/src/contrib/PACKAGES | grep -A4 '^Package: nrouter$'
-```
-
-Java keeps its vendor-compatible OpenAI factory and adds a Java 11 native HTTP
-surface for all 15 gateway operations, four incremental SSE wires, every
-`x-nr-*` header and 23 typed gateway errors.
-JavaScript/TypeScript and the seven first-party native transports expose the
-same contract. Android delegates those guarantees to Kotlin; Python adds the
-same nRouter typing and metadata capture around its vendor client.
-
-**Every SDK is held to one contract.** `conformance/check_conformance.py` reads
-[`spec/nrouter-sdk-spec.json`](spec/nrouter-sdk-spec.json) and fails if any SDK drifts on
-the base URL, the environment variable, the key prefix, a response header, an error code,
-one of the 150 route-ownership cells, or one of the four native streaming
-helpers per first-party transport.
-It needs no toolchains, and its `--self-test` proves it goes red rather than merely
-printing green. See [`conformance/`](conformance/).
-
-Run the complete local release gate—including all ten language suites, Android
-lint/AAR assembly, race/clippy/analyzer checks, and conformance mutation
-proof—with:
-
-```bash
-scripts/test-all.sh
-```
-
-The same command runs `scripts/security-audit.sh` and fails on known advisories
-across npm, PyPI, Maven/Gradle, Cargo and Dart dependency graphs. Install
-`osv-scanner` and `pip-audit`.
-
-It also runs `scripts/sast.sh`, which is a **different** check and not a
-substitute for either direction: `security-audit.sh` looks for known
-vulnerabilities in third-party dependencies, `sast.sh` runs static analysis over
-the code in this repository. It uses semgrep's `p/default` ruleset:
-
-```bash
-brew install semgrep                   # macOS
-python3 -m pip install --user semgrep  # any platform
-```
-
-Without it the lane is reported `SKIPPED` and named, never passed, and
-`scripts/sast.sh` run directly exits `78` with that install command rather than
-a bare `command not found`. The three exit states are deliberately distinct —
-`0` scanned and clean, `1` scanned and found something, `78` never ran — because
-semgrep itself uses `0`/`1`, so absence must be neither or "not installed" reads
-as "clean". Prove it bites before trusting a green run:
-
-```bash
-scripts/sast.sh --self-test
-```
-
-That plants a git-tracked file containing a command injection and fails unless
-the scan reports it. Tracked is deliberate: semgrep scans git-tracked files
-only, so an untracked probe is skipped and the scan still exits 0.
-
-**This is a mirror, not parity.** It stands in for the GitHub CodeQL default
-setup, which is dormant while Actions is unavailable. Measured over this tree,
-`p/default` is comparable to CodeQL on **Python, TypeScript, JavaScript, Java
-and Go**; it is **thin on Kotlin (18 rules) and Swift (2 rules)**, which nothing
-local now replaces; **Rust** is thin in semgrep but genuinely covered by
-`cargo clippy -D warnings` in the Rust lane. **Dart and R are scanned by
-nothing** — CodeQL never covered them either, so that hole is pre-existing.
-CodeQL's `actions` workflow analysis is **not** mirrored. `scripts/sast.sh`
-carries the per-language rule counts and how to re-derive them.
-
-Each language is an independent lane, so one absent toolchain no longer blocks
-the rest. A lane whose prerequisites are missing is reported `SKIPPED`, named,
-and counted separately — it is never a pass, and the summary says so in as many
-words. A lane that FAILS exits the script non-zero. For a release, set
-`NROUTER_REQUIRE_ALL=1`: a lane that did not run is then not evidence, and the
-run reports `INCOMPLETE` and exits non-zero. `scripts/test-all.sh --self-test`
-proves those three exit postures against the same engine the real run uses.
-
-The opt-in live tests are intentionally excluded unless `NROUTER_LIVE=1` is
-set, because they make billed inference calls.
-
-Publishing is [`PUBLISHING.md`](PUBLISHING.md): bump the canonical version and
-all manifests together, merge to `main`, publish the three supported registry
-packages, verify every source preview, and create the source tags.
-
-Swift and Go resolve git tags rather than registry uploads. SwiftPM reads
-`Package.swift` from the repository ROOT. That is what
-[`Package.swift`](Package.swift) here is for — this directory is the root of the
-public `nrouter-sdk` repo, and the manifest uses `path:` to reach
-`sdks/swift/`, so the Swift sources stay beside the other nine. Consumers use:
-
-```swift
-.package(url: "https://github.com/nRouterGateway/nrouter-sdk.git", from: "3.1.4")
-```
-
-### Any Other Language (OpenAI SDK)
-```
-base_url  →  https://api.nrouter.ai/v1
-api_key   →  NROUTER_API_KEY
-```
+### Any Other Language (OpenAI SDK Compatible)
 ```typescript
-// Node.js — npm install openai
 import OpenAI from "openai";
 const client = new OpenAI({
   apiKey: process.env.NROUTER_API_KEY,
   baseURL: "https://api.nrouter.ai/v1",
 });
 ```
+
+---
+
+## Verification & Conformance
+
+Verify all SDKs against the spec contract and parity checks:
+```bash
+python3 conformance/check_conformance.py   # verify SDK conformance against spec
+python3 scripts/check_sdk_parity.py        # playbooks and manifests parity
+scripts/test-all.sh                        # run all test lanes
+```
+
 
 ---
 
@@ -507,124 +297,44 @@ Also from the spec (`request_headers`, `extra_body_fields`). The body fields app
 | `x-nr-trace-id` / `x-nr-session-id` | request header | Correlate your own traces and multi-turn sessions |
 | `x-nr-client-language` | request header | Set automatically by each official SDK |
 
-### Runnable end-to-end example
-
-[`sdks/js/demo/demo-e2e-sdk-example/`](sdks/js/demo/demo-e2e-sdk-example/) is a complete,
-runnable npm consumer of the JS SDK: one real request that prints what it cost
-and, if it is refused, why. It is the shortest demonstration of the two fields a
-production integration has to branch on — `meta.costStatus`, because an unpriced
-request reports no cost at all rather than a silent zero, and `err.authReason`,
-because "your key is wrong" and "your key is fine but the account is on hold"
-need different responses and neither is fixed by retrying. `npm start` sends a
-real, billed request. It depends on `file:../..` rather than a published
-range, so build `sdks/js` first; the example's own README carries the one-line
-change to make once the matching version publishes.
-
-### Voice: three of those endpoints, composed
-
-There is no voice endpoint and no realtime session. A voice turn is a cascade —
-`/v1/audio/transcriptions` → a chat wire → `/v1/audio/speech` — so it produces
-three request ids and three spend rows, any of which can come back unpriced.
-[`sdks/js/demo/voice-agent/`](sdks/js/demo/voice-agent/) is a
-runnable one that prints the per-call cost and refuses to report a session total
-as complete when a leg was not priced. The JS semantics are in
-[`sdks/js/docs/audio.md`](sdks/js/docs/audio.md).
-
-### Three more runnable agents, one per money shape
-
-Each is one file, prices and logs every call it makes, and ships a mock-gateway
-suite that runs with no key and no network — so the accounting is checkable
-without spending anything.
-
-| Example | Wires | The money question it answers |
-|---|---|---|
-| [`sdks/js/demo/chat-agent/`](sdks/js/demo/chat-agent/) | the four text wires, buffered and streamed | why a streamed call reports `unpriced` permanently, and why a cache hit is still billed — semantics in [`sdks/js/docs/cost.md`](sdks/js/docs/cost.md) |
-| [`sdks/js/demo/image-agent/`](sdks/js/demo/image-agent/) | `/v1/images/generations` | which of two billing units the model measured, and why no header carries the quantity that produced the price — semantics in [`sdks/js/docs/images.md`](sdks/js/docs/images.md) |
-| [`sdks/js/demo/video-agent/`](sdks/js/demo/video-agent/) | the three video routes | why the create is the only call that bills, and why a *free* call is not an *unpriced* one — semantics in [`sdks/js/docs/video.md`](sdks/js/docs/video.md) |
-
 ### Two ways to ask for a model
 
-Routing is a gateway concern, so there is no separate per-language routing API
-to drift; what you put in `model` chooses the mode.
+Routing is a gateway concern; what you put in `model` chooses the mode:
 
-- **Direct — you choose the model.** Name it in `model`. nRouter never swaps it
-  for another: a concrete model is never re-routed and inherits no hidden
-  fallback. A different model answers only through a fallback you configured
-  yourself — a per-model fallback list in the dashboard's Router Settings, or
-  `nrouter_fallbacks` on the request (up to 4; it replaces the saved list for
-  that request) — and only when the provider cannot take the request: `429`,
-  `503`, `529`, a connection that never opened, a stalled first byte, or a
-  deployment fault such as `401`/`404` from the provider. `500`, `502`, `504`
-  and read timeouts never fail over. You are charged once, for the model that
-  answered.
-- **`nrouter/auto` — nRouter chooses an eligible model for you.**
-  *Best for the task* (the default) uses smart model selection when it is
-  available; *Lowest cost* orders the models fit for
-  the task by their list rate (input plus output price per million tokens,
-  weighted equally, read live). The strategy is an organization setting in
-  Router Settings, and `nrouter_optimize: "quality" | "cost"` overrides it for
-  one request. `nrouter_fallbacks` on a request for `nrouter/auto` replaces the
-  fallbacks it would choose: its chosen model is tried first, then your targets
-  in order.
+- **Direct — you choose the model.** Name it in `model`. nRouter never swaps it for another: a concrete model is never re-routed and inherits no hidden fallback. A different model answers only through a fallback you configured yourself — in Router Settings or `nrouter_fallbacks` on the request (up to 4) — and only when the provider fails (`429`, `503`, `529`, connection or first-byte stall). You are charged once, for the model that answered.
+- **`nrouter/auto` — nRouter chooses an eligible model for you.** Selects between task-appropriate models by quality or lowest cost. `nrouter_optimize: "quality" | "cost"` overrides strategy for one request. `nrouter_fallbacks` on a request for `nrouter/auto` replaces the fallbacks it would choose.
 
-Either way you pay the served model's list price: `x-nr-model` names the model
-that answered, and `x-nr-routing` says `direct` or `fallback:<n>`. Model
-aliases carrying their own routing strategy are no longer offered; a former
-alias name now returns `model_not_found`. Every runnable hello-world example
-accepts `NROUTER_MODEL` so the same example demonstrates both modes without
-inventing client-only routing behavior.
+In both modes you pay the served model's list price: `x-nr-model` names the model that answered, and `x-nr-routing` indicates `direct` or `fallback:<n>`.
 
 ```bash
 NROUTER_MODEL=gpt-5.4-mini ./run-your-example   # direct: this model, or a fallback you configured
 NROUTER_MODEL=nrouter/auto ./run-your-example   # nrouter/auto: nRouter chooses
 ```
 
-The full semantics, including which routes can fail over at all, are in
-[`sdks/js/docs/routing.md`](sdks/js/docs/routing.md).
-
-### Not Served By The Gateway
-
-`spec/nrouter-sdk-spec.json` › `unsupported_endpoints` marks these as never called: files,
-fine-tuning, batches, beta/assistants-threads, vector stores, uploads, containers,
-conversations, webhooks, image edits, moderations, rerank, OCR, and the dashboard's
-control-plane APIs (credits, guardrail, prompt and pricing configuration). Do not add a client method or
-example for any of these without first adding the route to the gateway and the spec.
+The full semantics are in [`sdks/js/docs/routing.md`](sdks/js/docs/routing.md).
 
 ---
 
-## Examples by Language
+## Runnable Demos & Frameworks
 
-### SDKs (direct)
+Standalone starter scripts and framework integrations in `sdks/*/demo/`:
 
-| Language | Install | Example |
-|----------|---------|---------|
-| **Python (branded)** | `pip install nrouter-sdk` | [`sdks/python/`](sdks/python/) · [`sdks/python/demo/`](sdks/python/demo/), [`notebooks/quickstart.ipynb`](notebooks/quickstart.ipynb) |
-| **TypeScript / JS (branded)** | `npm install @nrouter_ai/sdk` | [`sdks/js/`](sdks/js/) · [`sdks/js/demo/quickstart.ts`](sdks/js/demo/quickstart.ts), [`sdks/js/demo/quickstart.js`](sdks/js/demo/quickstart.js) |
-| **Java (branded)** | `ai.nrouter:nrouter-sdk` | [`sdks/java/`](sdks/java/) · [`sdks/java/demo/quickstart.java`](sdks/java/demo/quickstart.java) |
-| **Kotlin (branded)** | Maven `ai.nrouter:nrouter-sdk-kotlin:3.1.4` | [`sdks/kotlin/`](sdks/kotlin/) · [`sdks/kotlin/demo/quickstart.kt`](sdks/kotlin/demo/quickstart.kt) |
-| **Android (branded)** | Maven `ai.nrouter:nrouter-sdk-android:3.1.4` | [`sdks/android/`](sdks/android/) · [`sdks/android/demo/`](sdks/android/demo/) |
-| **Rust (branded)** | `cargo add nrouter@3.1.4` | [`sdks/rust/`](sdks/rust/) · [`sdks/rust/demo/quickstart.rs`](sdks/rust/demo/quickstart.rs) |
-| **Dart / Flutter (branded)** | `dart pub add nrouter` | [`sdks/dart/`](sdks/dart/) · [`sdks/dart/demo/quickstart.dart`](sdks/dart/demo/quickstart.dart) |
-| **R (branded)** | `install.packages("nrouter", repos = c(nroutergateway = "https://nroutergateway.r-universe.dev", CRAN = "https://cloud.r-project.org"))` | [`sdks/r/`](sdks/r/) · [`sdks/r/demo/quickstart.R`](sdks/r/demo/quickstart.R) |
-| **Node.js / TypeScript (plain openai)** | `npm install openai` | [`sdks/js/demo/node.ts`](sdks/js/demo/node.ts) |
-| **Go** | `go get github.com/nRouterGateway/nrouter-sdk/sdks/go/v3@v3.1.4`, or plain `openai-go` | [`sdks/go/demo/quickstart.go`](sdks/go/demo/quickstart.go) |
-| **Java (plain openai-java)** | `com.openai:openai-java` | [`sdks/java/demo/quickstart.java`](sdks/java/demo/quickstart.java) |
-
-Every language under `sdks/*/demo/` holds standalone, runnable starter scripts and framework integrations.
-
-### AI Frameworks
-
-| Framework | Install | Example | What Changes |
-|-----------|---------|---------|-------------|
-| **LangChain** | `pip install langchain-openai` | [`sdks/python/demo/frameworks/langchain.py`](sdks/python/demo/frameworks/langchain.py) | `base_url` + `api_key` on `ChatOpenAI` |
-| **LlamaIndex** | `pip install llama-index-llms-openai` | [`sdks/python/demo/frameworks/llamaindex.py`](sdks/python/demo/frameworks/llamaindex.py) | `api_base` + `api_key` on `OpenAI` |
-| **Vercel AI SDK** | `npm install ai @ai-sdk/openai` | [`sdks/js/demo/vercel_ai.ts`](sdks/js/demo/vercel_ai.ts) | `baseURL` on `createOpenAI()` |
-| **CrewAI** | `pip install crewai` | [`sdks/python/demo/frameworks/crewai.py`](sdks/python/demo/frameworks/crewai.py) | `OPENAI_API_BASE` env var |
-| **AutoGen** | `pip install autogen-agentchat` | [`sdks/python/demo/frameworks/autogen.py`](sdks/python/demo/frameworks/autogen.py) | `base_url` in config_list |
-
-**Every framework** that supports OpenAI-compatible endpoints works with nRouter. Set `base_url` to `https://api.nrouter.ai/v1` and `api_key` to your `NROUTER_API_KEY`. That's it.
+| Example / Framework | Path | Description |
+|---|---|---|
+| **E2E TypeScript** | [`sdks/js/demo/demo-e2e-sdk-example/`](sdks/js/demo/demo-e2e-sdk-example/) | Runnable npm consumer with error branching and cost inspection |
+| **Voice Agent** | [`sdks/js/demo/voice-agent/`](sdks/js/demo/voice-agent/) | Transcriptions → chat completions → speech cascade |
+| **Chat / Stream Agent** | [`sdks/js/demo/chat-agent/`](sdks/js/demo/chat-agent/) | Text wires, streaming SSE, and response cache |
+| **Image Agent** | [`sdks/js/demo/image-agent/`](sdks/js/demo/image-agent/) | Image generation and billing |
+| **Video Agent** | [`sdks/js/demo/video-agent/`](sdks/js/demo/video-agent/) | Video job creation and retrieval |
+| **LangChain** | [`sdks/python/demo/frameworks/langchain.py`](sdks/python/demo/frameworks/langchain.py) | OpenAI-compatible LangChain client |
+| **LlamaIndex** | [`sdks/python/demo/frameworks/llamaindex.py`](sdks/python/demo/frameworks/llamaindex.py) | OpenAI-compatible LlamaIndex client |
+| **Vercel AI SDK** | [`sdks/js/demo/vercel_ai.ts`](sdks/js/demo/vercel_ai.ts) | `@ai-sdk/openai` integration |
+| **CrewAI** | [`sdks/python/demo/frameworks/crewai.py`](sdks/python/demo/frameworks/crewai.py) | `OPENAI_API_BASE` integration |
+| **AutoGen** | [`sdks/python/demo/frameworks/autogen.py`](sdks/python/demo/frameworks/autogen.py) | `base_url` config integration |
 
 ---
+
+
 
 ## Response Headers
 
@@ -728,80 +438,24 @@ nrouter-sdk/
 │   └── r/                           ← Branded SDK → R-universe public preview (demo/ included)
 ```
 
-This is the **single reference** for all SDK/examples. The playground code generation and docs site pull from these examples.
+## Documentation & Links
 
-## Documentation
+- **Documentation**: [nrouter.ai/docs](https://nrouter.ai/docs)
+- **API Reference**: [nrouter.ai/docs/api-reference](https://nrouter.ai/docs/api-reference)
+- **Live Model Catalog**: [nrouter.ai/models](https://nrouter.ai/models)
+- **Pricing**: [nrouter.ai/pricing](https://nrouter.ai/pricing)
+- **Dashboard**: [app.nrouter.ai](https://app.nrouter.ai)
+- **Routing Guide**: [`sdks/js/docs/routing.md`](sdks/js/docs/routing.md)
 
-Every link below was checked live before it was written here; none is derived
-from the sitemap alone, because a URL can sit in a sitemap and still 404.
+---
 
-**How each capability works**, and where it is enforced — all of these are
-gateway-side, so they behave identically from every SDK in this repository:
+## Contributing, Security & License
 
-| Capability | Guide | Product page |
-|---|---|---|
-| Guardrails — PII redaction, injection protection, pre- and post-call | [docs/guides/guardrails](https://nrouter.ai/docs/guides/guardrails) | [product/guardrails](https://nrouter.ai/product/guardrails) |
-| Budgets and spend limits, per key / team / org | [docs/guides/budget-controls](https://nrouter.ai/docs/guides/budget-controls) | [product/budgets](https://nrouter.ai/product/budgets) |
-| Routing, fallback chains, failover | [docs/guides/router-settings](https://nrouter.ai/docs/guides/router-settings) | [product/routing](https://nrouter.ai/product/routing) |
-| Observability and cost tracking | [docs/guides/observability](https://nrouter.ai/docs/guides/observability) | [product/observability](https://nrouter.ai/product/observability) |
-| Prompt templates and versioning | [docs/guides/prompts](https://nrouter.ai/docs/guides/prompts) | — |
-| API keys — creation, rotation, scope | [docs/guides/api-key-management](https://nrouter.ai/docs/guides/api-key-management) | — |
-
-**None of this lives in the SDK.** It is configured in the dashboard and
-enforced at the gateway on the request path, so whatever you have enabled
-applies to a raw `curl` exactly as it does to a branded SDK, and no client can
-bypass it. That is the reason a thin client is the right shape here.
-
-⚠️ **Two things are conditional, and assuming otherwise is how you rely on
-protection you do not have:**
-
-- **Which guardrails run is resolved per request.** The organization's
-  guardrail switch gates everything; below it the narrowest applicable
-  assignment wins across key > team > org > default, and a winner disabled at
-  that scope does not run. A guardrail you configured is not necessarily a
-  guardrail this request gets — check the assignment, not just the switch.
-- **Routing is chosen by what you put in `model`, and failover applies to text
-  wires only.** A model you name directly is never re-routed and inherits no
-  hidden platform fallback — only a fallback you configured can take over;
-  `nrouter/auto` lets nRouter choose an eligible model. Audio, image and video
-  take a single-provider route and have no cross-provider failover.
-
-Cost accounting covers every BILLABLE call. Some routes these SDKs expose are
-deliberately free and emit no `x-nr-request-cost` at all —
-`/v1/messages/count_tokens`, and video polling and content retrieval — because
-they generate no completion. Absent is not zero (Rule #28): a missing cost
-header means unpriced or free, never a $0 inference.
-
-**Per-language quickstarts:**
-[Python](https://nrouter.ai/docs/sdks/python) ·
-[Node.js / TypeScript](https://nrouter.ai/docs/sdks/nodejs) ·
-[Go](https://nrouter.ai/docs/sdks/go) ·
-[Java](https://nrouter.ai/docs/sdks/java) ·
-[PHP](https://nrouter.ai/docs/sdks/php) ·
-[Ruby](https://nrouter.ai/docs/sdks/ruby) ·
-[curl](https://nrouter.ai/docs/sdks/curl) ·
-[OpenAI SDK against nRouter](https://nrouter.ai/docs/sdks/python-openai)
-
-**Reference:**
-[Quick start](https://nrouter.ai/docs/getting-started/quick-start) ·
-[API reference](https://nrouter.ai/docs/api-reference) ·
-[Live model catalogue](https://nrouter.ai/models) ·
-[Pricing](https://nrouter.ai/pricing) ·
-[Changelog](https://nrouter.ai/changelog)
-
-## Contributing, security, and support
-
-| | |
+| Document | Purpose |
 |---|---|
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to build and test each SDK, and the PR checklist. **Read the version-field warning before you open a PR** — merging `main` publishes immutably. |
-| [SECURITY.md](SECURITY.md) | Report a vulnerability privately to `security@nrouter.ai`, never as an issue. Supported version lines per registry. |
-| [SUPPORT.md](SUPPORT.md) | SDK bugs go to issues; account, billing, and API-key questions go to `support@nrouter.ai`. |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Adapted from the Contributor Covenant 2.1. |
-| [CHANGELOG.md](CHANGELOG.md) | Coordinated release history for the shared SDK version train. |
-| [PUBLISHING.md](PUBLISHING.md) | How a release actually ships, and which credential each registry needs. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to build and test each SDK. Develop on `development`; `main` only via PR (Rule #20). |
+| [SECURITY.md](SECURITY.md) | Report vulnerabilities privately to `security@nrouter.ai`. |
+| [SUPPORT.md](SUPPORT.md) | Bug reports and account assistance. |
+| [CHANGELOG.md](CHANGELOG.md) | Coordinated release notes for shared version `3.1.4`. |
+| [LICENSE](LICENSE) | MIT License. |
 
-npm builds **1.1.1 and later** carry [provenance attestations](https://docs.npmjs.com/generating-provenance-statements)
-tying the tarball to the exact commit and workflow that produced it — verify
-with `npm audit signatures`. 1.0.0 and 1.1.0 were published by hand and have
-none; provenance cannot be added to a version after the fact. See
-[SECURITY.md](SECURITY.md#release-integrity).

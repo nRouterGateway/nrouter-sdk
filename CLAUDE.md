@@ -1,22 +1,15 @@
 # CLAUDE.md — nrouter-sdk
 
-Public repository (`github.com/nRouterGateway/nrouter-sdk`). Never commit secrets, keys, or internal endpoints.
+Public repo (`github.com/nRouterGateway/nrouter-sdk`). Never commit secrets or internal endpoints.
 Skills: `nrouter-sdk`, `deploy-nrouter-sdk` (`/deploy-nrouter-sdk`).
 
 ## Architecture & Contract (Rule #14)
-- **Ten client SDKs (`sdks/`):** JS/TS, Python, Java, Kotlin, Android, Go, Rust, Swift, Dart, and R speak one wire contract (`api.nrouter.ai/v1/*`).
-- **Dev-server testing & authentication:** Client SDKs connect to inference gateway at `https://api.dev.nrouter.ai/v1/*` during dev-server testing. Initialized with standard API key (`Authorization: Bearer sk-nrouter-...`) without any Nginx basic auth headers (auth_basic is off).
-- **Canonical spec:** `spec/nrouter-sdk-spec.json` is authoritative for routes, headers (`x-nr-*`), and errors. Disagreement means the SDK is wrong.
-- **Invariants:** `x-nr-request-cost` absent when unpriced (never zero, Rule #28); API keys redacted in logs; coordinated version releases.
-- **Branching (Rule #20):** Develops on `development` (`origin/development`), `main` locked down (PR only) before coordinated SDK releases.
-
-## Commands
-```bash
-python3 conformance/check_conformance.py [--self-test]   # verify all SDKs against spec
-python3 scripts/check_sdk_parity.py                     # playbooks and manifests parity
-scripts/test-all.sh                                     # run test suites across all SDKs
-```
-
+- **Ten client SDKs (`sdks/`):** speak one wire contract (`api.nrouter.ai/v1/*`).
+- **Dev testing:** `https://api.dev.nrouter.ai/v1/*` with `Authorization: Bearer sk-nrouter-...` (`auth_basic` off).
+- **Canonical spec:** `spec/nrouter-sdk-spec.json` is authoritative for routes, `x-nr-*` headers, and errors.
+- **Invariants:** `x-nr-request-cost` absent when unpriced (Rule #28); keys redacted in logs; coordinated version releases.
+- **Branching (Rule #20):** develop on `development`; `main` only via PR.
+- **Commands:** `python3 conformance/check_conformance.py` · `python3 scripts/check_sdk_parity.py` · `scripts/test-all.sh`
 
 <!-- BEGIN GENERATED: permanent-rules-pointer (bootstrap.sh) -->
 ## The Permanent Rules — for Codex, Gemini CLI and Antigravity
