@@ -19,6 +19,7 @@ Read in order before editing (`00-permanent-rules.md` is authority for all the r
 - `~/nr/nrouter-brain/sdlc/rules/10-testing.md`
 - `~/nr/nrouter-brain/sdlc/rules/19-soc2-new-feature-checklist.md`
 - `~/nr/nrouter-brain/sdlc/rules/20-tdd-and-fleet.md`
+- `~/nr/nrouter-brain/sdlc/rules/21-owner-feature-review.md`
 - `~/nr/nrouter-brain/nrouter-app/rules/02-multi-tenancy.md`
 - `~/nr/nrouter-brain/nrouter-app/rules/03-credit-safety.md`
 - `~/nr/nrouter-brain/nrouter-app/rules/05-frontend-standards.md`
