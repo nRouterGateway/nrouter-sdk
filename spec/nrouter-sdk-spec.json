@@ -35,16 +35,17 @@
     },
     "x-nr-request-cost": {
       "type": "float",
-      "description": "Exact cost in USD; absent when the model is unpriced",
+      "description": "Exact cost in USD; absent when the model is unpriced or when funded by the organization's own saved provider key (x-nr-cost-status: byok)",
       "always": false
     },
     "x-nr-cost-status": {
       "type": "string",
-      "description": "Cost status",
+      "description": "Cost status: exact when billed in USD, unpriced when the model has no price, byok when the organization's own saved provider key paid the provider directly and x-nr-request-cost is absent",
       "always": false,
       "values": [
         "exact",
-        "unpriced"
+        "unpriced",
+        "byok"
       ]
     },
     "x-nr-model": {
@@ -79,7 +80,7 @@
     },
     "x-nr-limit-source": {
       "type": "string",
-      "description": "Limit source on 429 and 402 responses; pot_window names a rolling spend-window limit on promo or hack pots",
+      "description": "Limit source on 429 and 402 responses; pot_window names a rolling spend-window limit on promo or hack pots; byok_fair_use names the monthly BYOK token fair-use allowance on 429 byok_fair_use_exceeded",
       "always": false,
       "values": [
         "key",
@@ -93,7 +94,8 @@
         "capacity",
         "plan_allowance_exhausted",
         "plan_required",
-        "pot_window"
+        "pot_window",
+        "byok_fair_use"
       ]
     },
     "x-nr-budget-warning": {
@@ -200,13 +202,26 @@
     },
     "x-nr-funding-source": {
       "type": "string",
-      "description": "Which balance paid for this request: the plan's usage allowance, credits, promotional credit (promo-labeled models) or hackathon credit (hack-labeled models)",
+      "description": "Which balance or credential paid for this request: the plan's usage allowance, credits, promotional credit (promo-labeled models), hackathon credit (hack-labeled models) or the organization's own saved provider key on the BYOK plan (byok)",
       "always": false,
       "values": [
         "allowance",
         "credits",
         "promo",
-        "hack"
+        "hack",
+        "byok"
+      ]
+    },
+    "x-nr-byok-fallback": {
+      "type": "string",
+      "description": "Present only when a request covered by an organization's saved provider key was charged to prepaid credits (x-nr-funding-source: credits) because the organization enabled credit fallback and the saved key attempt failed with a non-billable provider refusal before any output; names why the saved key attempt did not serve the request. Absent otherwise, including on every byok-funded response.",
+      "always": false,
+      "values": [
+        "credential_rejected",
+        "permission_denied",
+        "rate_limited",
+        "overloaded",
+        "connect_refused"
       ]
     },
     "x-nr-pot-fallback": {
@@ -404,6 +419,26 @@
       "http": 400,
       "class": "nRouterRequestError",
       "description": "The request to nrouter/auto (on /v1/chat/completions or another multimodal text wire) includes an image, and no model available for automatic routing on this endpoint accepts image input. Refused before any provider egress, so nothing was reserved and nothing was spent. Permanent for this body: remove the image or name a model that accepts images."
+    },
+    "byok_plan_required": {
+      "http": 402,
+      "class": "nRouterCreditError",
+      "description": "An active BYOK subscription is required to use saved provider keys. Subscribe or renew the BYOK plan in Billing; models paid from prepaid credits are unaffected. Refused before any provider egress; nothing was reserved and nothing was spent."
+    },
+    "byok_fair_use_exceeded": {
+      "http": 429,
+      "class": "nRouterRateLimitError",
+      "description": "The monthly BYOK token fair-use allowance for the organization is reached (x-nr-limit-source: byok_fair_use; Retry-After carries the seconds until the allowance resets at the next UTC calendar month). This refusal never falls back to prepaid credits; models paid from prepaid credits keep working. Refused before any provider egress; nothing was reserved and nothing was spent."
+    },
+    "byok_credential_rejected": {
+      "http": 401,
+      "class": "nRouterAuthenticationError",
+      "description": "The organization's saved provider API key was rejected by the upstream provider (401/403 authentication or permission refusal) and credit fallback is disabled for that key. Replace the saved provider key in BYOK settings or enable credit fallback."
+    },
+    "byok_credential_unavailable": {
+      "http": 409,
+      "class": "nRouterError",
+      "description": "The organization's saved provider API key is currently unavailable (disabled, revoked, or undecryptable) and credit fallback is disabled or cannot cover the request. Re-save the provider key in BYOK settings or enable credit fallback. Refused before any provider egress; nothing was reserved and nothing was spent."
     }
   },
   "supported_endpoints": [

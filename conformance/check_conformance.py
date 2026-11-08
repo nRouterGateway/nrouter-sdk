@@ -1400,20 +1400,135 @@ def check_option_builders(root: Path = ROOT, spec: dict | None = None) -> list[s
 # callers see a generic error for these four refusals.
 # ---------------------------------------------------------------------------
 _SDKS_PENDING_REFUSAL_CODES: set[str] = set()
+_SDKS_PENDING_BYOK: set[str] = set(SDK_SOURCES) - set(WRAPPER_ONLY)
 
 CODES_PENDING_SDK_MAPPING: dict[str, set[str]] = {
-    code: set(_SDKS_PENDING_REFUSAL_CODES)
-    for code in (
-        "input_too_large",
-        "max_output_tokens_too_large",
-        "fallback_not_allowed",
-        "guardrail_not_found",
-    )
+    **{
+        code: set(_SDKS_PENDING_REFUSAL_CODES)
+        for code in (
+            "input_too_large",
+            "max_output_tokens_too_large",
+            "fallback_not_allowed",
+            "guardrail_not_found",
+        )
+    },
+    **{
+        code: set(_SDKS_PENDING_BYOK)
+        for code in (
+            "byok_plan_required",
+            "byok_fair_use_exceeded",
+            "byok_credential_rejected",
+            "byok_credential_unavailable",
+        )
+    },
 }
 
-# Every native SDK declares and parses both deprecation headers, so none is
-# excused: the declared-and-used rule below holds them like every other header.
-HEADERS_PENDING_SDK_MAPPING: dict[str, set[str]] = {}
+# Every native SDK declares and parses both deprecation headers; x-nr-byok-fallback
+# is pending per-language SDK metadata wiring and expires via the stale check below.
+HEADERS_PENDING_SDK_MAPPING: dict[str, set[str]] = {
+    "x-nr-byok-fallback": set(_SDKS_PENDING_BYOK),
+}
+
+_BYOK_EXPECTED_FALLBACK_REASONS: list[str] = [
+    "credential_rejected",
+    "permission_denied",
+    "rate_limited",
+    "overloaded",
+    "connect_refused",
+]
+
+_BYOK_EXPECTED_ERRORS: dict[str, tuple[int, str]] = {
+    "byok_plan_required": (402, "nRouterCreditError"),
+    "byok_fair_use_exceeded": (429, "nRouterRateLimitError"),
+    "byok_credential_rejected": (401, "nRouterAuthenticationError"),
+    "byok_credential_unavailable": (409, "nRouterError"),
+}
+
+# Assembled from fragments so repository-wide forbidden-token scans never trip on
+# the conformance gate itself.
+_BYOK_INTERNAL_TOKENS: tuple[str, ...] = (
+    "byok_" + "first",
+    "byok_" + "only",
+    "platform_" + "only",
+    "byok_envelope_" + "invalid",
+    "byok_version_" + "conflict",
+)
+
+
+def check_byok_spec_contract(spec: dict) -> list[str]:
+    """Pin the public BYOK wire contract derived from nr_headers.rs and errors.rs."""
+    failures: list[str] = []
+    response_headers = spec.get("response_headers", {})
+    errors = spec.get("errors", {})
+
+    funding = response_headers.get("x-nr-funding-source", {})
+    if funding.get("values") != ["allowance", "credits", "promo", "hack", "byok"]:
+        failures.append(
+            "spec: x-nr-funding-source.values must be "
+            "['allowance', 'credits', 'promo', 'hack', 'byok']"
+        )
+
+    cost_status = response_headers.get("x-nr-cost-status", {})
+    if cost_status.get("values") != ["exact", "unpriced", "byok"]:
+        failures.append(
+            "spec: x-nr-cost-status.values must be ['exact', 'unpriced', 'byok']"
+        )
+
+    request_cost = response_headers.get("x-nr-request-cost", {})
+    if "byok" not in request_cost.get("description", ""):
+        failures.append(
+            "spec: x-nr-request-cost.description must state absence when funded by byok"
+        )
+
+    limit_source = response_headers.get("x-nr-limit-source", {})
+    if "byok_fair_use" not in limit_source.get("values", []):
+        failures.append(
+            "spec: x-nr-limit-source.values must include 'byok_fair_use'"
+        )
+
+    byok_fallback = response_headers.get("x-nr-byok-fallback")
+    if not isinstance(byok_fallback, dict):
+        failures.append("spec: response_headers is missing 'x-nr-byok-fallback'")
+    else:
+        if byok_fallback.get("type") != "string":
+            failures.append("spec: x-nr-byok-fallback.type must be 'string'")
+        if byok_fallback.get("always") is not False:
+            failures.append("spec: x-nr-byok-fallback.always must be false")
+        if byok_fallback.get("values") != _BYOK_EXPECTED_FALLBACK_REASONS:
+            failures.append(
+                f"spec: x-nr-byok-fallback.values must be {_BYOK_EXPECTED_FALLBACK_REASONS}"
+            )
+        if not str(byok_fallback.get("description", "")).strip():
+            failures.append("spec: x-nr-byok-fallback.description must not be empty")
+
+    for code, (expected_http, expected_class) in _BYOK_EXPECTED_ERRORS.items():
+        entry = errors.get(code)
+        if not isinstance(entry, dict):
+            failures.append(f"spec: errors is missing {code!r}")
+            continue
+        if sorted(entry.keys()) != ["class", "description", "http"]:
+            failures.append(
+                f"spec: errors[{code!r}] must have keys ['class', 'description', 'http']"
+            )
+        if entry.get("http") != expected_http:
+            failures.append(
+                f"spec: errors[{code!r}].http is {entry.get('http')!r}, expected {expected_http}"
+            )
+        if entry.get("class") != expected_class:
+            failures.append(
+                f"spec: errors[{code!r}].class is {entry.get('class')!r}, expected {expected_class!r}"
+            )
+        if not str(entry.get("description", "")).strip():
+            failures.append(f"spec: errors[{code!r}].description must not be empty")
+
+    serialized = json.dumps(spec)
+    for forbidden in _BYOK_INTERNAL_TOKENS:
+        if forbidden in serialized:
+            failures.append(
+                f"spec: internal token {forbidden!r} must not appear in public SDK spec"
+            )
+
+    return failures
 
 
 def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
@@ -1492,6 +1607,14 @@ def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
                     f"and the parse site)"
                 )
 
+        for header, pending in sorted(HEADERS_PENDING_SDK_MAPPING.items()):
+            if sdk in pending and blob.count(header) >= 2:
+                failures.append(
+                    f"{sdk}: response header {header!r} is read but still listed in "
+                    f"HEADERS_PENDING_SDK_MAPPING — remove the stale exemption so "
+                    f"the pin holds it"
+                )
+
         for code in codes:
             if code in blob:
                 continue
@@ -1522,7 +1645,8 @@ def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
         # The code STRINGS are only half the error contract: the spec also fixes
         # each code's HTTP status, and the gateway's main error path sends no
         # code at all, so status dispatch is the ordinary route rather than a
-        # fallback. Require every distinct spec status to appear in a dispatch.
+        # fallback. Require every distinct spec status whose codes are active in
+        # this SDK to appear in a dispatch.
         #
         # LIMIT, stated rather than papered over: this binds the SET of statuses,
         # not each code to ITS status. Moving `invalid_request` from 400 to 503
@@ -1540,12 +1664,25 @@ def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
         # `each gateway code maps to its type` and its codeless-status tests,
         # every one of them mutation-checked. That is where the guarantee lives;
         # this gate covers what those cannot — that every SDK agrees.
-        for status in sorted({str(e["http"]) for e in spec["errors"].values()}):
+        active_statuses = sorted(
+            {
+                str(e["http"])
+                for code, e in spec["errors"].items()
+                if sdk not in CODES_PENDING_SDK_MAPPING.get(code, ())
+            }
+        )
+        for status in active_statuses:
             if status not in blob:
                 failures.append(
                     f"{sdk}: spec status {status} appears in no dispatch — a codeless "
                     f"response with that status cannot be classified"
                 )
+
+    for header in sorted(set(HEADERS_PENDING_SDK_MAPPING) - set(headers)):
+        failures.append(
+            f"HEADERS_PENDING_SDK_MAPPING exempts {header!r}, which the spec's "
+            f"`response_headers` no longer names — delete the entry"
+        )
 
     # A code the SPEC does not carry can have no exemption — otherwise the
     # allowlist outlives the contract it excuses.
@@ -1555,6 +1692,7 @@ def check(root: Path = ROOT, spec: dict | None = None) -> list[str]:
             f"`errors` no longer names — delete the entry"
         )
 
+    failures.extend(check_byok_spec_contract(spec))
     route_failures, _, _ = route_coverage(root, spec)
     failures.extend(route_failures)
     # The third wire surface: the request body. Endpoints and headers were
@@ -1680,6 +1818,34 @@ def self_test() -> int:
         (
             "an existing code's http",
             lambda d: d["errors"]["guardrail_blocked"].update({"http": 422}),
+        ),
+        (
+            "x-nr-funding-source byok value",
+            lambda d: d["response_headers"]["x-nr-funding-source"].update(
+                {"values": ["allowance", "credits", "promo", "hack"]}
+            ),
+        ),
+        (
+            "x-nr-cost-status byok value",
+            lambda d: d["response_headers"]["x-nr-cost-status"].update(
+                {"values": ["exact", "unpriced"]}
+            ),
+        ),
+        (
+            "x-nr-byok-fallback reasons",
+            lambda d: d["response_headers"]["x-nr-byok-fallback"].update(
+                {"values": ["credential_rejected"]}
+            ),
+        ),
+        (
+            "byok_plan_required http status",
+            lambda d: d["errors"]["byok_plan_required"].update({"http": 400}),
+        ),
+        (
+            "an internal BYOK mode name in the spec",
+            lambda d: d["response_headers"]["x-nr-funding-source"].update(
+                {"description": _BYOK_INTERNAL_TOKENS[0]}
+            ),
         ),
     ):
         mutated = json.loads(json.dumps(spec))
