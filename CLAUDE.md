@@ -7,7 +7,7 @@ Skills: `nrouter-sdk`, `deploy-nrouter-sdk` (`/deploy-nrouter-sdk`).
 - **Ten client SDKs (`sdks/`):** speak one wire contract (`api.nrouter.ai/v1/*`).
 - **Dev testing:** `https://api.dev.nrouter.ai/v1/*` with `Authorization: Bearer sk-nrouter-...` (`auth_basic` off).
 - **Canonical spec:** `spec/nrouter-sdk-spec.json` is authoritative for routes, `x-nr-*` headers, and errors.
-- **Invariants:** `x-nr-request-cost` absent when unpriced (Rule #28); keys redacted in logs; coordinated version releases.
+- **Invariants:** `x-nr-request-cost` absent when unpriced (Rule #28) or when funded by customer key (`x-nr-funding-source: byok`); keys redacted in logs; coordinated version releases (truth: `spec/nrouter-sdk-spec.json`).
 - **Branching (Rule #20):** develop on `development`; `main` only via PR.
 - **Commands:** `python3 conformance/check_conformance.py` · `python3 scripts/check_sdk_parity.py` · `scripts/test-all.sh`
 

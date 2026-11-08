@@ -69,6 +69,11 @@ Each is a `spec.response_headers` entry — read it, don't retype it.
 - **`x-nr-response-cache`**: `hit` | `miss` | `bypass`.
 - **`x-nr-limit-source`** is present on 402 as well as 429; `budget` is a value.
 - A model outside the key's access list is **403 `x-nr-auth-reason: key_model_not_allowed`**, not 404; `model_not_found` = alias absent or invisible to the key.
+- **Bring-your-own-key responses & errors:**
+  - `x-nr-funding-source` can be `byok`; on `byok`, `x-nr-cost-status: byok` and `x-nr-request-cost` is absent.
+  - `x-nr-byok-fallback` is present when a saved key attempt fails non-billably and credit fallback answers on credits (`x-nr-funding-source: credits`).
+  - Error codes: `byok_plan_required` (402), `byok_credential_rejected` (401), `byok_credential_unavailable` (409; no usable customer key and credit fallback not enabled), and `byok_fair_use_exceeded` (429, with `x-nr-limit-source: byok_fair_use`).
+  - Sole source of truth: `spec/nrouter-sdk-spec.json`.
 
 ### Conformance gate — the only cross-SDK check
 
