@@ -33,9 +33,28 @@ do
         s=3
       fi
       echo "       $s. git pull --no-rebase origin $b   (merge; your commits keep their exact SHAs)" >&2
+      echo "          CONFLICT? edit each listed file (keep the right lines from both sides, delete the" >&2
+      echo "          <<<<<<< ======= >>>>>>> markers), git add <files>, git commit, run the affected tests." >&2
+      echo "          Stuck? git merge --abort puts you back exactly on your commit." >&2
       echo "       $((s + 1)). git push origin $b" >&2
       echo "       Never rebase or force-push: a rebase rewrites commits and loses changes." >&2
       exit 1
+    fi
+    # Never PUBLISH an unresolved merge conflict (a file `git add`ed with its markers still in
+    # commits silently). The commit stays allowed; the push is refused while the pushed range ADDS
+    # a marker line (net, so a later fix commit clears it).
+    if [ "$remote_oid" != "$z40" ]; then
+      marker_re='^(<<<<<<<|>>>>>>>|[|]{7})( |$)'
+      markers="$(git diff -U0 "$remote_oid" "$local_oid" 2>/dev/null | grep -cE "^[+]${marker_re#^}" || true)"
+      if [ "${markers:-0}" != 0 ]; then
+        echo "REFUSED: this push adds $markers unresolved merge-conflict marker line(s):" >&2
+        # shellcheck disable=SC2046 # word-split file list, display only
+        git grep -nE "$marker_re" "$local_oid" -- $(git diff --name-only --diff-filter=AM "$remote_oid" "$local_oid") 2>/dev/null \
+          | sed "s/^$local_oid://" | head -10 | sed 's/^/       /' >&2 || true
+        echo "       Resolve each one (keep the right lines from both sides, delete the markers), then:" >&2
+        echo "       git add <files> && git commit -m 'resolve merge conflicts' && git push origin ${remote_ref#refs/heads/}" >&2
+        exit 1
+      fi
     fi
     ;;
   esac
