@@ -10,12 +10,14 @@ pub const CACHE_FIELD: &str = "nrouter_cache";
 pub const FALLBACKS_FIELD: &str = "nrouter_fallbacks";
 pub const GUARDRAILS_FIELD: &str = "nrouter_guardrails";
 pub const OPTIMIZE_FIELD: &str = "nrouter_optimize";
-pub const EXTRA_BODY_FIELDS: [&str; 6] = [
+pub const COST_BAND_FIELD: &str = "nrouter_cost_band";
+pub const EXTRA_BODY_FIELDS: [&str; 7] = [
     PROMPT_TEMPLATE_ID_FIELD,
     PROMPT_VARIABLES_FIELD,
     CACHE_FIELD,
     FALLBACKS_FIELD,
     OPTIMIZE_FIELD,
+    COST_BAND_FIELD,
     GUARDRAILS_FIELD,
 ];
 
@@ -33,10 +35,13 @@ pub struct FeatureOptions {
     pub guardrail_ids: Vec<String>,
     pub cache: Option<bool>,
     /// Strategy for a request on `nrouter/auto` only: `"quality"` (the
-    /// organization default) or `"cost"` (lowest list rate among models fit
-    /// for the task). Pairing it with any other model is refused by the
-    /// gateway with 400 `invalid_request`.
+    /// organization default) or `"cost"` (lowest estimated request cost within
+    /// `cost_band`, with Default Pick fallback). Pairing it with any other
+    /// model is refused by the gateway with 400 `invalid_request`.
     pub optimize: Option<String>,
+    /// Cost-band ceiling for cost-mode `nrouter/auto` only: `"low"`, `"mid"`
+    /// (default), or `"high"`.
+    pub cost_band: Option<String>,
 }
 
 fn normalize_names(
@@ -108,6 +113,16 @@ pub fn build_extra_body(opts: &FeatureOptions) -> Result<Map<String, Value>, NRo
             ));
         }
         out.insert(OPTIMIZE_FIELD.into(), Value::String(optimize.into()));
+    }
+    if let Some(cost_band) = opts.cost_band.as_deref() {
+        if cost_band != "low" && cost_band != "mid" && cost_band != "high" {
+            return Err(NRouterError::Configuration(
+                "cost_band must be \"low\", \"mid\", or \"high\"; it maps onto the gateway field \
+                 nrouter_cost_band and applies to cost-mode nrouter/auto requests only."
+                    .into(),
+            ));
+        }
+        out.insert(COST_BAND_FIELD.into(), Value::String(cost_band.into()));
     }
     if !opts.guardrails.is_empty() {
         out.insert(

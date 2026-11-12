@@ -18,6 +18,7 @@
     "x-nr-guardrails",
     "x-nr-auth-reason",
     "x-nr-funding-source",
+    "x-nr-byok-fallback",
     "x-nr-pot-fallback",
     "x-nr-allowance-reset",
     "x-nr-compression",

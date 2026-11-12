@@ -19,16 +19,23 @@ await client.nr.chat({ model: 'nrouter/auto', prompt });                // nRout
   fails. Most organizations configure no fallbacks at all, and that is a
   supported steady state, not a misconfiguration.
 - **`nrouter/auto` — nRouter chooses an eligible model for you.** Your
-  organization picks how, in the dashboard's Router Settings:
-  *Best for the task* (the default) uses smart model selection when it is
-  available; *Lowest cost* orders the models fit for the task by their list
-  rate — input plus output price per million tokens, weighted equally, read
-  live. That orders
-  models by their published rate; it is not a promise of the lowest bill for a
-  given request.
+  organization picks how, in the dashboard's Router Settings (or per request via
+  `nrouter_optimize: "quality" | "cost"`):
+  *Best for the task* (the default) selects the best task-capable model;
+  *Lowest cost* filters eligible models to the active `nrouter_cost_band`
+  ceiling (`"low"` `< $1`, `"mid"` `$1` to `< $7` default, `"high"` `$7+` per
+  million tokens on the `(3 * input + 1 * output) / 4` blended list rate) and
+  ranks task-capable candidates by estimated request cost from input tokens and
+  output cap, falling back to the Default Pick when the decision model abstains,
+  misses, times out, hits a scale limit, or when Smart model selection is turned
+  off. If the active `nrouter_cost_band` leaves zero eligible models, the
+  gateway refuses before hold with `400 cost_band_unsatisfiable` (`$0` spent)
+  rather than escalating to a higher band; sending `nrouter_cost_band` on a
+  Direct model or under `"quality"` returns `400 invalid_request`.
 
-Either way you pay the served model's list price, and `x-nr-model`
-(`res.meta.model`) names the model that answered.
+Either way you pay 0% markup on the served model's exact list price, and
+`x-nr-model` (`res.meta.model`) always names the concrete model that served the
+request.
 
 Model aliases carrying their own routing strategy are no longer offered: a
 former alias name in `model` now returns the unknown-model error
@@ -46,9 +53,11 @@ A direct request can fall back to another model in two ways, both yours:
 On a request for `nrouter/auto`, `nrouter_fallbacks` replaces the fallbacks
 `nrouter/auto` would choose: the model it chooses is tried first, then your
 targets in order, and an empty list means no fallback. A target your key cannot
-route is refused with `400 fallback_not_allowed`, before any provider call. One
-hold covers the whole chain; when the funds cannot cover it the request is
-refused before any provider call, and a target is never dropped to make it fit.
+route — or a target outside the active `nrouter_cost_band` ceiling on a
+cost-mode `nrouter/auto` request — is refused with `400 fallback_not_allowed`,
+before any provider call. One hold covers the whole chain; when the funds
+cannot cover it the request is refused before any provider call, and a target
+is never dropped to make it fit.
 
 Entries whose circuit breaker is open are skipped. Health state is advanced when
 an attempt fails, so a provider having a bad minute drops out of the rotation

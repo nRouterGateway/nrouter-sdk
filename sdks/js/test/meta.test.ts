@@ -75,6 +75,7 @@ const FIXTURE: Record<string, string> = {
   // Posture only — one of the five tokens, matched case-sensitively.
   'x-nr-guardrails': 'pass',
   'x-nr-funding-source': 'allowance',
+  'x-nr-byok-fallback': 'rate_limited',
   // Sent only when a promo/hack request was charged to prepaid credits under
   // the organization's paid fallback.
   'x-nr-pot-fallback': 'pot_empty',
@@ -134,6 +135,7 @@ test('every one of the declared headers is actually read', () => {
   assert.equal(parsed.intent, 'chitchat');
   assert.equal(parsed.budgetWarning, 'org soft_budget 80.00/100.00');
   assert.equal(parsed.guardrails, 'pass');
+  assert.equal(parsed.byokFallback, 'rate_limited');
   assert.equal(parsed.potFallback, 'pot_empty');
   assert.equal(isPriced(parsed), true);
 

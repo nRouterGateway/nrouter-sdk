@@ -1,14 +1,12 @@
 ---
 name: nrouter-sdk
-description: 'Use when developing, testing, or auditing the official nRouter multi-language SDKs.
-
-  [WHAT]: Client SDK development across 10 languages, conformance testing, wire serialization, error classification, and retry semantics.
-
-  [WHEN]: Adding SDK features, updating request/response types, running conformance test suites, or testing the @nrouter_ai/support-agent library.
-
-  [NOT FOR]: Publishing packages to external package registries (use deploy-nrouter-sdk) or gateway wire implementation (use nrouter-rust-modalities).'
+description: >-
+  Use when developing, testing, or auditing the official nRouter multi-language SDKs.
+  [WHAT]: Client SDK development across 10 languages, generated model constants from spec/model-catalog-snapshot.json (scripts/generate-model-constants.mjs, MCAT-39), conformance testing, wire serialization, error classification, and retry semantics.
+  [WHEN]: Adding SDK features, regenerating or checking SDK model constants, updating request/response types, running conformance test suites, or testing the @nrouter_ai/support-agent library.
+  [NOT FOR]: Publishing packages to external package registries (use deploy-nrouter-sdk) or gateway wire implementation (use nrouter-rust-modalities).
 metadata:
-  version: 1.2.0
+  version: 1.3.0
 ---
 
 # nRouter SDKs (router)
@@ -30,6 +28,7 @@ A new wire is `parity` (all SDKs) + `testing` (a contract test per SDK); a class
 
 - SDKs live under `sdks/<tech>/` (`js python java go rust kotlin android swift dart r`); derive: `ls -d sdks/*/ | wc -l`.
 - `spec/nrouter-sdk-spec.json` (derived from the gateway) is the sole source of truth for base URL, `NROUTER_API_KEY`, `sk-nrouter-` prefix, headers and value enums, error codes, body fields, version. **Read values from it; never retype.** SDK ≠ spec → the SDK is wrong; a contract change is never single-language.
+- **Generated Model Constants (`MCAT-39`, `CATREC-010`):** `spec/model-catalog-snapshot.json` (pinned `schema_version` + `catalog_revision` snapshot exported from `mo_models` and `mo_model_identifiers`) is the sole input to `scripts/generate-model-constants.mjs`, which emits deterministic `MODEL_*` constants across all 10 SDKs (preserving `canonical` and `moving` identifiers and marking retired models `@deprecated` / `Deprecated`, never deleted). Verify with `node scripts/generate-model-constants.mjs --check` and `node --test scripts/generate-model-constants.test.mjs`.
 - **Branching & release workflow (Rule #20):** Active SDK changes and coordinated version bumps are authored and verified on `development` (`origin/development`), merged into locked-down `main` **only via Pull Request (`development` → `main`)**, and published/tagged from `main`.
 
 ```bash
@@ -69,6 +68,11 @@ Each is a `spec.response_headers` entry — read it, don't retype it.
 - **`x-nr-response-cache`**: `hit` | `miss` | `bypass`.
 - **`x-nr-limit-source`** is present on 402 as well as 429; `budget` is a value.
 - A model outside the key's access list is **403 `x-nr-auth-reason: key_model_not_allowed`**, not 404; `model_not_found` = alias absent or invisible to the key.
+- **Bring-your-own-key responses & errors:**
+  - `x-nr-funding-source` can be `byok`; on `byok`, `x-nr-cost-status: byok` and `x-nr-request-cost` is absent.
+  - `x-nr-byok-fallback` is present when a saved key attempt fails non-billably and credit fallback answers on credits (`x-nr-funding-source: credits`).
+  - Error codes: `byok_plan_required` (402), `byok_credential_rejected` (401), `byok_credential_unavailable` (409; no usable customer key and credit fallback not enabled), and `byok_fair_use_exceeded` (429, with `x-nr-limit-source: byok_fair_use`).
+  - Sole source of truth: `spec/nrouter-sdk-spec.json`.
 
 ### Conformance gate — the only cross-SDK check
 

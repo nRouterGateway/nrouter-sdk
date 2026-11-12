@@ -90,6 +90,9 @@ class nRouterResponseMeta:
     attempts: int | None = None
     intent: str | None = None
     funding_source: str | None = None
+    #: Why a saved provider key attempt fell back to prepaid credits when the
+    #: organization enabled BYOK credit fallback (e.g. ``rate_limited``).
+    byok_fallback: str | None = None
     #: Why promo/hack credit did not fund a request charged to prepaid credits
     #: under the organization's paid fallback (e.g. ``pot_empty``,
     #: ``window_day``). ``None`` on every other response.
@@ -129,6 +132,7 @@ class nRouterResponseMeta:
         "x-nr-attempts",
         "x-nr-intent",
         "x-nr-funding-source",
+        "x-nr-byok-fallback",
         "x-nr-pot-fallback",
         "x-nr-allowance-reset",
         "x-nr-model-deprecated",
@@ -207,6 +211,7 @@ class nRouterResponseMeta:
             attempts=optional_int("x-nr-attempts"),
             intent=norm.get("x-nr-intent"),
             funding_source=norm.get("x-nr-funding-source"),
+            byok_fallback=norm.get("x-nr-byok-fallback"),
             pot_fallback=norm.get("x-nr-pot-fallback"),
             allowance_reset=optional_int("x-nr-allowance-reset"),
             model_deprecated=optional_bool("x-nr-model-deprecated"),

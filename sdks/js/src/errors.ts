@@ -360,6 +360,7 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   fallback_not_allowed: nRouterRequestError,
   guardrail_not_found: nRouterRequestError,
   image_input_unsupported: nRouterRequestError,
+  cost_band_unsatisfiable: nRouterRequestError,
   // nrouter/promo and nrouter/hack spend only their own credit, capped per UTC
   // hour/day/week/month: an empty balance is a credit refusal, a full window a
   // rate-limit refusal, an unsupported feature a request refusal.
@@ -367,6 +368,11 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   insufficient_hack_credit: nRouterCreditError,
   pot_spend_limit_exceeded: nRouterRateLimitError,
   pot_route_feature_unsupported: nRouterRequestError,
+  // BYOK plan, fair-use, and saved credential refusals.
+  byok_plan_required: nRouterCreditError,
+  byok_fair_use_exceeded: nRouterRateLimitError,
+  byok_credential_rejected: nRouterAuthenticationError,
+  byok_credential_unavailable: nRouterError,
   // 403 model deny lists: no permission class exists, so the base class carries
   // the code and the status.
   model_denied_by_org: nRouterError,
@@ -392,10 +398,15 @@ export const ERROR_STATUS_BY_CODE: Readonly<Record<string, number>> = Object.fre
   fallback_not_allowed: 400,
   guardrail_not_found: 400,
   image_input_unsupported: 400,
+  cost_band_unsatisfiable: 400,
   insufficient_promo_credit: 402,
   insufficient_hack_credit: 402,
   pot_spend_limit_exceeded: 429,
   pot_route_feature_unsupported: 400,
+  byok_plan_required: 402,
+  byok_fair_use_exceeded: 429,
+  byok_credential_rejected: 401,
+  byok_credential_unavailable: 409,
   model_denied_by_org: 403,
   model_denied_by_team: 403,
   model_denied_by_key: 403,

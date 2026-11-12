@@ -98,6 +98,14 @@ def test_optimize_maps_onto_the_gateway_field_and_refuses_other_values():
         build_extra_body(optimize="cheap")
 
 
+def test_cost_band_maps_onto_the_gateway_field_and_refuses_other_values():
+    for band in ("low", "mid", "high"):
+        assert build_extra_body(cost_band=band) == {"nrouter_cost_band": band}
+    assert build_extra_body() == {}
+    with pytest.raises(nRouterConfigurationError, match="cost_band"):
+        build_extra_body(cost_band="ultra")
+
+
 def test_more_than_four_fallbacks_is_refused_locally():
     with pytest.raises(nRouterConfigurationError, match="fallbacks"):
         build_extra_body(fallbacks=["a", "b", "c", "d", "e"])
@@ -176,6 +184,7 @@ def test_every_spec_extra_body_field_is_reachable_from_the_builder():
         fallbacks=["gpt-4o-mini"],
         guardrails=["pii-strict"],
         optimize="cost",
+        cost_band="mid",
         # `cache=True` is the gateway default and is deliberately OMITTED, so
         # only `False` can put `nrouter_cache` on the wire. Populating this
         # with `True` would make the "every field is emittable" half of this

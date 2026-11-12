@@ -100,8 +100,14 @@ export interface ResponseMeta {
   attempts: number | null;
   /** Top evaluated intent category if intent routing was requested. */
   intent: string | null;
-  /** Which balance paid for this request: allowance, credits, promo or hack. */
+  /** Which balance or credential paid for this request: allowance, credits, promo, hack or byok. */
   fundingSource: string | null;
+  /**
+   * Why a saved provider key attempt fell back to prepaid credits when BYOK
+   * credit fallback is enabled (e.g. `rate_limited`, `credential_rejected`).
+   * `null` on every other response.
+   */
+  byokFallback: string | null;
   /**
    * Why promo/hack credit did not fund a request charged to prepaid credits
    * under the organization's paid fallback (e.g. `pot_empty`, `window_day`).
@@ -148,6 +154,7 @@ export const HEADER_NAMES = [
   'x-nr-attempts',
   'x-nr-intent',
   'x-nr-funding-source',
+  'x-nr-byok-fallback',
   'x-nr-pot-fallback',
   'x-nr-allowance-reset',
   'x-nr-model-deprecated',
@@ -191,9 +198,15 @@ export interface NRouterExtraBody {
   nrouter_fallbacks?: string[];
   /**
    * Selection strategy for `nrouter/auto` only: "quality" (the organization
-   * default) or "cost" (lowest list rate among models fit for the task).
+   * default) or "cost" (lowest estimated request cost within the active
+   * `nrouter_cost_band` ceiling, with Default Pick fallback).
    */
   nrouter_optimize?: 'quality' | 'cost';
+  /**
+   * Cost-band ceiling for cost-mode `nrouter/auto` only: "low" (< $1 / 1M
+   * blended), "mid" (< $7 / 1M blended, default), or "high" ($7+ / 1M blended).
+   */
+  nrouter_cost_band?: 'low' | 'mid' | 'high';
   /**
    * Up to 8 guardrail ids or names owned by this org. ADD-ONLY: they run in
    * addition to the guardrails already assigned and to the platform moderation
@@ -217,9 +230,10 @@ export interface NRouterFeatureOptions {
    *
    * REPLACES the organization's fallback policy for this one call — it is not
    * merged with it — and `model` stays the primary. A target this key cannot
-   * route, and any Smart Router alias, `nrouter/auto`, allowance model or
-   * other model that is not offered as a fallback target, is refused with
-   * 400 `fallback_not_allowed`.
+   * route, and `nrouter/auto`, `nrouter/promo`, `nrouter/hack`, an allowance
+   * model, a target outside the active `costBand` on cost-mode `nrouter/auto`,
+   * or any other model that is not offered as a fallback target, is refused
+   * with 400 `fallback_not_allowed`.
    *
    * An empty array is OMITTED, not sent: `fallbacks: state.selected` with an
    * empty default means no selection, not an empty chain.
@@ -227,12 +241,20 @@ export interface NRouterFeatureOptions {
   fallbacks?: string[];
   /**
    * Strategy for a request on `nrouter/auto` only: "quality" (the organization
-   * default; best model for the task) or "cost" (lowest list rate among models
-   * fit for the task). Overrides the saved Router Settings strategy for this
-   * one request. Any other value, or any model other than `nrouter/auto`, is
-   * refused with 400 `invalid_request`.
+   * default; best model for the task) or "cost" (lowest estimated request cost
+   * within `costBand`, with Default Pick fallback). Overrides the saved Router
+   * Settings strategy for this one request. Any other value, or any model
+   * other than `nrouter/auto`, is refused with 400 `invalid_request`.
    */
   optimize?: 'quality' | 'cost';
+  /**
+   * Cost-band ceiling for cost-mode `nrouter/auto` only: "low" (< $1 / 1M
+   * blended), "mid" (< $7 / 1M blended; default when omitted), or "high"
+   * (all bands including $7+ / 1M blended). Refused with 400 `invalid_request`
+   * on Direct models or under "quality", and 400 `cost_band_unsatisfiable`
+   * when zero eligible models fit the ceiling.
+   */
+  costBand?: 'low' | 'mid' | 'high';
   /**
    * Up to 8 guardrail ids or names owned by this organization.
    *

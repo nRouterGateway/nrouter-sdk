@@ -19,7 +19,7 @@ dependencies {
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     // org.json ships inside Android already; declaring it compileOnly there is
     // what avoids a duplicate-class failure. On the JVM it must be a real dep.
-    api("org.json:json:20240303")
+    api("org.json:json:20260719")
 
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")

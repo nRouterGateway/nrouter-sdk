@@ -42,81 +42,112 @@ export type NRouterCapabilities = {
   [key: string]: unknown;
 };
 
-/**
- * Canonical model ID constants for Meta Llama, TypeSafe AI, Google Gemini, and frontier providers.
- */
-export const MODEL_META_LLAMA_3_3_70B_INSTRUCT = 'meta/llama-3.3-70b-instruct';
-export const MODEL_META_LLAMA_3_1_70B_INSTRUCT = 'meta/llama-3.1-70b-instruct';
-export const MODEL_META_LLAMA_3_1_8B_INSTRUCT = 'meta/llama-3.1-8b-instruct';
-export const MODEL_META_LLAMA_3_2_11B_VISION = 'meta/llama-3.2-11b-vision-instruct';
-export const MODEL_META_LLAMA_3_2_90B_VISION = 'meta/llama-3.2-90b-vision-instruct';
-export const MODEL_META_LLAMA_3_2_3B_INSTRUCT = 'meta/llama-3.2-3b-instruct';
-export const MODEL_META_LLAMA_3_2_1B_INSTRUCT = 'meta/llama-3.2-1b-instruct';
+// BEGIN GENERATED: model-catalog-snapshot
+// Generated from spec/model-catalog-snapshot.json (snapshot version: 2026-11-11, schema_version: 1, catalog_revision: 1).
+// Do not edit by hand; run `node scripts/generate-model-constants.mjs` to regenerate.
+// Naming rule: `MODEL_` + uppercase model id with non-alphanumeric runs replaced by `_`.
 
-export const MODEL_TYPESAFE_JEV = 'typesafe/jev';
-export const MODEL_TYPESAFE_JEV_SYSTEM_ONE = 'typesafe/jev';
-
-// Google Gemini models
-export const MODEL_GOOGLE_GEMINI_3_8_FLASH = 'google/gemini-3.8-flash';
-export const MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE = 'google/gemini-3.1-flash-lite';
-export const MODEL_GOOGLE_GEMINI_3_1_PRO = 'google/gemini-3.1-pro';
-export const MODEL_GOOGLE_GEMINI_2_5_FLASH = 'google/gemini-2.5-flash';
-export const MODEL_GOOGLE_GEMINI_2_5_PRO = 'google/gemini-2.5-pro';
+export const MODEL_CLAUDE_3_7_SONNET = 'claude-3-7-sonnet';
+export const MODEL_CLAUDE_OPUS_4_6 = 'claude-opus-4-6';
+export const MODEL_CLAUDE_OPUS_4_8 = 'claude-opus-4-8';
+/** @deprecated Compatibility alias; use `MODEL_CLAUDE_SONNET_4_5_20250929` instead. */
+export const MODEL_CLAUDE_SONNET_4_5 = 'claude-sonnet-4-5-20250929';
+export const MODEL_CLAUDE_SONNET_4_5_20250929 = 'claude-sonnet-4-5-20250929';
+/** @deprecated Compatibility alias; use `MODEL_GOOGLE_GEMINI_1_5_FLASH_002` instead. */
+export const MODEL_GEMINI_1_5_FLASH_002 = 'google/gemini-1.5-flash-002';
+/** @deprecated Compatibility alias; use `MODEL_GOOGLE_GEMINI_1_5_PRO_002` instead. */
+export const MODEL_GEMINI_1_5_PRO_002 = 'google/gemini-1.5-pro-002';
+/** @deprecated Compatibility alias; use `MODEL_GOOGLE_GEMINI_2_0_FLASH` instead. */
+export const MODEL_GEMINI_2_0_FLASH = 'google/gemini-2.0-flash';
+/** @deprecated Compatibility alias; use `MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE` instead. */
+export const MODEL_GEMINI_2_0_FLASH_LITE = 'google/gemini-2.0-flash-lite';
+/** @deprecated Compatibility alias; use `MODEL_GOOGLE_GEMINI_2_5_FLASH` instead. */
+export const MODEL_GEMINI_2_5_FLASH = 'google/gemini-2.5-flash';
+/** @deprecated Compatibility alias; use `MODEL_GOOGLE_GEMINI_2_5_PRO` instead. */
+export const MODEL_GEMINI_2_5_PRO = 'google/gemini-2.5-pro';
+/** @deprecated Compatibility alias; use `MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE` instead. */
+export const MODEL_GEMINI_3_1_FLASH_LITE = 'google/gemini-3.1-flash-lite';
+/** @deprecated Compatibility alias; use `MODEL_GOOGLE_GEMINI_3_1_PRO` instead. */
+export const MODEL_GEMINI_3_1_PRO = 'google/gemini-3.1-pro';
+/** @deprecated Compatibility alias; use `MODEL_GOOGLE_GEMINI_3_8_FLASH` instead. */
+export const MODEL_GEMINI_3_8_FLASH = 'google/gemini-3.8-flash';
+export const MODEL_GOOGLE_GEMINI_1_5_FLASH_002 = 'google/gemini-1.5-flash-002';
+export const MODEL_GOOGLE_GEMINI_1_5_PRO_002 = 'google/gemini-1.5-pro-002';
 export const MODEL_GOOGLE_GEMINI_2_0_FLASH = 'google/gemini-2.0-flash';
 export const MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE = 'google/gemini-2.0-flash-lite';
-export const MODEL_GOOGLE_GEMINI_1_5_PRO_002 = 'google/gemini-1.5-pro-002';
-export const MODEL_GOOGLE_GEMINI_1_5_FLASH_002 = 'google/gemini-1.5-flash-002';
-
-// Convenient short aliases for Gemini models
-export const MODEL_GEMINI_3_8_FLASH = 'google/gemini-3.8-flash';
-export const MODEL_GEMINI_3_1_FLASH_LITE = 'google/gemini-3.1-flash-lite';
-export const MODEL_GEMINI_3_1_PRO = 'google/gemini-3.1-pro';
-export const MODEL_GEMINI_2_5_FLASH = 'google/gemini-2.5-flash';
-export const MODEL_GEMINI_2_5_PRO = 'google/gemini-2.5-pro';
-export const MODEL_GEMINI_2_0_FLASH = 'google/gemini-2.0-flash';
-export const MODEL_GEMINI_2_0_FLASH_LITE = 'google/gemini-2.0-flash-lite';
-export const MODEL_GEMINI_1_5_PRO_002 = 'google/gemini-1.5-pro-002';
-export const MODEL_GEMINI_1_5_FLASH_002 = 'google/gemini-1.5-flash-002';
+export const MODEL_GOOGLE_GEMINI_2_5_FLASH = 'google/gemini-2.5-flash';
+export const MODEL_GOOGLE_GEMINI_2_5_PRO = 'google/gemini-2.5-pro';
+export const MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE = 'google/gemini-3.1-flash-lite';
+export const MODEL_GOOGLE_GEMINI_3_1_PRO = 'google/gemini-3.1-pro';
+export const MODEL_GOOGLE_GEMINI_3_8_FLASH = 'google/gemini-3.8-flash';
+export const MODEL_GPT_4O = 'gpt-4o';
+export const MODEL_GPT_4O_MINI = 'gpt-4o-mini';
+export const MODEL_GPT_5 = 'gpt-5';
+export const MODEL_GPT_5_4 = 'gpt-5.4';
+export const MODEL_GPT_5_4_MINI = 'gpt-5.4-mini';
+export const MODEL_META_LLAMA_3_1_70B_INSTRUCT = 'meta/llama-3.1-70b-instruct';
+export const MODEL_META_LLAMA_3_1_8B_INSTRUCT = 'meta/llama-3.1-8b-instruct';
+/** @deprecated Compatibility alias; use `MODEL_META_LLAMA_3_2_11B_VISION_INSTRUCT` instead. */
+export const MODEL_META_LLAMA_3_2_11B_VISION = 'meta/llama-3.2-11b-vision-instruct';
+export const MODEL_META_LLAMA_3_2_11B_VISION_INSTRUCT = 'meta/llama-3.2-11b-vision-instruct';
+export const MODEL_META_LLAMA_3_2_1B_INSTRUCT = 'meta/llama-3.2-1b-instruct';
+export const MODEL_META_LLAMA_3_2_3B_INSTRUCT = 'meta/llama-3.2-3b-instruct';
+/** @deprecated Compatibility alias; use `MODEL_META_LLAMA_3_2_90B_VISION_INSTRUCT` instead. */
+export const MODEL_META_LLAMA_3_2_90B_VISION = 'meta/llama-3.2-90b-vision-instruct';
+export const MODEL_META_LLAMA_3_2_90B_VISION_INSTRUCT = 'meta/llama-3.2-90b-vision-instruct';
+export const MODEL_META_LLAMA_3_3_70B_INSTRUCT = 'meta/llama-3.3-70b-instruct';
+export const MODEL_O3_MINI = 'o3-mini';
+export const MODEL_TYPESAFE_JEV = 'typesafe/jev';
+/** @deprecated Compatibility alias; use `MODEL_TYPESAFE_JEV` instead. */
+export const MODEL_TYPESAFE_JEV_SYSTEM_ONE = 'typesafe/jev';
 
 export const MODELS = {
-  META_LLAMA_3_3_70B_INSTRUCT: MODEL_META_LLAMA_3_3_70B_INSTRUCT,
+  CLAUDE_3_7_SONNET: MODEL_CLAUDE_3_7_SONNET,
+  CLAUDE_OPUS_4_6: MODEL_CLAUDE_OPUS_4_6,
+  CLAUDE_OPUS_4_8: MODEL_CLAUDE_OPUS_4_8,
+  CLAUDE_SONNET_4_5: MODEL_CLAUDE_SONNET_4_5,
+  CLAUDE_SONNET_4_5_20250929: MODEL_CLAUDE_SONNET_4_5_20250929,
+  GEMINI_1_5_FLASH_002: MODEL_GEMINI_1_5_FLASH_002,
+  GEMINI_1_5_PRO_002: MODEL_GEMINI_1_5_PRO_002,
+  GEMINI_2_0_FLASH: MODEL_GEMINI_2_0_FLASH,
+  GEMINI_2_0_FLASH_LITE: MODEL_GEMINI_2_0_FLASH_LITE,
+  /** @deprecated Compatibility alias; use `GOOGLE_GEMINI_2_5_FLASH` instead. */
+  GEMINI_2_5_FLASH: 'gemini-2.5-flash',
+  /** @deprecated Compatibility alias; use `GOOGLE_GEMINI_2_5_PRO` instead. */
+  GEMINI_2_5_PRO: 'gemini-2.5-pro',
+  GEMINI_3_1_FLASH_LITE: MODEL_GEMINI_3_1_FLASH_LITE,
+  GEMINI_3_1_PRO: MODEL_GEMINI_3_1_PRO,
+  GEMINI_3_8_FLASH: MODEL_GEMINI_3_8_FLASH,
+  GOOGLE_GEMINI_1_5_FLASH_002: MODEL_GOOGLE_GEMINI_1_5_FLASH_002,
+  GOOGLE_GEMINI_1_5_PRO_002: MODEL_GOOGLE_GEMINI_1_5_PRO_002,
+  GOOGLE_GEMINI_2_0_FLASH: MODEL_GOOGLE_GEMINI_2_0_FLASH,
+  GOOGLE_GEMINI_2_0_FLASH_LITE: MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE,
+  GOOGLE_GEMINI_2_5_FLASH: MODEL_GOOGLE_GEMINI_2_5_FLASH,
+  GOOGLE_GEMINI_2_5_PRO: MODEL_GOOGLE_GEMINI_2_5_PRO,
+  GOOGLE_GEMINI_3_1_FLASH_LITE: MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE,
+  GOOGLE_GEMINI_3_1_PRO: MODEL_GOOGLE_GEMINI_3_1_PRO,
+  GOOGLE_GEMINI_3_8_FLASH: MODEL_GOOGLE_GEMINI_3_8_FLASH,
+  GPT_4O: MODEL_GPT_4O,
+  GPT_4O_MINI: MODEL_GPT_4O_MINI,
+  GPT_5: MODEL_GPT_5,
+  GPT_5_4: MODEL_GPT_5_4,
+  GPT_5_4_MINI: MODEL_GPT_5_4_MINI,
   META_LLAMA_3_1_70B_INSTRUCT: MODEL_META_LLAMA_3_1_70B_INSTRUCT,
   META_LLAMA_3_1_8B_INSTRUCT: MODEL_META_LLAMA_3_1_8B_INSTRUCT,
   META_LLAMA_3_2_11B_VISION: MODEL_META_LLAMA_3_2_11B_VISION,
-  META_LLAMA_3_2_90B_VISION: MODEL_META_LLAMA_3_2_90B_VISION,
-  META_LLAMA_3_2_3B_INSTRUCT: MODEL_META_LLAMA_3_2_3B_INSTRUCT,
+  META_LLAMA_3_2_11B_VISION_INSTRUCT: MODEL_META_LLAMA_3_2_11B_VISION_INSTRUCT,
   META_LLAMA_3_2_1B_INSTRUCT: MODEL_META_LLAMA_3_2_1B_INSTRUCT,
+  META_LLAMA_3_2_3B_INSTRUCT: MODEL_META_LLAMA_3_2_3B_INSTRUCT,
+  META_LLAMA_3_2_90B_VISION: MODEL_META_LLAMA_3_2_90B_VISION,
+  META_LLAMA_3_2_90B_VISION_INSTRUCT: MODEL_META_LLAMA_3_2_90B_VISION_INSTRUCT,
+  META_LLAMA_3_3_70B_INSTRUCT: MODEL_META_LLAMA_3_3_70B_INSTRUCT,
+  O3_MINI: MODEL_O3_MINI,
   TYPESAFE_JEV: MODEL_TYPESAFE_JEV,
   TYPESAFE_JEV_SYSTEM_ONE: MODEL_TYPESAFE_JEV_SYSTEM_ONE,
-  GOOGLE_GEMINI_2_0_FLASH: MODEL_GOOGLE_GEMINI_2_0_FLASH,
-  GOOGLE_GEMINI_2_0_FLASH_LITE: MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE,
-  GOOGLE_GEMINI_1_5_PRO_002: MODEL_GOOGLE_GEMINI_1_5_PRO_002,
-  GOOGLE_GEMINI_1_5_FLASH_002: MODEL_GOOGLE_GEMINI_1_5_FLASH_002,
-  GEMINI_2_0_FLASH: MODEL_GOOGLE_GEMINI_2_0_FLASH,
-  GEMINI_2_0_FLASH_LITE: MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE,
-  GEMINI_1_5_PRO_002: MODEL_GOOGLE_GEMINI_1_5_PRO_002,
-  GEMINI_1_5_FLASH_002: MODEL_GOOGLE_GEMINI_1_5_FLASH_002,
-  GOOGLE_GEMINI_3_8_FLASH: MODEL_GOOGLE_GEMINI_3_8_FLASH,
-  GOOGLE_GEMINI_3_1_FLASH_LITE: MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE,
-  GOOGLE_GEMINI_3_1_PRO: MODEL_GOOGLE_GEMINI_3_1_PRO,
-  GEMINI_3_8_FLASH: MODEL_GEMINI_3_8_FLASH,
-  GEMINI_3_1_FLASH_LITE: MODEL_GEMINI_3_1_FLASH_LITE,
-  GEMINI_3_1_PRO: MODEL_GEMINI_3_1_PRO,
-  GEMINI_2_5_FLASH: 'gemini-2.5-flash',
-  GEMINI_2_5_PRO: 'gemini-2.5-pro',
-  GPT_5: 'gpt-5',
-  GPT_5_4: 'gpt-5.4',
-  GPT_5_4_MINI: 'gpt-5.4-mini',
-  O3_MINI: 'o3-mini',
-  GPT_4O: 'gpt-4o',
-  GPT_4O_MINI: 'gpt-4o-mini',
-  CLAUDE_3_7_SONNET: 'claude-3-7-sonnet',
-  CLAUDE_OPUS_4_6: 'claude-opus-4-6',
-  CLAUDE_SONNET_4_5: 'claude-sonnet-4-5-20250929',
-  CLAUDE_OPUS_4_8: 'claude-opus-4-8',
 } as const;
 
 export type WellKnownModel = (typeof MODELS)[keyof typeof MODELS];
+// END GENERATED: model-catalog-snapshot
 
 /**
  * The slice of the inherited OpenAI client this helper needs: its own request

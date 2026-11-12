@@ -267,6 +267,7 @@ class SpecContractTests(unittest.TestCase):
         "fallback_not_allowed",
         "guardrail_not_found",
         "image_input_unsupported",
+        "cost_band_unsatisfiable",
     }
 
     def test_spec_errors_name_every_refusal_code_on_the_wire(self) -> None:
@@ -329,6 +330,66 @@ class SpecContractTests(unittest.TestCase):
             "the guardrail override must state that it cannot remove an "
             "assigned guardrail",
         )
+
+    def test_spec_publishes_nrouter_cost_band_and_cost_v2_contract_and_x_nr_model(
+        self,
+    ) -> None:
+        """COST-16, COST-50, AUTO-55: `nrouter_cost_band`, `cost_band_unsatisfiable`,
+        `cost` v2 wording, and `x-nr-model` served-model clarity."""
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        fields = spec["extra_body_fields"]
+
+        self.assertIn(
+            "nrouter_cost_band",
+            fields,
+            "nrouter_cost_band is absent from extra_body_fields",
+        )
+        band = fields["nrouter_cost_band"]
+        self.assertEqual(band["type"], "string")
+        self.assertEqual(band["enum"], ["low", "mid", "high"])
+        self.assertEqual(band["default"], "mid")
+        for needle in (
+            "cost_band_unsatisfiable",
+            "invalid_request",
+            "quality",
+            "nrouter/auto",
+        ):
+            self.assertIn(
+                needle,
+                band["description"],
+                f"nrouter_cost_band description omits {needle!r}",
+            )
+
+        optimize_desc = fields["nrouter_optimize"]["description"]
+        self.assertNotIn(
+            "lowest list rate",
+            optimize_desc,
+            "nrouter_optimize still advertises the retired cost v1 list-rate wording",
+        )
+        self.assertIn("nrouter_cost_band", optimize_desc)
+        self.assertIn("Default Pick", optimize_desc)
+
+        fallbacks_desc = fields["nrouter_fallbacks"]["description"]
+        self.assertIn("nrouter_cost_band", fallbacks_desc)
+
+        x_nr_model_desc = spec["response_headers"]["x-nr-model"]["description"]
+        self.assertIn("nrouter/auto", x_nr_model_desc)
+        self.assertRegex(x_nr_model_desc, r"(?i)served")
+
+        # Rule #29: no internal component names in any new/updated extra_body or error entry.
+        public_blob = json.dumps(
+            {
+                "extra_body_fields": fields,
+                "errors": spec["errors"],
+                "selection_routes": spec["selection_routes"],
+            }
+        )
+        for internal in ("jev", "cortex", "sidecar", "supabase", "redis", "postgres"):
+            self.assertNotRegex(
+                public_blob,
+                rf"(?i)\b{internal}\b",
+                f"public spec leaks internal name `{internal}`",
+            )
 
     def test_spend_row_metadata_publishes_how_the_request_was_routed(self) -> None:
         spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())

@@ -16,6 +16,7 @@ var ExtraBodyFields = []string{
 	"nrouter_cache",
 	"nrouter_fallbacks",
 	"nrouter_optimize",
+	"nrouter_cost_band",
 	"nrouter_guardrails",
 }
 
@@ -60,10 +61,14 @@ type FeatureOptions struct {
 	// organization.
 	Guardrails []string
 	// Optimize is the strategy for a request on nrouter/auto only: "quality"
-	// (the organization default) or "cost" (lowest list rate among models fit
-	// for the task). Empty omits it. Pairing it with any other model is
-	// refused by the gateway with 400 invalid_request.
+	// (the organization default) or "cost" (lowest estimated request cost
+	// within CostBand, with Default Pick fallback). Empty omits it. Pairing it
+	// with any other model is refused by the gateway with 400 invalid_request.
 	Optimize string
+	// CostBand is the cost-band ceiling for cost-mode nrouter/auto only:
+	// "low" (< $1 / 1M blended), "mid" (< $7 / 1M blended, default), or
+	// "high" (all bands including $7+ / 1M blended). Empty omits it.
+	CostBand string
 	Cache    *bool
 }
 
@@ -95,6 +100,12 @@ func BuildExtraBody(opts FeatureOptions) (map[string]any, error) {
 			return nil, configErr(`Optimize must be "quality" or "cost"; it maps onto the gateway field nrouter_optimize and applies to the model nrouter/auto only`)
 		}
 		extra["nrouter_optimize"] = opts.Optimize
+	}
+	if opts.CostBand != "" {
+		if opts.CostBand != "low" && opts.CostBand != "mid" && opts.CostBand != "high" {
+			return nil, configErr(`CostBand must be "low", "mid", or "high"; it maps onto the gateway field nrouter_cost_band and applies to cost-mode nrouter/auto requests only`)
+		}
+		extra["nrouter_cost_band"] = opts.CostBand
 	}
 	if len(opts.Guardrails) > 0 {
 		names, err := overrideNames(opts.Guardrails, "Guardrails", MaxGuardrails)

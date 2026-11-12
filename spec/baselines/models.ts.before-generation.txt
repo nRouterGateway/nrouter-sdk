@@ -1,0 +1,300 @@
+// Model discovery for nRouter, extracted from the client so the transport and
+// the discovery logic can be reasoned about (and tested) separately.
+//
+// Everything here is built on ONE decision, and it is load-bearing: discovery
+// goes through the inherited vendor client's own request pipeline, and reads
+// the RAW response body rather than the vendor SDK's parsed page object. The
+// two halves of that decision are documented on `RawRequester` and on `list()`
+// respectively; neither is an implementation detail to be "cleaned up".
+
+/**
+ * One model as the gateway describes it.
+ *
+ * The index signature is deliberate: the gateway may add descriptive fields
+ * (context window, modality, provider attribution) and a closed type would
+ * discard them silently, leaving a caller unable to read a field they can see
+ * in the JSON. Only `id` is guaranteed — it is the only field the wire format
+ * requires and the only one this SDK depends on.
+ */
+export type NRouterModel = {
+  id: string;
+  object?: string;
+  owned_by?: string;
+  [key: string]: unknown;
+};
+
+/** The `/models` envelope: `data` plus whatever else the gateway sends. */
+export type NRouterModelList = {
+  data: NRouterModel[];
+  object?: string;
+  [key: string]: unknown;
+};
+
+/**
+ * Gateway-level capabilities returned by `GET /capabilities`.
+ */
+export type NRouterCapabilities = {
+  gateway: string;
+  providers: string[];
+  models: string[];
+  endpoints: string[];
+  mcp_servers?: string[];
+  [key: string]: unknown;
+};
+
+/**
+ * Canonical model ID constants for Meta Llama, TypeSafe AI, Google Gemini, and frontier providers.
+ */
+export const MODEL_META_LLAMA_3_3_70B_INSTRUCT = 'meta/llama-3.3-70b-instruct';
+export const MODEL_META_LLAMA_3_1_70B_INSTRUCT = 'meta/llama-3.1-70b-instruct';
+export const MODEL_META_LLAMA_3_1_8B_INSTRUCT = 'meta/llama-3.1-8b-instruct';
+export const MODEL_META_LLAMA_3_2_11B_VISION = 'meta/llama-3.2-11b-vision-instruct';
+export const MODEL_META_LLAMA_3_2_90B_VISION = 'meta/llama-3.2-90b-vision-instruct';
+export const MODEL_META_LLAMA_3_2_3B_INSTRUCT = 'meta/llama-3.2-3b-instruct';
+export const MODEL_META_LLAMA_3_2_1B_INSTRUCT = 'meta/llama-3.2-1b-instruct';
+
+export const MODEL_TYPESAFE_JEV = 'typesafe/jev';
+export const MODEL_TYPESAFE_JEV_SYSTEM_ONE = 'typesafe/jev';
+
+// Google Gemini models
+export const MODEL_GOOGLE_GEMINI_3_8_FLASH = 'google/gemini-3.8-flash';
+export const MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE = 'google/gemini-3.1-flash-lite';
+export const MODEL_GOOGLE_GEMINI_3_1_PRO = 'google/gemini-3.1-pro';
+export const MODEL_GOOGLE_GEMINI_2_5_FLASH = 'google/gemini-2.5-flash';
+export const MODEL_GOOGLE_GEMINI_2_5_PRO = 'google/gemini-2.5-pro';
+export const MODEL_GOOGLE_GEMINI_2_0_FLASH = 'google/gemini-2.0-flash';
+export const MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE = 'google/gemini-2.0-flash-lite';
+export const MODEL_GOOGLE_GEMINI_1_5_PRO_002 = 'google/gemini-1.5-pro-002';
+export const MODEL_GOOGLE_GEMINI_1_5_FLASH_002 = 'google/gemini-1.5-flash-002';
+
+// Convenient short aliases for Gemini models
+export const MODEL_GEMINI_3_8_FLASH = 'google/gemini-3.8-flash';
+export const MODEL_GEMINI_3_1_FLASH_LITE = 'google/gemini-3.1-flash-lite';
+export const MODEL_GEMINI_3_1_PRO = 'google/gemini-3.1-pro';
+export const MODEL_GEMINI_2_5_FLASH = 'google/gemini-2.5-flash';
+export const MODEL_GEMINI_2_5_PRO = 'google/gemini-2.5-pro';
+export const MODEL_GEMINI_2_0_FLASH = 'google/gemini-2.0-flash';
+export const MODEL_GEMINI_2_0_FLASH_LITE = 'google/gemini-2.0-flash-lite';
+export const MODEL_GEMINI_1_5_PRO_002 = 'google/gemini-1.5-pro-002';
+export const MODEL_GEMINI_1_5_FLASH_002 = 'google/gemini-1.5-flash-002';
+
+export const MODELS = {
+  META_LLAMA_3_3_70B_INSTRUCT: MODEL_META_LLAMA_3_3_70B_INSTRUCT,
+  META_LLAMA_3_1_70B_INSTRUCT: MODEL_META_LLAMA_3_1_70B_INSTRUCT,
+  META_LLAMA_3_1_8B_INSTRUCT: MODEL_META_LLAMA_3_1_8B_INSTRUCT,
+  META_LLAMA_3_2_11B_VISION: MODEL_META_LLAMA_3_2_11B_VISION,
+  META_LLAMA_3_2_90B_VISION: MODEL_META_LLAMA_3_2_90B_VISION,
+  META_LLAMA_3_2_3B_INSTRUCT: MODEL_META_LLAMA_3_2_3B_INSTRUCT,
+  META_LLAMA_3_2_1B_INSTRUCT: MODEL_META_LLAMA_3_2_1B_INSTRUCT,
+  TYPESAFE_JEV: MODEL_TYPESAFE_JEV,
+  TYPESAFE_JEV_SYSTEM_ONE: MODEL_TYPESAFE_JEV_SYSTEM_ONE,
+  GOOGLE_GEMINI_2_0_FLASH: MODEL_GOOGLE_GEMINI_2_0_FLASH,
+  GOOGLE_GEMINI_2_0_FLASH_LITE: MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE,
+  GOOGLE_GEMINI_1_5_PRO_002: MODEL_GOOGLE_GEMINI_1_5_PRO_002,
+  GOOGLE_GEMINI_1_5_FLASH_002: MODEL_GOOGLE_GEMINI_1_5_FLASH_002,
+  GEMINI_2_0_FLASH: MODEL_GOOGLE_GEMINI_2_0_FLASH,
+  GEMINI_2_0_FLASH_LITE: MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE,
+  GEMINI_1_5_PRO_002: MODEL_GOOGLE_GEMINI_1_5_PRO_002,
+  GEMINI_1_5_FLASH_002: MODEL_GOOGLE_GEMINI_1_5_FLASH_002,
+  GOOGLE_GEMINI_3_8_FLASH: MODEL_GOOGLE_GEMINI_3_8_FLASH,
+  GOOGLE_GEMINI_3_1_FLASH_LITE: MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE,
+  GOOGLE_GEMINI_3_1_PRO: MODEL_GOOGLE_GEMINI_3_1_PRO,
+  GEMINI_3_8_FLASH: MODEL_GEMINI_3_8_FLASH,
+  GEMINI_3_1_FLASH_LITE: MODEL_GEMINI_3_1_FLASH_LITE,
+  GEMINI_3_1_PRO: MODEL_GEMINI_3_1_PRO,
+  GEMINI_2_5_FLASH: 'gemini-2.5-flash',
+  GEMINI_2_5_PRO: 'gemini-2.5-pro',
+  GPT_5: 'gpt-5',
+  GPT_5_4: 'gpt-5.4',
+  GPT_5_4_MINI: 'gpt-5.4-mini',
+  O3_MINI: 'o3-mini',
+  GPT_4O: 'gpt-4o',
+  GPT_4O_MINI: 'gpt-4o-mini',
+  CLAUDE_3_7_SONNET: 'claude-3-7-sonnet',
+  CLAUDE_OPUS_4_6: 'claude-opus-4-6',
+  CLAUDE_SONNET_4_5: 'claude-sonnet-4-5-20250929',
+  CLAUDE_OPUS_4_8: 'claude-opus-4-8',
+} as const;
+
+export type WellKnownModel = (typeof MODELS)[keyof typeof MODELS];
+
+/**
+ * The slice of the inherited OpenAI client this helper needs: its own request
+ * pipeline. Going through it is what keeps the caller's `fetch` override,
+ * `timeout`, `maxRetries`, `fetchOptions`, `defaultHeaders` and `defaultQuery`
+ * applied to model discovery, and is why no global `fetch` is required.
+ *
+ * It is a structural type rather than an import of the vendor client so this
+ * module stays testable with a hand-written double, and so a vendor-side type
+ * change is a compile error at one seam instead of a rewrite here.
+ */
+export interface RawRequester {
+  get(
+    path: string,
+    opts?: unknown
+  ): { asResponse(): Promise<{ json(): Promise<unknown>; headers?: Headers }> };
+}
+
+/** Whether a value is a plain, non-null object we can read fields off. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Percent-encode each component of a model id while preserving `/`.
+ *
+ * The gateway intentionally exposes this as a wildcard route because provider
+ * model ids commonly carry `/` (`meta/llama-3.1-70b`). Its WAF rejects an
+ * encoded slash, so encoding the whole id makes valid models unreachable.
+ * Encoding each component protects spaces, query markers and fragments without
+ * changing the gateway's model-id semantics.
+ */
+function encodeModelId(modelId: string): string {
+  return modelId.split('/').map(encodeURIComponent).join('/');
+}
+
+async function fetchCapabilities(client: RawRequester): Promise<NRouterCapabilities> {
+  const req = (path: string) => client.get(path).asResponse();
+  let response;
+  try {
+    response = await req('/../capabilities');
+  } catch {
+    response = await req('/capabilities');
+  }
+  const body: unknown = await response.json();
+  if (!isRecord(body)) {
+    return { gateway: 'nrouter', providers: [], models: [], endpoints: [] };
+  }
+  return {
+    gateway: typeof body.gateway === 'string' ? body.gateway : 'nrouter',
+    providers: Array.isArray(body.providers) ? (body.providers as string[]) : [],
+    models: Array.isArray(body.models) ? (body.models as string[]) : [],
+    endpoints: Array.isArray(body.endpoints) ? (body.endpoints as string[]) : [],
+    ...(Array.isArray(body.mcp_servers) ? { mcp_servers: body.mcp_servers as string[] } : {}),
+    ...body,
+  };
+}
+
+/**
+ * Model discovery against `/models` and `/models/{id}`.
+ *
+ * Constructed with the nRouter client itself; see `RawRequester` for why the
+ * client's pipeline — not a bare `fetch` — is the transport.
+ */
+export class NRouterModels {
+  constructor(private readonly client: RawRequester) {}
+
+  /**
+   * List every model this key can reach, from nRouter's raw JSON response.
+   *
+   * The OpenAI JS SDK receives the right raw body from nRouter, but its page
+   * parser exposes an EMPTY `data` array. Reading the raw response is the fix,
+   * and it keeps model discovery reliable without leaving the client's
+   * configured transport. A future "simplify this to `client.models.list()`"
+   * is therefore the regression, not the cleanup: it compiles, it returns a
+   * well-formed empty list, and every caller concludes the account has no
+   * models.
+   *
+   * Errors are NOT handled here on purpose: a non-2xx raises the vendor
+   * client's own typed error (`APIError` and its subclasses) inside `get()`,
+   * before this method ever sees a body. The defensiveness below is about a
+   * SUCCESSFUL response whose shape is unexpected — a proxy returning HTML, a
+   * gateway version that renames the envelope — where returning an empty list
+   * lets a caller degrade rather than crash on a discovery call that is
+   * usually decorative.
+   */
+  async list(): Promise<NRouterModelList> {
+    const response = await this.client.get('/models').asResponse();
+    const body: unknown = await response.json();
+
+    if (!isRecord(body) || !Array.isArray(body.data)) {
+      return { data: [] };
+    }
+
+    // Spread first so `object` and any future envelope fields survive, then
+    // pin `data` to the array we just proved is one.
+    return { ...body, data: body.data as NRouterModel[] };
+  }
+
+  /**
+   * Just the model ids, in the order the gateway returned them.
+   *
+   * Entries without a usable string `id` are dropped rather than surfaced as
+   * `undefined`, because every consumer of this list feeds it straight into a
+   * `model:` field where an `undefined` becomes the string "undefined" and a
+   * baffling upstream error.
+   */
+  async ids(): Promise<string[]> {
+    const { data } = await this.list();
+    return data
+      .map((model) => model.id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  }
+
+  /**
+   * Fetch one model's descriptor from `/models/{id}`.
+   *
+   * The gateway serves this route (confirmed: without a key it answers 401,
+   * not 404). As with `list()`, a non-2xx — including the 404 for an unknown
+   * model — raises the vendor client's typed error before we see a body, so a
+   * caller who wants a boolean should use `has()` rather than try/catch here,
+   * which would swallow auth and network failures as "not found".
+   */
+  async get(modelId: string): Promise<NRouterModel> {
+    if (typeof modelId !== 'string' || modelId.trim() === '') {
+      // Guarded rather than passed through: an empty id builds `/models/`,
+      // which is the LIST endpoint, so the caller would get a 200 carrying an
+      // envelope instead of an error telling them the id was missing.
+      throw new TypeError('modelId must be a non-empty string.');
+    }
+
+    const response = await this.client
+      .get(`/models/${encodeModelId(modelId)}`)
+      .asResponse();
+    const body: unknown = await response.json();
+
+    if (!isRecord(body) || typeof body.id !== 'string') {
+      throw new Error(
+        `Unexpected /models response for '${modelId}': no string 'id' field.`
+      );
+    }
+
+    return body as NRouterModel;
+  }
+
+  /**
+   * Whether `modelId` appears in this key's model list.
+   *
+   * The comparison is EXACT and case-sensitive, deliberately. Model aliases
+   * are case-sensitive on the wire, so a case-insensitive match would answer
+   * `true` for `Claude-Sonnet-4-5` and then fail at call time — turning a
+   * cheap, correct pre-flight check into a false reassurance.
+   *
+   * Implemented over `ids()` rather than over `get()` so a 401, a timeout or a
+   * transport failure propagates as itself instead of being reported as "the
+   * model does not exist".
+   */
+  async has(modelId: string): Promise<boolean> {
+    const ids = await this.ids();
+    return ids.includes(modelId);
+  }
+
+  /**
+   * Fetch the gateway's self-described capabilities from `/capabilities`.
+   *
+   * The gateway mounts `/capabilities` at root, which resolves via `/../capabilities`
+   * when baseURL has a `/v1` suffix (e.g. https://api.nrouter.ai/v1), or directly via
+   * `/capabilities`.
+   */
+  capabilities(): Promise<NRouterCapabilities> {
+    return fetchCapabilities(this.client);
+  }
+
+  /**
+   * Return the list of distinct provider names the gateway currently serves.
+   */
+  async providers(): Promise<string[]> {
+    const caps = await this.capabilities();
+    return caps.providers ?? [];
+  }
+}

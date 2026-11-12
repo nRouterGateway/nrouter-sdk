@@ -101,7 +101,8 @@ impl NRouterError {
             | Some("fallback_not_allowed")
             | Some("guardrail_not_found")
             | Some("image_input_unsupported")
-            | Some("pot_route_feature_unsupported") => Self::Request(body),
+            | Some("pot_route_feature_unsupported")
+            | Some("cost_band_unsatisfiable") => Self::Request(body),
             Some("guardrail_blocked") => Self::GuardrailBlocked(body),
             Some("invalid_api_key") => Self::Authentication(body),
             Some("insufficient_credits")

@@ -56,6 +56,7 @@ sealed class NRouterError implements Exception {
       case 'guardrail_not_found':
       case 'image_input_unsupported':
       case 'pot_route_feature_unsupported':
+      case 'cost_band_unsatisfiable':
         return (body.guardrails == 'blocked' || body.type == 'guardrail_blocked')
             ? NRouterGuardrailBlockedError(body)
             : NRouterRequestError(body);

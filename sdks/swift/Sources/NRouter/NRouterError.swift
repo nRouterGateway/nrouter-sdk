@@ -63,7 +63,8 @@ public enum NRouterError: Error, Equatable {
              "fallback_not_allowed",
              "guardrail_not_found",
              "image_input_unsupported",
-             "pot_route_feature_unsupported":
+             "pot_route_feature_unsupported",
+             "cost_band_unsatisfiable":
             return .request(body)
         case "guardrail_blocked": return .guardrailBlocked(body)
         case "invalid_api_key": return .authentication(body)

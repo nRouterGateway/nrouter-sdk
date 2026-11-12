@@ -58,6 +58,7 @@ pub mod http;
 pub mod media;
 pub mod memory;
 pub mod meta;
+pub mod models;
 pub mod options;
 pub mod prompts;
 pub mod sampling;
@@ -72,6 +73,7 @@ pub use memory::{sliding_window, ArrayStore, ChatMessage, Memory, MemoryStore};
 pub use meta::{
     extract_trace_headers, with_trace_context, BudgetWarningInfo, ResponseMeta, HEADER_NAMES,
 };
+pub use models::MODELS;
 pub use prompts::{render_prompt, RenderPromptOptions};
 
 /// True when a model family is served on /v1/messages rather than /v1/chat/completions.
