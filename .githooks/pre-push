@@ -12,6 +12,27 @@ do
     continue
   fi
 
+  # Commit first, then merge origin in before the push, never rebase: a rebase rewrites commits,
+  # and that is where changes get lost. remote_oid is the tip the remote advertised; not an
+  # ancestor (or not even fetched) means origin has commits you lack.
+  case "$remote_ref" in refs/heads/*)
+    if [ "$remote_oid" != "$z40" ] && ! git merge-base --is-ancestor "$remote_oid" "$local_oid" 2>/dev/null; then
+      b="${remote_ref#refs/heads/}"
+      n="$(git status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+      echo "REFUSED: origin/$b has commits you do not have. In this order -- merge, never rebase:" >&2
+      if [ "$n" != 0 ]; then
+        echo "       1. COMMIT FIRST: $n uncommitted change(s) here -> git add <paths> && git commit" >&2
+      else
+        echo "       1. commit first: nothing uncommitted here" >&2
+      fi
+      echo "       2. git pull --no-rebase origin $b   (merge; your commits keep their exact SHAs)" >&2
+      echo "       3. git push origin $b" >&2
+      echo "       Never rebase or force-push: a rebase rewrites commits and loses changes." >&2
+      exit 1
+    fi
+    ;;
+  esac
+
   if [ "$remote_oid" = "$z40" ]; then
     # New branch, check against empty tree
     range="$empty_tree..$local_oid"
