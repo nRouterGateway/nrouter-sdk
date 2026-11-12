@@ -115,6 +115,23 @@ fn optimize_maps_onto_the_gateway_field_and_refuses_other_values() {
 }
 
 #[test]
+fn cost_band_maps_onto_the_gateway_field_and_refuses_other_values() {
+    for band in ["low", "mid", "high"] {
+        let body = build_extra_body(&FeatureOptions {
+            cost_band: Some(band.into()),
+            ..FeatureOptions::default()
+        })
+        .unwrap();
+        assert_eq!(body["nrouter_cost_band"], json!(band));
+    }
+    assert!(build_extra_body(&FeatureOptions {
+        cost_band: Some("ultra".into()),
+        ..FeatureOptions::default()
+    })
+    .is_err());
+}
+
+#[test]
 fn extra_body_tenancy_fields_are_refused() {
     let mut extra = Map::new();
     extra.insert("organization_id".into(), json!("spoof"));

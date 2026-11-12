@@ -117,6 +117,7 @@ public sealed class NRouterError(
             "guardrail_not_found",
             "image_input_unsupported",
             "pot_route_feature_unsupported",
+            "cost_band_unsatisfiable",
             -> Request(body)
             "guardrail_blocked" -> GuardrailBlocked(body)
             "invalid_api_key" -> Authentication(body)

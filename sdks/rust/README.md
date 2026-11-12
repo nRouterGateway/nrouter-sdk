@@ -132,14 +132,14 @@ match client.chat_completions(&body).await {
 
 | Variant | Code(s) | HTTP |
 |---|---|---|
-| `Request` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported` | 400 |
+| `Request` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable` | 400 |
 | `GuardrailBlocked` | `guardrail_blocked` | 400 |
-| `Authentication` | `invalid_api_key` | 401 |
-| `Credit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit` | 402 |
+| `Authentication` | `invalid_api_key`, `byok_credential_rejected` | 401 |
+| `Credit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
 | `NotFound` | `model_not_found` | 404 |
-| `RateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded` | 429 |
+| `RateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
 | `Service` | `credit_check_failed`, `service_unavailable` | 503 |
-| `Other` | `model_denied_by_org`, `model_denied_by_team`, `model_denied_by_key`, anything newer than this SDK | 403 / — |
+| `Other` | `model_denied_by_org`, `model_denied_by_team`, `model_denied_by_key`, `byok_credential_unavailable`, anything newer than this SDK | 403 / 409 / — |
 | `Transport` | never reached the gateway | — |
 
 `is_retryable()` is true only for `RateLimit`, `Service` and `Transport`. Every

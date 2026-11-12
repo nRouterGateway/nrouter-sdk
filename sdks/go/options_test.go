@@ -79,6 +79,22 @@ func TestBuildExtraBodyMapsOptimizeAndRefusesOtherValues(t *testing.T) {
 	}
 }
 
+func TestBuildExtraBodyMapsCostBandAndRefusesOtherValues(t *testing.T) {
+	for _, v := range []string{"low", "mid", "high"} {
+		body, err := BuildExtraBody(FeatureOptions{CostBand: v})
+		if err != nil || body["nrouter_cost_band"] != v {
+			t.Errorf("CostBand %q: body %v, err %v", v, body, err)
+		}
+	}
+	body, err := BuildExtraBody(FeatureOptions{})
+	if err != nil || len(body) != 0 {
+		t.Errorf("empty CostBand must be omitted, got %v, %v", body, err)
+	}
+	if _, err := BuildExtraBody(FeatureOptions{CostBand: "ultra"}); err == nil {
+		t.Errorf("expected an unknown CostBand value to be refused")
+	}
+}
+
 // Refused locally, before egress. The gateway refuses an over-long list with a
 // 400 naming `fallback_not_allowed`, which costs a round trip and does not name
 // the Go field the caller set.
@@ -110,6 +126,7 @@ func TestExtraBodyFieldsCoversEveryEmittableField(t *testing.T) {
 		Guardrails:       []string{"g"},
 		Fallbacks:        []string{"m"},
 		Optimize:         "cost",
+		CostBand:         "mid",
 		Cache:            &cacheOff,
 	})
 	if err != nil {

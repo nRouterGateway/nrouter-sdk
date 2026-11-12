@@ -121,6 +121,24 @@ test('optimize MAPS onto nrouter_optimize and anything else is refused, naming t
   );
 });
 
+test('costBand MAPS onto nrouter_cost_band and anything else is refused, naming the option', () => {
+  for (const band of ['low', 'mid', 'high'] as const) {
+    assert.deepEqual(buildExtraBody({ model: 'nrouter/auto', costBand: band }), {
+      nrouter_cost_band: band,
+    });
+  }
+  assert.deepEqual(buildExtraBody({ model: 'nrouter/auto' }), {});
+  assert.throws(
+    () => buildExtraBody({ model: 'nrouter/auto', costBand: 'ultra' as unknown as 'mid' }),
+    (err: unknown) => {
+      const e = err as { kind?: string; message?: string };
+      assert.equal(e.kind, 'configuration');
+      assert.match(String(e.message), /costBand/);
+      return true;
+    },
+  );
+});
+
 test('more than four fallbacks is refused locally, naming the option', () => {
   assert.throws(
     () => buildExtraBody({ model: 'gpt-4o', fallbacks: ['a', 'b', 'c', 'd', 'e'] }),
@@ -156,6 +174,7 @@ test('NO invented nrouter_ key can reach the wire', () => {
     guardrails: ['pii-strict'],
     fallbacks: ['gpt-4o-mini'],
     optimize: 'quality',
+    costBand: 'mid',
     cache: false,
   });
   for (const key of Object.keys(extra)) {
@@ -218,6 +237,7 @@ test('the emittable fields and the SPEC agree in BOTH directions', () => {
       fallbacks: ['gpt-4o-mini'],
       guardrails: ['pii-strict'],
       optimize: 'cost',
+      costBand: 'mid',
     }),
   ).sort();
   assert.deepEqual(

@@ -962,6 +962,7 @@ bool _knownErrorCode(String code) => const {
       'fallback_not_allowed',
       'guardrail_not_found',
       'image_input_unsupported',
+      'cost_band_unsatisfiable',
       'insufficient_promo_credit',
       'insufficient_hack_credit',
       'pot_spend_limit_exceeded',

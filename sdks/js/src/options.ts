@@ -175,6 +175,16 @@ export function buildExtraBody(opts: NRouterFeatureOptions): NRouterExtraBody {
     extra.nrouter_optimize = opts.optimize;
   }
 
+  if (opts.costBand !== undefined) {
+    if (opts.costBand !== 'low' && opts.costBand !== 'mid' && opts.costBand !== 'high') {
+      throw configurationError(
+        'costBand must be "low", "mid", or "high"; it maps onto the gateway field ' +
+          '`nrouter_cost_band` and applies to cost-mode nrouter/auto requests only.',
+      );
+    }
+    extra.nrouter_cost_band = opts.costBand;
+  }
+
   if (opts.guardrails && opts.guardrails.length > 0) {
     extra.nrouter_guardrails = overrideNames(opts.guardrails, 'guardrails', MAX_GUARDRAILS);
   }

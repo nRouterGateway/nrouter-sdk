@@ -48,7 +48,9 @@ public final class NRouterHttpClient {
     private static final Set<String> ERROR_CODES = Set.of(
             "invalid_request", "guardrail_blocked", "invalid_api_key", "insufficient_credits",
             "model_not_found", "rate_limit_exceeded", "tpm_limit_exceeded",
-            "credit_check_failed", "service_unavailable", "plan_allowance_exhausted", "plan_required");
+            "credit_check_failed", "service_unavailable", "plan_allowance_exhausted", "plan_required",
+            "input_too_large", "max_output_tokens_too_large", "fallback_not_allowed", "guardrail_not_found",
+            "image_input_unsupported", "pot_route_feature_unsupported", "cost_band_unsatisfiable");
     private static final Pattern KEY = Pattern.compile("sk-nrouter-[A-Za-z0-9._-]+");
 
     /**

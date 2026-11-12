@@ -43,29 +43,17 @@ const SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8')) as {
 // Case 3 — the nine spec codes, asserted against the spec file.
 // ---------------------------------------------------------------------------
 
-test('the spec still declares exactly twenty-three error codes', () => {
-  // Nineteen with the three 403 model deny-list codes (model_denied_by_org,
-  // _team, _key), which classify as the base nRouterError.
-  // If the spec grew one, this file and ERROR_CLASS_BY_CODE must grow too.
-  //
-  // Eleven until 2026-09-17, when the gateway put four pre-egress refusals on
-  // the wire with the per-request routing and guardrail overrides:
-  // input_too_large, max_output_tokens_too_large, fallback_not_allowed and
-  // guardrail_not_found. All four are 400s in the request class.
-  //
-  // Sixteen with image_input_unsupported: an image sent to nrouter/auto where
-  // no model available for automatic routing accepts image input. Also a 400
-  // in the request class.
-  //
-  // Twenty-three with the nrouter/promo and nrouter/hack refusals:
-  // insufficient_promo_credit and insufficient_hack_credit (402, credit
-  // class), pot_spend_limit_exceeded (429, rate-limit class) and
-  // pot_route_feature_unsupported (400, request class).
+test('the spec declares twenty-eight error codes including BYOK and cost_band_unsatisfiable', () => {
+  // Twenty-three through pot_route_feature_unsupported, plus four BYOK codes
+  // (byok_plan_required, byok_fair_use_exceeded, byok_credential_rejected,
+  // byok_credential_unavailable) and cost_band_unsatisfiable (400, request
+  // class — active nrouter_cost_band left zero eligible models).
   assert.strictEqual(
     Object.keys(SPEC.errors).length,
-    23,
+    28,
     'The gateway shipped a new code. Map it in ERROR_CLASS_BY_CODE and add it here.',
   );
+  assert.strictEqual(ERROR_STATUS_BY_CODE.cost_band_unsatisfiable, 400);
 });
 
 test('every spec code maps to the class the spec names, at the status it names', () => {

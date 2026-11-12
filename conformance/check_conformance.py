@@ -1400,7 +1400,7 @@ def check_option_builders(root: Path = ROOT, spec: dict | None = None) -> list[s
 # callers see a generic error for these four refusals.
 # ---------------------------------------------------------------------------
 _SDKS_PENDING_REFUSAL_CODES: set[str] = set()
-_SDKS_PENDING_BYOK: set[str] = set(SDK_SOURCES) - set(WRAPPER_ONLY)
+_SDKS_PENDING_BYOK: set[str] = set(SDK_SOURCES) - set(WRAPPER_ONLY) - {"python", "js"}
 
 CODES_PENDING_SDK_MAPPING: dict[str, set[str]] = {
     **{

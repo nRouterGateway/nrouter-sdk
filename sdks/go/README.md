@@ -78,7 +78,7 @@ keeps working and stays supported. The vendor client owns its own transport and
 discards the raw response, so the `x-nr-*` metadata is out of reach without
 `.WithRawResponse()` plumbing at every call site. This SDK exists for the
 metadata: cost, tokens, cache outcome and limit source come back beside every
-response, and the gateway's twenty-three error codes arrive as typed values.
+response, and the gateway's twenty-eight error codes arrive as typed values.
 
 ## Response metadata
 
@@ -136,14 +136,14 @@ to add money is a wrong answer delivered confidently.
 
 | Condition | Code(s) | HTTP |
 |---|---|---|
-| `ErrRequest` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported` | 400 |
+| `ErrRequest` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable` | 400 |
 | `ErrGuardrailBlocked` | `guardrail_blocked` | 400 |
-| `ErrAuthentication` | `invalid_api_key` | 401 |
-| `ErrCredit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit` | 402 |
+| `ErrAuthentication` | `invalid_api_key`, `byok_credential_rejected` | 401 |
+| `ErrCredit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
 | `ErrNotFound` | `model_not_found` | 404 |
-| `ErrRateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded` | 429 |
+| `ErrRateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
 | `ErrService` | `credit_check_failed`, `service_unavailable` | 503 |
-| `ErrOther` | `model_denied_by_org`, `model_denied_by_team`, `model_denied_by_key`, anything newer than this SDK | 403 / — |
+| `ErrOther` | `model_denied_by_org`, `model_denied_by_team`, `model_denied_by_key`, `byok_credential_unavailable`, anything newer than this SDK | 403 / 409 / — |
 | `ErrTransport` | never reached the gateway | — |
 
 `IsRetryable()` is true only for `ErrRateLimit`, `ErrService` and `ErrTransport`. Every

@@ -409,13 +409,16 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "guardrail_not_found": nRouterRequestError,
         "image_input_unsupported": nRouterRequestError,
         "pot_route_feature_unsupported": nRouterRequestError,
+        "cost_band_unsatisfiable": nRouterRequestError,
         "guardrail_blocked": nRouterGuardrailBlockedError,
         "invalid_api_key": nRouterAuthenticationError,
+        "byok_credential_rejected": nRouterAuthenticationError,
         "insufficient_credits": nRouterCreditError,
         "plan_allowance_exhausted": nRouterCreditError,
         "plan_required": nRouterCreditError,
         "insufficient_promo_credit": nRouterCreditError,
         "insufficient_hack_credit": nRouterCreditError,
+        "byok_plan_required": nRouterCreditError,
         "model_not_found": nRouterNotFoundError,
         "credit_check_failed": nRouterServiceError,
         "service_unavailable": nRouterServiceError,
@@ -427,6 +430,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
                 message,
                 request_id=request_id,
                 auth_reason=headers.get("x-nr-auth-reason"),
+                code=gateway_code,
                 param=param,
                 type=error_type,
                 guardrails=guardrails,
@@ -456,7 +460,12 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
             guardrails=guardrails,
             meta=meta,
         ) from err
-    if gateway_code in ("rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded"):
+    if gateway_code in (
+        "rate_limit_exceeded",
+        "tpm_limit_exceeded",
+        "pot_spend_limit_exceeded",
+        "byok_fair_use_exceeded",
+    ):
         retry_after_hdr = headers.get("retry-after")
         raise nRouterRateLimitError(
             message,
@@ -473,6 +482,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "model_denied_by_org",
         "model_denied_by_team",
         "model_denied_by_key",
+        "byok_credential_unavailable",
     ):
         # 403 model deny lists. No permission class exists, so the base class
         # carries the code and the status.
@@ -1045,6 +1055,7 @@ class _nRouterChat:
         guardrails: list[str] | None = None,
         cache: bool | None = None,
         optimize: str | None = None,
+        cost_band: str | None = None,
         advanced_sampling: bool = False,
         temperature: float | None = None,
         top_p: float | None = None,
@@ -1069,6 +1080,8 @@ class _nRouterChat:
             optimize: ``"quality"`` or ``"cost"``, for ``nrouter/auto`` only.
                 Overrides the organization's saved strategy for this call;
                 any other model is refused with 400 ``invalid_request``.
+            cost_band: ``"low"``, ``"mid"``, or ``"high"``, for cost-mode
+                ``nrouter/auto`` only (default ``"mid"``).
             advanced_sampling: When true, send validated temperature/top_p.
             stream: Stream the response.
             **kwargs: All OpenAI chat.completions.create() params.
@@ -1088,6 +1101,7 @@ class _nRouterChat:
                 guardrails=guardrails,
                 cache=cache,
                 optimize=optimize,
+                cost_band=cost_band,
             )
         )
         kwargs.update(
@@ -1631,7 +1645,12 @@ def parse_stream_frame(
                 meta=meta,
             )
 
-        if code in ("rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded"):
+        if code in (
+            "rate_limit_exceeded",
+            "tpm_limit_exceeded",
+            "pot_spend_limit_exceeded",
+            "byok_fair_use_exceeded",
+        ):
             raise nRouterRateLimitError(
                 str(message),
                 request_id=request_id,
@@ -1647,6 +1666,7 @@ def parse_stream_frame(
             "plan_required",
             "insufficient_promo_credit",
             "insufficient_hack_credit",
+            "byok_plan_required",
         ):
             raise nRouterCreditError(
                 str(message),
@@ -1657,10 +1677,30 @@ def parse_stream_frame(
                 guardrails=guardrails,
                 meta=meta,
             )
-        if code == "invalid_api_key":
+        if code in ("invalid_api_key", "byok_credential_rejected"):
             raise nRouterAuthenticationError(
                 str(message),
                 request_id=request_id,
+                code=code,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            )
+        if code in (
+            "invalid_request",
+            "input_too_large",
+            "max_output_tokens_too_large",
+            "fallback_not_allowed",
+            "guardrail_not_found",
+            "image_input_unsupported",
+            "pot_route_feature_unsupported",
+            "cost_band_unsatisfiable",
+        ):
+            raise nRouterRequestError(
+                str(message),
+                request_id=request_id,
+                code=code,
                 param=param,
                 type=error_type,
                 guardrails=guardrails,

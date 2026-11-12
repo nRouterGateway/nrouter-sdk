@@ -288,8 +288,9 @@ Also from the spec (`request_headers`, `extra_body_fields`). The body fields app
 | Option | Where | What it does |
 |---|---|---|
 | `nrouter_cache` | body, boolean, default `true` | Use the tenant-isolated response cache for buffered text requests. `false` forces a provider call; streams are never cached |
-| `nrouter_fallbacks` | body, up to 4 model names | Per-request fallback chain, tried in order. Replaces the organization's fallback policy for this call. On `nrouter/auto` it replaces the fallbacks nrouter/auto would choose (`[]` = none). An invalid target is refused with `400 fallback_not_allowed` |
-| `nrouter_optimize` | body, `"quality"` or `"cost"` | `nrouter/auto` only: the selection strategy for this one request, overriding the organization's Router Settings strategy. Any other value, or the field on another model, is refused with `400 invalid_request` |
+| `nrouter_fallbacks` | body, up to 4 model names | Per-request fallback chain, tried in order. Replaces the organization's fallback policy for this call. On `nrouter/auto` it replaces the fallbacks nrouter/auto would choose (`[]` = none). An invalid or out-of-band target is refused with `400 fallback_not_allowed` |
+| `nrouter_optimize` | body, `"quality"` or `"cost"` | `nrouter/auto` only: the selection strategy for this one request (`"quality"` best model for the task by default, or `"cost"` lowest estimated request cost within `nrouter_cost_band` with Default Pick fallback), overriding the organization's Router Settings strategy. Any other value, or the field on another model, is refused with `400 invalid_request` |
+| `nrouter_cost_band` | body, `"low"`, `"mid"`, or `"high"`, default `"mid"` | Cost-mode `nrouter/auto` only: sets the blended-rate ceiling (`"low"` `< $1`, `"mid"` `$1` to `< $7` default, `"high"` `$7+` per 1M tokens on `(3 * input + 1 * output) / 4`). Sent on a Direct model, with an invalid value, or under `"quality"` returns `400 invalid_request`; zero eligible models in the band returns `400 cost_band_unsatisfiable` (`$0` spent) |
 | `nrouter_guardrails` | body, up to 8 ids or names | Guardrails to run in addition to the assigned ones; it can never remove one. An unknown id is refused with `400 guardrail_not_found` |
 | `nrouter_prompt_template_id` / `nrouter_prompt_variables` | body | Select a prompt template and supply its variables |
 | `x-nr-tags` | request header | Custom spend tags, `key=value,key2=value2` |
@@ -302,9 +303,9 @@ Also from the spec (`request_headers`, `extra_body_fields`). The body fields app
 Routing is a gateway concern; what you put in `model` chooses the mode:
 
 - **Direct — you choose the model.** Name it in `model`. nRouter never swaps it for another: a concrete model is never re-routed and inherits no hidden fallback. A different model answers only through a fallback you configured yourself — in Router Settings or `nrouter_fallbacks` on the request (up to 4) — and only when the provider fails (`429`, `503`, `529`, connection or first-byte stall). You are charged once, for the model that answered.
-- **`nrouter/auto` — nRouter chooses an eligible model for you.** Selects between task-appropriate models by quality or lowest cost. `nrouter_optimize: "quality" | "cost"` overrides strategy for one request. `nrouter_fallbacks` on a request for `nrouter/auto` replaces the fallbacks it would choose.
+- **`nrouter/auto` — nRouter chooses an eligible model for you.** Selects between task-appropriate models by quality (`nrouter_optimize: "quality"`, default) or lowest estimated request cost within a blended-rate ceiling (`nrouter_optimize: "cost"`, `nrouter_cost_band: "low" | "mid" | "high"`, default `"mid"`, with Default Pick fallback). `nrouter_fallbacks` on a request for `nrouter/auto` replaces the fallbacks it would choose.
 
-In both modes you pay the served model's list price: `x-nr-model` names the model that answered, and `x-nr-routing` indicates `direct` or `fallback:<n>`.
+In both modes you pay 0% markup on the served model's exact list price: `x-nr-model` always names the concrete model that served the request, and `x-nr-routing` indicates `direct` or `fallback:<n>`.
 
 ```bash
 NROUTER_MODEL=gpt-5.4-mini ./run-your-example   # direct: this model, or a fallback you configured
@@ -352,9 +353,9 @@ not itself the register of which ones exist.
 | `x-nr-request-id` | string | Unique request ID (always present) |
 | `x-nr-latency-ms` | integer | Milliseconds from edge arrival until the response headers are ready; time-to-headers, not time to the final streamed event (always present) |
 | `x-nr-trace-id` | string | OpenTelemetry trace ID for this request; absent when no valid trace exists |
-| `x-nr-request-cost` | float | Exact cost in USD; absent when the model is unpriced |
-| `x-nr-cost-status` | string | `exact` or `unpriced` when cost metadata is available |
-| `x-nr-model` | string | Model that served the request |
+| `x-nr-request-cost` | float | Exact cost in USD; absent when the model is unpriced or when funded by an organization's saved provider key (`x-nr-cost-status: byok`) |
+| `x-nr-cost-status` | string | `exact`, `unpriced`, or `byok` when cost metadata is available |
+| `x-nr-model` | string | Concrete catalogue model that served the request (the named model, the fallback that answered, or the model `nrouter/auto` selected) |
 | `x-nr-input-tokens` | integer | Input token count |
 | `x-nr-output-tokens` | integer | Output token count |
 | `x-nr-total-tokens` | integer | Total token count, including cache tokens |
@@ -366,7 +367,8 @@ not itself the register of which ones exist.
 | `x-nr-auth-reason` | string | On a 401, the gateway's stable reason for refusing the key |
 | `x-nr-response-cache` | string | `hit` or `miss`; absent when the response cache did not participate |
 | `x-nr-response-cache-age` | integer | Age of a cache `hit` in seconds |
-| `x-nr-funding-source` | string | Which balance paid for this request: the plan's usage allowance, credits, promotional credit (`promo`-labeled models) or hackathon credit (`hack`-labeled models) (`allowance`, `credits`, `promo` or `hack`) |
+| `x-nr-funding-source` | string | Which balance or credential paid for this request: the plan's usage allowance, credits, promotional credit (`promo`-labeled models), hackathon credit (`hack`-labeled models), or saved provider key (`allowance`, `credits`, `promo`, `hack`, or `byok`) |
+| `x-nr-byok-fallback` | string | Present only when a request covered by a saved provider key fell back to prepaid credits because credit fallback is enabled (`credential_rejected`, `permission_denied`, `rate_limited`, `overloaded`, or `connect_refused`). Absent otherwise |
 | `x-nr-pot-fallback` | string | Present only when a request for a `promo`- or `hack`-labeled model was charged to prepaid credits because the organization turned on paid fallback in Settings; names why the pot did not fund it (`pot_empty`, `pot_insufficient`, `window_hour`, `window_day`, `window_week`, `window_month`, `platform_day`, `platform_month`, `policy_excluded`, `feature` or `fallbacks_ineligible`). Absent otherwise |
 | `x-nr-allowance-reset` | integer | Seconds until the tightest usage-allowance window resets; sent on allowance-window 429s (equal to `Retry-After`) and the monthly 402 `plan_allowance_exhausted` |
 | `x-nr-routing` | string | Which chain entry answered: `direct` for the first, `fallback:<n>` for the entry n fallbacks deep; absent on cache hits and refusals |
@@ -402,13 +404,18 @@ The gateway classifies refusals into typed error codes:
 | `model_denied_by_org` | 403 | `nRouterError` | The requested model, or a model named in `nrouter_fallbacks`, is on the organization's model deny list. A deny always wins over an allow list, and a denied model is also removed from `nrouter/auto` and `promo`/`hack` pot eligibility. Refused before any provider egress; nothing was reserved and nothing was spent |
 | `model_denied_by_team` | 403 | `nRouterError` | The requested model, or a model named in `nrouter_fallbacks`, is on the deny list of the team this virtual key belongs to. A deny always wins over an allow list, and a denied model is also removed from `nrouter/auto` and `promo`/`hack` pot eligibility. Refused before any provider egress; nothing was reserved and nothing was spent |
 | `model_denied_by_key` | 403 | `nRouterError` | The requested model, or a model named in `nrouter_fallbacks`, is on this virtual key's own model deny list. A deny always wins over an allow list, and a denied model is also removed from `nrouter/auto` and `promo`/`hack` pot eligibility. Refused before any provider egress; nothing was reserved and nothing was spent |
-| `fallback_not_allowed` | 400 | `nRouterRequestError` | A model in `nrouter_fallbacks` is not a valid fallback target for this key; nothing was spent |
+| `fallback_not_allowed` | 400 | `nRouterRequestError` | A model in `nrouter_fallbacks` is not a valid fallback target for this key or falls outside the active `nrouter_cost_band` ceiling; nothing was spent |
+| `cost_band_unsatisfiable` | 400 | `nRouterRequestError` | The active `nrouter_cost_band` ceiling on a cost-mode `nrouter/auto` request left zero eligible models; refused before hold (`$0` spent) and never escalated to a higher band |
 | `insufficient_promo_credit` | 402 | `nRouterCreditError` | A request for a `promo`-labeled model was refused because the organization's available promotional credit cannot cover the request's hold and prepaid credits could not be used: paid fallback is not turned on in Settings (the message names that remedy), or the prepaid balance cannot cover the hold either. Also returned when nRouter has frozen the organization's promotional credit (paid fallback does not apply). Promotional credit has no cash value and is spent only on `promo`-labeled models. Refused before any provider egress; nothing was reserved and nothing was spent |
 | `insufficient_hack_credit` | 402 | `nRouterCreditError` | A request for a `hack`-labeled model was refused because the organization's available hackathon credit cannot cover the request's hold and prepaid credits could not be used: paid fallback is not turned on in Settings (the message names that remedy), or the prepaid balance cannot cover the hold either. Also returned when nRouter has frozen the organization's hackathon credit (paid fallback does not apply). Hackathon credit has no cash value and is spent only on `hack`-labeled models. Refused before any provider egress; nothing was reserved and nothing was spent |
 | `pot_spend_limit_exceeded` | 429 | `nRouterRateLimitError` | A `promo`- or `hack`-funded request would take the organization's spend on that pot past one of its windows (set by nRouter; by default hourly none, daily $1, weekly $7, monthly $30; `x-nr-limit-source`: `pot_window`) and prepaid credits could not be used: paid fallback is not turned on in Settings (the message names that remedy), or no prepaid credit balance was available to overflow into. Windows are UTC calendar buckets: the hour, the day, the ISO week starting Monday 00:00 UTC, and the month. The message names the window that refused and when it resets; nothing was reserved and nothing was spent |
 | `pot_route_feature_unsupported` | 400 | `nRouterRequestError` | A `promo`- or `hack`-funded request asked for a feature those pots do not fund when no prepaid credit balance is available: web search (`nrouter_web_search`), more than one choice (`n > 1`), or a tool-billed feature, and prepaid credits could not be used (paid fallback is not turned on in Settings, or no prepaid balance). Nothing was reserved and nothing was spent; remove the feature, or turn on paid fallback and hold prepaid credits |
 | `guardrail_not_found` | 400 | `nRouterRequestError` | A guardrail in `nrouter_guardrails` is not owned by this organization; refused rather than ignored |
 | `image_input_unsupported` | 400 | `nRouterRequestError` | The request to `nrouter/auto` includes an image, and no model available for automatic routing on this endpoint accepts image input. Remove the image or name a model that accepts images; nothing was spent |
+| `byok_plan_required` | 402 | `nRouterCreditError` | An active BYOK subscription is required to use saved provider keys; models paid from prepaid credits are unaffected |
+| `byok_fair_use_exceeded` | 429 | `nRouterRateLimitError` | The monthly BYOK token fair-use allowance is reached (`x-nr-limit-source: byok_fair_use`); models paid from prepaid credits keep working |
+| `byok_credential_rejected` | 401 | `nRouterAuthenticationError` | The saved provider API key was rejected by the upstream provider and credit fallback is disabled |
+| `byok_credential_unavailable` | 409 | `nRouterError` | The saved provider API key is unavailable and credit fallback is disabled or cannot cover the request |
 
 ---
 

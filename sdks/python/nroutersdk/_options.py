@@ -13,17 +13,22 @@ CACHE_FIELD = "nrouter_cache"
 FALLBACKS_FIELD = "nrouter_fallbacks"
 GUARDRAILS_FIELD = "nrouter_guardrails"
 OPTIMIZE_FIELD = "nrouter_optimize"
+COST_BAND_FIELD = "nrouter_cost_band"
 EXTRA_BODY_FIELDS = (
     PROMPT_TEMPLATE_ID_FIELD,
     PROMPT_VARIABLES_FIELD,
     CACHE_FIELD,
     FALLBACKS_FIELD,
     OPTIMIZE_FIELD,
+    COST_BAND_FIELD,
     GUARDRAILS_FIELD,
 )
 
 #: The two strategies ``nrouter_optimize`` accepts, for ``nrouter/auto`` only.
 OPTIMIZE_VALUES = ("quality", "cost")
+
+#: The three ceilings ``nrouter_cost_band`` accepts on cost-mode ``nrouter/auto``.
+COST_BAND_VALUES = ("low", "mid", "high")
 
 #: Published ceilings, from ``spec/nrouter-sdk-spec.json`` (``extra_body_fields``).
 #:
@@ -88,6 +93,7 @@ def build_extra_body(
     guardrails: Sequence[str] | None = None,
     cache: bool | None = None,
     optimize: str | None = None,
+    cost_band: str | None = None,
 ) -> dict[str, Any]:
     """Map Python options to the exact nRouter gateway body fields.
 
@@ -137,6 +143,14 @@ def build_extra_body(
                 "nrouter/auto only."
             )
         extra[OPTIMIZE_FIELD] = optimize
+    if cost_band is not None:
+        if cost_band not in COST_BAND_VALUES:
+            raise _configuration_error(
+                'cost_band must be "low", "mid", or "high"; it maps onto the '
+                "gateway field nrouter_cost_band and applies to cost-mode "
+                "nrouter/auto requests only."
+            )
+        extra[COST_BAND_FIELD] = cost_band
     if guardrails:
         extra[GUARDRAILS_FIELD] = _names(
             guardrails, argument="guardrails", ceiling=MAX_GUARDRAILS

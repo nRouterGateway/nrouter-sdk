@@ -76,7 +76,8 @@ public final class NRouterException extends RuntimeException {
                 case "fallback_not_allowed":
                 case "guardrail_not_found":
                 case "image_input_unsupported":
-                case "pot_route_feature_unsupported": return Kind.REQUEST;
+                case "pot_route_feature_unsupported":
+                case "cost_band_unsatisfiable": return Kind.REQUEST;
                 case "guardrail_blocked": return Kind.GUARDRAIL_BLOCKED;
                 case "invalid_api_key": return Kind.AUTHENTICATION;
                 case "insufficient_credits":
