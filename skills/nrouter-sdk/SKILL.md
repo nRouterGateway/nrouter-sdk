@@ -1,14 +1,12 @@
 ---
 name: nrouter-sdk
-description: 'Use when developing, testing, or auditing the official nRouter multi-language SDKs.
-
-  [WHAT]: Client SDK development across 10 languages, conformance testing, wire serialization, error classification, and retry semantics.
-
-  [WHEN]: Adding SDK features, updating request/response types, running conformance test suites, or testing the @nrouter_ai/support-agent library.
-
-  [NOT FOR]: Publishing packages to external package registries (use deploy-nrouter-sdk) or gateway wire implementation (use nrouter-rust-modalities).'
+description: >-
+  Use when developing, testing, or auditing the official nRouter multi-language SDKs.
+  [WHAT]: Client SDK development across 10 languages, generated model constants from spec/model-catalog-snapshot.json (scripts/generate-model-constants.mjs, MCAT-39), conformance testing, wire serialization, error classification, and retry semantics.
+  [WHEN]: Adding SDK features, regenerating or checking SDK model constants, updating request/response types, running conformance test suites, or testing the @nrouter_ai/support-agent library.
+  [NOT FOR]: Publishing packages to external package registries (use deploy-nrouter-sdk) or gateway wire implementation (use nrouter-rust-modalities).
 metadata:
-  version: 1.2.0
+  version: 1.3.0
 ---
 
 # nRouter SDKs (router)
@@ -30,6 +28,7 @@ A new wire is `parity` (all SDKs) + `testing` (a contract test per SDK); a class
 
 - SDKs live under `sdks/<tech>/` (`js python java go rust kotlin android swift dart r`); derive: `ls -d sdks/*/ | wc -l`.
 - `spec/nrouter-sdk-spec.json` (derived from the gateway) is the sole source of truth for base URL, `NROUTER_API_KEY`, `sk-nrouter-` prefix, headers and value enums, error codes, body fields, version. **Read values from it; never retype.** SDK ≠ spec → the SDK is wrong; a contract change is never single-language.
+- **Generated Model Constants (`MCAT-39`, `CATREC-010`):** `spec/model-catalog-snapshot.json` (pinned `schema_version` + `catalog_revision` snapshot exported from `mo_models` and `mo_model_identifiers`) is the sole input to `scripts/generate-model-constants.mjs`, which emits deterministic `MODEL_*` constants across all 10 SDKs (preserving `canonical` and `moving` identifiers and marking retired models `@deprecated` / `Deprecated`, never deleted). Verify with `node scripts/generate-model-constants.mjs --check` and `node --test scripts/generate-model-constants.test.mjs`.
 - **Branching & release workflow (Rule #20):** Active SDK changes and coordinated version bumps are authored and verified on `development` (`origin/development`), merged into locked-down `main` **only via Pull Request (`development` → `main`)**, and published/tagged from `main`.
 
 ```bash

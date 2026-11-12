@@ -40,6 +40,7 @@ This sub-skill enforces that all ten nRouter SDKs adhere to one synchronized con
 | Area | Master Source of Truth | Target Locations | Verification Command |
 |---|---|---|---|
 | **Wire & Contract** | `spec/nrouter-sdk-spec.json` | `sdks/*/` source implementations | `python3 conformance/check_conformance.py` |
+| **Model Constants (`MCAT-39`)** | `spec/model-catalog-snapshot.json` | All 10 `sdks/*/` generated model constants (`scripts/generate-model-constants.mjs`) | `node scripts/generate-model-constants.mjs --check && node --test scripts/generate-model-constants.test.mjs` |
 | **Request-body options** | `spec.extra_body_fields` | every SDK's typed option builder, or its recorded `NO_OPTION_BUILDER` reason | `python3 conformance/check_conformance.py` (`check_option_builders`) |
 | **The live wire itself** | the running gateway | nothing in this repo — it is the oracle | `python3 scripts/curl_health_checks/run_all.py --route <route> --model <model>` |
 | **Feature Surface** | `conformance/feature_manifest.json` | Public client methods across all SDKs | `python3 conformance/check_features.py` |
