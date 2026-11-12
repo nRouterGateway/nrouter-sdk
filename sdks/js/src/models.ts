@@ -43,7 +43,7 @@ export type NRouterCapabilities = {
 };
 
 // BEGIN GENERATED: model-catalog-snapshot
-// Generated from spec/model-catalog-snapshot.json (snapshot version: 2026-11-11).
+// Generated from spec/model-catalog-snapshot.json (snapshot version: 2026-11-11, schema_version: 1, catalog_revision: 1).
 // Do not edit by hand; run `node scripts/generate-model-constants.mjs` to regenerate.
 // Naming rule: `MODEL_` + uppercase model id with non-alphanumeric runs replaced by `_`.
 

@@ -13,6 +13,7 @@ export 'src/meta.dart'
         extractTraceHeadersFromMap,
         withTraceContext;
 export 'src/memory.dart';
+export 'src/models.dart';
 export 'src/prompts.dart';
 export 'src/media.dart';
 export 'src/sampling.dart';

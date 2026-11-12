@@ -1,0 +1,101 @@
+# Generated from spec/model-catalog-snapshot.json (snapshot version: 2026-11-11, schema_version: 1, catalog_revision: 1).
+# Do not edit by hand; run `node scripts/generate-model-constants.mjs` to regenerate.
+
+MODEL_CLAUDE_3_7_SONNET <- "claude-3-7-sonnet"
+MODEL_CLAUDE_OPUS_4_6 <- "claude-opus-4-6"
+MODEL_CLAUDE_OPUS_4_8 <- "claude-opus-4-8"
+# Deprecated: Compatibility alias; use MODEL_CLAUDE_SONNET_4_5_20250929 instead.
+MODEL_CLAUDE_SONNET_4_5 <- "claude-sonnet-4-5-20250929"
+MODEL_CLAUDE_SONNET_4_5_20250929 <- "claude-sonnet-4-5-20250929"
+# Deprecated: Compatibility alias; use MODEL_GOOGLE_GEMINI_1_5_FLASH_002 instead.
+MODEL_GEMINI_1_5_FLASH_002 <- "google/gemini-1.5-flash-002"
+# Deprecated: Compatibility alias; use MODEL_GOOGLE_GEMINI_1_5_PRO_002 instead.
+MODEL_GEMINI_1_5_PRO_002 <- "google/gemini-1.5-pro-002"
+# Deprecated: Compatibility alias; use MODEL_GOOGLE_GEMINI_2_0_FLASH instead.
+MODEL_GEMINI_2_0_FLASH <- "google/gemini-2.0-flash"
+# Deprecated: Compatibility alias; use MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE instead.
+MODEL_GEMINI_2_0_FLASH_LITE <- "google/gemini-2.0-flash-lite"
+# Deprecated: Compatibility alias; use MODEL_GOOGLE_GEMINI_2_5_FLASH instead.
+MODEL_GEMINI_2_5_FLASH <- "google/gemini-2.5-flash"
+# Deprecated: Compatibility alias; use MODEL_GOOGLE_GEMINI_2_5_PRO instead.
+MODEL_GEMINI_2_5_PRO <- "google/gemini-2.5-pro"
+# Deprecated: Compatibility alias; use MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE instead.
+MODEL_GEMINI_3_1_FLASH_LITE <- "google/gemini-3.1-flash-lite"
+# Deprecated: Compatibility alias; use MODEL_GOOGLE_GEMINI_3_1_PRO instead.
+MODEL_GEMINI_3_1_PRO <- "google/gemini-3.1-pro"
+# Deprecated: Compatibility alias; use MODEL_GOOGLE_GEMINI_3_8_FLASH instead.
+MODEL_GEMINI_3_8_FLASH <- "google/gemini-3.8-flash"
+MODEL_GOOGLE_GEMINI_1_5_FLASH_002 <- "google/gemini-1.5-flash-002"
+MODEL_GOOGLE_GEMINI_1_5_PRO_002 <- "google/gemini-1.5-pro-002"
+MODEL_GOOGLE_GEMINI_2_0_FLASH <- "google/gemini-2.0-flash"
+MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE <- "google/gemini-2.0-flash-lite"
+MODEL_GOOGLE_GEMINI_2_5_FLASH <- "google/gemini-2.5-flash"
+MODEL_GOOGLE_GEMINI_2_5_PRO <- "google/gemini-2.5-pro"
+MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE <- "google/gemini-3.1-flash-lite"
+MODEL_GOOGLE_GEMINI_3_1_PRO <- "google/gemini-3.1-pro"
+MODEL_GOOGLE_GEMINI_3_8_FLASH <- "google/gemini-3.8-flash"
+MODEL_GPT_4O <- "gpt-4o"
+MODEL_GPT_4O_MINI <- "gpt-4o-mini"
+MODEL_GPT_5 <- "gpt-5"
+MODEL_GPT_5_4 <- "gpt-5.4"
+MODEL_GPT_5_4_MINI <- "gpt-5.4-mini"
+MODEL_META_LLAMA_3_1_70B_INSTRUCT <- "meta/llama-3.1-70b-instruct"
+MODEL_META_LLAMA_3_1_8B_INSTRUCT <- "meta/llama-3.1-8b-instruct"
+# Deprecated: Compatibility alias; use MODEL_META_LLAMA_3_2_11B_VISION_INSTRUCT instead.
+MODEL_META_LLAMA_3_2_11B_VISION <- "meta/llama-3.2-11b-vision-instruct"
+MODEL_META_LLAMA_3_2_11B_VISION_INSTRUCT <- "meta/llama-3.2-11b-vision-instruct"
+MODEL_META_LLAMA_3_2_1B_INSTRUCT <- "meta/llama-3.2-1b-instruct"
+MODEL_META_LLAMA_3_2_3B_INSTRUCT <- "meta/llama-3.2-3b-instruct"
+# Deprecated: Compatibility alias; use MODEL_META_LLAMA_3_2_90B_VISION_INSTRUCT instead.
+MODEL_META_LLAMA_3_2_90B_VISION <- "meta/llama-3.2-90b-vision-instruct"
+MODEL_META_LLAMA_3_2_90B_VISION_INSTRUCT <- "meta/llama-3.2-90b-vision-instruct"
+MODEL_META_LLAMA_3_3_70B_INSTRUCT <- "meta/llama-3.3-70b-instruct"
+MODEL_O3_MINI <- "o3-mini"
+MODEL_TYPESAFE_JEV <- "typesafe/jev"
+# Deprecated: Compatibility alias; use MODEL_TYPESAFE_JEV instead.
+MODEL_TYPESAFE_JEV_SYSTEM_ONE <- "typesafe/jev"
+
+NROUTER_MODELS <- list(
+  CLAUDE_3_7_SONNET = MODEL_CLAUDE_3_7_SONNET,
+  CLAUDE_OPUS_4_6 = MODEL_CLAUDE_OPUS_4_6,
+  CLAUDE_OPUS_4_8 = MODEL_CLAUDE_OPUS_4_8,
+  CLAUDE_SONNET_4_5 = MODEL_CLAUDE_SONNET_4_5,
+  CLAUDE_SONNET_4_5_20250929 = MODEL_CLAUDE_SONNET_4_5_20250929,
+  GEMINI_1_5_FLASH_002 = MODEL_GEMINI_1_5_FLASH_002,
+  GEMINI_1_5_PRO_002 = MODEL_GEMINI_1_5_PRO_002,
+  GEMINI_2_0_FLASH = MODEL_GEMINI_2_0_FLASH,
+  GEMINI_2_0_FLASH_LITE = MODEL_GEMINI_2_0_FLASH_LITE,
+  # Deprecated compatibility alias; use GOOGLE_GEMINI_2_5_FLASH instead.
+  GEMINI_2_5_FLASH = "gemini-2.5-flash",
+  # Deprecated compatibility alias; use GOOGLE_GEMINI_2_5_PRO instead.
+  GEMINI_2_5_PRO = "gemini-2.5-pro",
+  GEMINI_3_1_FLASH_LITE = MODEL_GEMINI_3_1_FLASH_LITE,
+  GEMINI_3_1_PRO = MODEL_GEMINI_3_1_PRO,
+  GEMINI_3_8_FLASH = MODEL_GEMINI_3_8_FLASH,
+  GOOGLE_GEMINI_1_5_FLASH_002 = MODEL_GOOGLE_GEMINI_1_5_FLASH_002,
+  GOOGLE_GEMINI_1_5_PRO_002 = MODEL_GOOGLE_GEMINI_1_5_PRO_002,
+  GOOGLE_GEMINI_2_0_FLASH = MODEL_GOOGLE_GEMINI_2_0_FLASH,
+  GOOGLE_GEMINI_2_0_FLASH_LITE = MODEL_GOOGLE_GEMINI_2_0_FLASH_LITE,
+  GOOGLE_GEMINI_2_5_FLASH = MODEL_GOOGLE_GEMINI_2_5_FLASH,
+  GOOGLE_GEMINI_2_5_PRO = MODEL_GOOGLE_GEMINI_2_5_PRO,
+  GOOGLE_GEMINI_3_1_FLASH_LITE = MODEL_GOOGLE_GEMINI_3_1_FLASH_LITE,
+  GOOGLE_GEMINI_3_1_PRO = MODEL_GOOGLE_GEMINI_3_1_PRO,
+  GOOGLE_GEMINI_3_8_FLASH = MODEL_GOOGLE_GEMINI_3_8_FLASH,
+  GPT_4O = MODEL_GPT_4O,
+  GPT_4O_MINI = MODEL_GPT_4O_MINI,
+  GPT_5 = MODEL_GPT_5,
+  GPT_5_4 = MODEL_GPT_5_4,
+  GPT_5_4_MINI = MODEL_GPT_5_4_MINI,
+  META_LLAMA_3_1_70B_INSTRUCT = MODEL_META_LLAMA_3_1_70B_INSTRUCT,
+  META_LLAMA_3_1_8B_INSTRUCT = MODEL_META_LLAMA_3_1_8B_INSTRUCT,
+  META_LLAMA_3_2_11B_VISION = MODEL_META_LLAMA_3_2_11B_VISION,
+  META_LLAMA_3_2_11B_VISION_INSTRUCT = MODEL_META_LLAMA_3_2_11B_VISION_INSTRUCT,
+  META_LLAMA_3_2_1B_INSTRUCT = MODEL_META_LLAMA_3_2_1B_INSTRUCT,
+  META_LLAMA_3_2_3B_INSTRUCT = MODEL_META_LLAMA_3_2_3B_INSTRUCT,
+  META_LLAMA_3_2_90B_VISION = MODEL_META_LLAMA_3_2_90B_VISION,
+  META_LLAMA_3_2_90B_VISION_INSTRUCT = MODEL_META_LLAMA_3_2_90B_VISION_INSTRUCT,
+  META_LLAMA_3_3_70B_INSTRUCT = MODEL_META_LLAMA_3_3_70B_INSTRUCT,
+  O3_MINI = MODEL_O3_MINI,
+  TYPESAFE_JEV = MODEL_TYPESAFE_JEV,
+  TYPESAFE_JEV_SYSTEM_ONE = MODEL_TYPESAFE_JEV_SYSTEM_ONE
+)
