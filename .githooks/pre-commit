@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Pull before every commit: fetch the branch's origin counterpart and refuse while HEAD is
+# missing any of its commits. A commit on a stale base diverges the branch from origin and
+# forces a merge or rebase before it can be pushed.
+set -euo pipefail
+
+fetch_tip() { # fetch_tip <branch> <tracking-ref>; bounded where a timeout binary exists (stock macOS has none)
+  if command -v timeout >/dev/null 2>&1; then
+    GIT_TERMINAL_PROMPT=0 timeout 30 git fetch --quiet --no-tags origin "+refs/heads/$1:$2"
+  elif command -v gtimeout >/dev/null 2>&1; then
+    GIT_TERMINAL_PROMPT=0 gtimeout 30 git fetch --quiet --no-tags origin "+refs/heads/$1:$2"
+  else
+    GIT_TERMINAL_PROMPT=0 git fetch --quiet --no-tags origin "+refs/heads/$1:$2"
+  fi
+}
+require_up_to_date() {
+  local gd branch tracking behind f
+  gd="$(git rev-parse --git-dir)"
+  # A merge/rebase/cherry-pick/revert in progress IS the pull (or a replay) being finished.
+  for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
+    [ -e "$gd/$f" ] && return 0
+  done
+  branch="$(git symbolic-ref --short -q HEAD)" || return 0          # detached HEAD
+  tracking="refs/remotes/origin/$branch"
+  git rev-parse -q --verify "$tracking" >/dev/null || return 0     # never pushed: nothing to be behind
+  if [ "${NROUTER_COMMIT_OFFLINE:-0}" != 1 ]; then
+    # One retry: concurrent fetches of the same ref collide on its lock.
+    if ! fetch_tip "$branch" "$tracking" 2>/dev/null && ! { sleep 2; fetch_tip "$branch" "$tracking"; }; then
+      echo "REFUSED: could not fetch origin/$branch to prove this commit is on its tip." >&2
+      echo "       Retry once the network is back. Genuinely offline? NROUTER_COMMIT_OFFLINE=1 git commit ..." >&2
+      echo "       (that still refuses if the last-fetched origin/$branch is ahead of you)." >&2
+      return 1
+    fi
+  fi
+  behind="$(git rev-list --count "HEAD..$tracking" 2>/dev/null || git rev-list --count "$tracking")"
+  if [ "$behind" != 0 ]; then
+    echo "REFUSED: '$branch' is $behind commit(s) behind origin/$branch. Pull before you commit:" >&2
+    echo "       git pull --no-rebase --ff-only origin $branch   (no unpushed local commits)" >&2
+    echo "       git pull --no-rebase origin $branch             (unpushed local commits: merge, resolve, then commit)" >&2
+    echo "       (--no-rebase: pull.rebase=true refuses to run with ANY uncommitted file; a merge keeps them)" >&2
+    return 1
+  fi
+}
+require_up_to_date || exit 1
+exit 0
