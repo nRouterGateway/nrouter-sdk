@@ -268,6 +268,21 @@
         "0"
       ]
     },
+    "x-nr-host": {
+      "type": "string",
+      "description": "Pin the upstream host offering for this request ('openai', 'anthropic', 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra', 'meta', 'typesafe'). Equivalent to the nrouter_host request-body field; takes precedence over virtual-key host defaults and organization BYOK host_priority.",
+      "values": [
+        "openai",
+        "anthropic",
+        "azure",
+        "bedrock",
+        "vertex",
+        "alibaba",
+        "deepinfra",
+        "meta",
+        "typesafe"
+      ]
+    },
     "x-nr-mcp-server": {
       "type": "string",
       "description": "Target MCP server identifier when routing MCP requests through /mcp when multiple MCP servers are configured."
@@ -656,6 +671,21 @@
       "items": { "type": "string" },
       "max": 8,
       "description": "Per-request guardrail selection: up to 8 guardrail ids or names owned by this organization. ADD-ONLY — the listed guardrails run IN ADDITION to the ones already assigned to the key, team or organization, and a request can never remove, relax or replace an assigned guardrail or the platform moderation floor. An id or name the organization does not own is refused with 400 guardrail_not_found rather than ignored, because a silently dropped guardrail is a request the caller believes was inspected and was not. Text wires only (/v1/chat/completions, /v1/completions, /v1/messages, /v1/responses)."
+    },
+    "nrouter_host": {
+      "type": "string",
+      "enum": [
+        "openai",
+        "anthropic",
+        "azure",
+        "bedrock",
+        "vertex",
+        "alibaba",
+        "deepinfra",
+        "meta",
+        "typesafe"
+      ],
+      "description": "Pin the upstream host offering for this request ('openai', 'anthropic', 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra', 'meta', or 'typesafe'; also accepted via the x-nr-host request header). Evaluated with 3-tier precedence: per-request nrouter_host (or x-nr-host) -> virtual-key host -> organization BYOK host_priority. Sending an unrecognized host key or a non-string value is refused before any provider egress with 400 invalid_request."
     }
   },
   "spend_row_metadata_fields": {

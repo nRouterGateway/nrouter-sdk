@@ -106,6 +106,45 @@ def test_cost_band_maps_onto_the_gateway_field_and_refuses_other_values():
         build_extra_body(cost_band="ultra")  # type: ignore[arg-type]
 
 
+def test_host_maps_onto_the_gateway_field_and_header_and_refuses_retired_aliases():
+    from nroutersdk import HOST_VALUES, format_host, nRouter
+    from nroutersdk.client import _prepare_default_headers
+
+    assert HOST_VALUES == (
+        "openai",
+        "anthropic",
+        "azure",
+        "bedrock",
+        "vertex",
+        "alibaba",
+        "deepinfra",
+        "meta",
+        "typesafe",
+    )
+    for host in HOST_VALUES:
+        assert build_extra_body(host=host) == {"nrouter_host": host}
+        assert format_host(host) == host
+        assert _prepare_default_headers(host=host)["x-nr-host"] == host
+
+    client = nRouter(api_key="sk-nrouter-test-1234", host="azure")
+    assert client._nrouter_headers["x-nr-host"] == "azure"
+    client.close()
+
+    for retired in (
+        "openai_direct",
+        "anthropic_direct",
+        "gcp_vertex_ai",
+        "aws_bedrock",
+        "alibaba_dashscope",
+        "typesafe_ai",
+        "azure\r\n",
+    ):
+        with pytest.raises(nRouterConfigurationError, match="nrouter_host"):
+            build_extra_body(host=retired)  # type: ignore[arg-type]
+        with pytest.raises(nRouterConfigurationError):
+            _prepare_default_headers(host=retired)
+
+
 def test_more_than_four_fallbacks_is_refused_locally():
     with pytest.raises(nRouterConfigurationError, match="fallbacks"):
         build_extra_body(fallbacks=["a", "b", "c", "d", "e"])
@@ -185,6 +224,7 @@ def test_every_spec_extra_body_field_is_reachable_from_the_builder():
         guardrails=["pii-strict"],
         optimize="cost",
         cost_band="mid",
+        host="azure",
         # `cache=True` is the gateway default and is deliberately OMITTED, so
         # only `False` can put `nrouter_cache` on the wire. Populating this
         # with `True` would make the "every field is emittable" half of this

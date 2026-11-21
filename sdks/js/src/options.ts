@@ -19,12 +19,14 @@
 
 import { configurationError } from './errors';
 import { dataUrlToPart } from './multimodal';
-import type {
-  ChatContentPart,
-  ChatMessage,
-  NRouterCallOptions,
-  NRouterExtraBody,
-  NRouterFeatureOptions,
+import {
+  NROUTER_HOSTS,
+  type ChatContentPart,
+  type ChatMessage,
+  type NRouterCallOptions,
+  type NRouterExtraBody,
+  type NRouterFeatureOptions,
+  type NRouterHost,
 } from './types';
 
 /**
@@ -197,6 +199,10 @@ export function buildExtraBody(opts: NRouterFeatureOptions): NRouterExtraBody {
   // fall into this branch.
   if (opts.cache === false) {
     extra.nrouter_cache = false;
+  }
+
+  if (opts.host !== undefined) {
+    extra.nrouter_host = formatHost(opts.host);
   }
 
   return extra;
@@ -599,4 +605,21 @@ export function formatCompress(compress: boolean | string): string {
     throw configurationError('compress must not contain carriage return or line feed');
   }
   return str;
+}
+
+/** Validates a canonical host key for `nrouter_host` and `x-nr-host`. */
+export function formatHost(host: string): NRouterHost {
+  if (typeof host !== 'string' || /[\r\n]/.test(host)) {
+    throw configurationError(
+      `host must be one of ${NROUTER_HOSTS.map((h) => `"${h}"`).join(', ')}; ` +
+        'it maps onto the gateway field `nrouter_host` and header `x-nr-host`.',
+    );
+  }
+  if (!(NROUTER_HOSTS as readonly string[]).includes(host)) {
+    throw configurationError(
+      `host must be one of ${NROUTER_HOSTS.map((h) => `"${h}"`).join(', ')}; ` +
+        'it maps onto the gateway field `nrouter_host` and header `x-nr-host`.',
+    );
+  }
+  return host as NRouterHost;
 }

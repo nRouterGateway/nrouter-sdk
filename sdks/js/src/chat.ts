@@ -30,7 +30,7 @@ import {
   errorEnvelopeOnSuccess,
 } from './errors';
 import { buildSamplingParams } from './sampling';
-import { buildChatBody, formatTags, formatCompress } from './options';
+import { buildChatBody, formatTags, formatCompress, formatHost } from './options';
 import { HEADER_NAMES, type NRouterCallOptions, type NRouterResponse, type ResponseMeta } from './types';
 import type { AbortSignalLike } from './multimodal';
 
@@ -204,6 +204,7 @@ export async function chat(
   const customHeaders: Record<string, string> = {};
   if (opts.tags) customHeaders['x-nr-tags'] = formatTags(opts.tags);
   if (opts.compress !== undefined) customHeaders['x-nr-compress'] = formatCompress(opts.compress);
+  if (opts.host !== undefined) customHeaders['x-nr-host'] = formatHost(opts.host);
 
   const res = await send(
     runner,

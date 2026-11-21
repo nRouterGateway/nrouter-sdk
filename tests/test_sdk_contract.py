@@ -542,6 +542,7 @@ class SpecContractTests(unittest.TestCase):
             "x-nr-tags",
             "x-nr-mcp-server",
             "x-nr-compress",
+            "x-nr-host",
             "x-nr-client-language",
             "x-nr-session-id",
             "x-nr-trace-id",
@@ -549,6 +550,21 @@ class SpecContractTests(unittest.TestCase):
             "x-nr-trace-stages",
         }
         self.assertEqual(set(request_headers), expected)
+        canonical_hosts = [
+            "openai",
+            "anthropic",
+            "azure",
+            "bedrock",
+            "vertex",
+            "alibaba",
+            "deepinfra",
+            "meta",
+            "typesafe",
+        ]
+        self.assertEqual(request_headers["x-nr-host"]["values"], canonical_hosts)
+        self.assertEqual(
+            spec["extra_body_fields"]["nrouter_host"]["enum"], canonical_hosts
+        )
         for name, entry in request_headers.items():
             self.assertEqual(entry.get("type"), "string", name)
             self.assertTrue(entry.get("description", "").strip(), name)

@@ -33,8 +33,10 @@ export {
 // The contract: metadata, options and the wire shapes.
 export {
   HEADER_NAMES,
+  NROUTER_HOSTS,
   type ResponseMeta,
   type HeaderName,
+  type NRouterHost,
   type NRouterExtraBody,
   type NRouterFeatureOptions,
   type NRouterCallOptions,
@@ -133,7 +135,7 @@ export {
 } from './sampling';
 
 // Body construction, exported for the same reason.
-export { buildChatBody, buildExtraBody, buildFeatureBody, buildMessages } from './options';
+export { buildChatBody, buildExtraBody, buildFeatureBody, buildMessages, formatHost } from './options';
 
 export {
   NRouterModels,

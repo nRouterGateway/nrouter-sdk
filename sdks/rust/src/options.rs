@@ -11,7 +11,8 @@ pub const FALLBACKS_FIELD: &str = "nrouter_fallbacks";
 pub const GUARDRAILS_FIELD: &str = "nrouter_guardrails";
 pub const OPTIMIZE_FIELD: &str = "nrouter_optimize";
 pub const COST_BAND_FIELD: &str = "nrouter_cost_band";
-pub const EXTRA_BODY_FIELDS: [&str; 7] = [
+pub const HOST_FIELD: &str = "nrouter_host";
+pub const EXTRA_BODY_FIELDS: [&str; 8] = [
     PROMPT_TEMPLATE_ID_FIELD,
     PROMPT_VARIABLES_FIELD,
     CACHE_FIELD,
@@ -19,11 +20,23 @@ pub const EXTRA_BODY_FIELDS: [&str; 7] = [
     OPTIMIZE_FIELD,
     COST_BAND_FIELD,
     GUARDRAILS_FIELD,
+    HOST_FIELD,
 ];
 
 pub const MAX_FALLBACKS: usize = 4;
 pub const MAX_GUARDRAILS: usize = 8;
 pub const OPTIMIZE_VALUES: [&str; 3] = ["quality", "balanced", "cost"];
+pub const HOST_VALUES: [&str; 9] = [
+    "openai",
+    "anthropic",
+    "azure",
+    "bedrock",
+    "vertex",
+    "alibaba",
+    "deepinfra",
+    "meta",
+    "typesafe",
+];
 
 const TENANCY_KEYS: [&str; 5] = ["organizationid", "orgid", "teamid", "userid", "nrouterorg"];
 
@@ -48,6 +61,22 @@ pub struct FeatureOptions {
     /// and 400 `cost_band_unsatisfiable` when zero eligible models fit the
     /// ceiling.
     pub cost_band: Option<String>,
+    /// Pin the upstream host offering for this request (`"openai"`,
+    /// `"anthropic"`, `"azure"`, `"bedrock"`, `"vertex"`, `"alibaba"`,
+    /// `"deepinfra"`, `"meta"`, or `"typesafe"`).
+    pub host: Option<String>,
+}
+
+pub fn validate_host(host: &str) -> Result<&str, NRouterError> {
+    if host.contains('\r') || host.contains('\n') || !HOST_VALUES.contains(&host) {
+        return Err(NRouterError::Configuration(
+            "host must be one of \"openai\", \"anthropic\", \"azure\", \"bedrock\", \"vertex\", \
+             \"alibaba\", \"deepinfra\", \"meta\", or \"typesafe\"; it maps onto the gateway \
+             field nrouter_host and header x-nr-host."
+                .into(),
+        ));
+    }
+    Ok(host)
 }
 
 fn normalize_names(
@@ -139,6 +168,10 @@ pub fn build_extra_body(opts: &FeatureOptions) -> Result<Map<String, Value>, NRo
                 MAX_GUARDRAILS,
             )?),
         );
+    }
+    if let Some(host) = opts.host.as_deref() {
+        validate_host(host)?;
+        out.insert(HOST_FIELD.into(), Value::String(host.into()));
     }
     Ok(out)
 }

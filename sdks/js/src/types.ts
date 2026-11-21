@@ -217,7 +217,27 @@ export interface NRouterExtraBody {
    * floor, and a request can never remove or relax one.
    */
   nrouter_guardrails?: string[];
+  /**
+   * Pin the upstream host offering for this request ('openai', 'anthropic',
+   * 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra', 'meta', or 'typesafe').
+   */
+  nrouter_host?: NRouterHost;
 }
+
+/** Canonical upstream host keys accepted by `nrouter_host` and `x-nr-host`. */
+export const NROUTER_HOSTS = [
+  'openai',
+  'anthropic',
+  'azure',
+  'bedrock',
+  'vertex',
+  'alibaba',
+  'deepinfra',
+  'meta',
+  'typesafe',
+] as const;
+
+export type NRouterHost = (typeof NROUTER_HOSTS)[number];
 
 /**
  * Everything the hosted playground can set on a request, in one place.
@@ -286,6 +306,12 @@ export interface NRouterFeatureOptions {
    * Can be a boolean or compression strategy string (e.g. "auto", "summarize").
    */
   compress?: boolean | string;
+  /**
+   * Pin the upstream host offering for this request via `nrouter_host` and
+   * `x-nr-host` ('openai', 'anthropic', 'azure', 'bedrock', 'vertex',
+   * 'alibaba', 'deepinfra', 'meta', or 'typesafe').
+   */
+  host?: NRouterHost;
 }
 
 export interface NRouterCallOptions extends NRouterFeatureOptions {

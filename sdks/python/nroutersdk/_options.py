@@ -14,6 +14,7 @@ FALLBACKS_FIELD = "nrouter_fallbacks"
 GUARDRAILS_FIELD = "nrouter_guardrails"
 OPTIMIZE_FIELD = "nrouter_optimize"
 COST_BAND_FIELD = "nrouter_cost_band"
+HOST_FIELD = "nrouter_host"
 EXTRA_BODY_FIELDS = (
     PROMPT_TEMPLATE_ID_FIELD,
     PROMPT_VARIABLES_FIELD,
@@ -22,6 +23,7 @@ EXTRA_BODY_FIELDS = (
     OPTIMIZE_FIELD,
     COST_BAND_FIELD,
     GUARDRAILS_FIELD,
+    HOST_FIELD,
 )
 
 #: The three strategies ``nrouter_optimize`` accepts, for ``nrouter/auto`` only
@@ -30,6 +32,31 @@ OPTIMIZE_VALUES = ("quality", "balanced", "cost")
 
 #: The three ceilings ``nrouter_cost_band`` accepts on cost-mode ``nrouter/auto``.
 COST_BAND_VALUES = ("low", "mid", "high")
+
+#: Canonical upstream host keys accepted by ``nrouter_host`` and ``x-nr-host``.
+HOST_VALUES = (
+    "openai",
+    "anthropic",
+    "azure",
+    "bedrock",
+    "vertex",
+    "alibaba",
+    "deepinfra",
+    "meta",
+    "typesafe",
+)
+
+HostName = Literal[
+    "openai",
+    "anthropic",
+    "azure",
+    "bedrock",
+    "vertex",
+    "alibaba",
+    "deepinfra",
+    "meta",
+    "typesafe",
+]
 
 #: Published ceilings, from ``spec/nrouter-sdk-spec.json`` (``extra_body_fields``).
 #:
@@ -86,6 +113,22 @@ def _names(value: Sequence[str], *, argument: str, ceiling: int) -> list[str]:
     return out
 
 
+def format_host(host: str) -> str:
+    """Validate a canonical host key for ``nrouter_host`` or ``x-nr-host``."""
+    if not isinstance(host, str) or any(c in host for c in "\r\n"):
+        raise _configuration_error(
+            "host must be a canonical host key without control characters "
+            f"({', '.join(repr(h) for h in HOST_VALUES)}); it maps onto "
+            "nrouter_host and x-nr-host."
+        )
+    if host not in HOST_VALUES:
+        raise _configuration_error(
+            f"host must be one of {', '.join(repr(h) for h in HOST_VALUES)}; "
+            "it maps onto the gateway field nrouter_host and header x-nr-host."
+        )
+    return host
+
+
 def build_extra_body(
     *,
     prompt_template_id: str | None = None,
@@ -95,6 +138,7 @@ def build_extra_body(
     cache: bool | None = None,
     optimize: Literal["quality", "balanced", "cost"] | None = None,
     cost_band: Literal["low", "mid", "high"] | None = None,
+    host: HostName | None = None,
 ) -> dict[str, Any]:
     """Map Python options to the exact nRouter gateway body fields.
 
@@ -156,6 +200,8 @@ def build_extra_body(
         extra[GUARDRAILS_FIELD] = _names(
             guardrails, argument="guardrails", ceiling=MAX_GUARDRAILS
         )
+    if host is not None:
+        extra[HOST_FIELD] = format_host(host)
     return extra
 
 
