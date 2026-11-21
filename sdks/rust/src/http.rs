@@ -96,6 +96,7 @@ pub struct Client {
     session_id: Option<String>,
     tags: Option<String>,
     compress: Option<String>,
+    host: Option<String>,
 }
 
 impl std::fmt::Debug for Client {
@@ -109,6 +110,7 @@ impl std::fmt::Debug for Client {
             .field("session_id", &self.session_id)
             .field("tags", &self.tags)
             .field("compress", &self.compress)
+            .field("host", &self.host)
             .finish_non_exhaustive()
     }
 }
@@ -257,6 +259,7 @@ impl Client {
             session_id: None,
             tags: None,
             compress: None,
+            host: None,
         })
     }
 
@@ -323,6 +326,14 @@ impl Client {
         Ok(self)
     }
 
+    /// Pin the upstream host offering forwarded via `x-nr-host`.
+    pub fn with_host(mut self, host: impl Into<String>) -> Result<Self, NRouterError> {
+        let h = host.into();
+        crate::options::validate_host(&h)?;
+        self.host = Some(h);
+        Ok(self)
+    }
+
     pub fn trace_id(&self) -> Option<&str> {
         self.trace_id.as_deref()
     }
@@ -337,6 +348,10 @@ impl Client {
 
     pub fn compress(&self) -> Option<&str> {
         self.compress.as_deref()
+    }
+
+    pub fn host(&self) -> Option<&str> {
+        self.host.as_deref()
     }
 
     /// Override the underlying HTTP client — proxy, timeout, connection pool.
@@ -737,6 +752,9 @@ impl Client {
         }
         if let Some(ref compress) = self.compress {
             req = req.header("x-nr-compress", compress);
+        }
+        if let Some(ref host) = self.host {
+            req = req.header("x-nr-host", host);
         }
         req
     }

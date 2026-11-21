@@ -31,6 +31,7 @@ from nroutersdk._errors import (
     compute_jittered_backoff,
     MAX_RETRY_AFTER_SECONDS,
 )
+from nroutersdk._options import HOST_VALUES, HostName, format_host
 from nroutersdk._response import BudgetWarningInfo, nRouterResponseMeta
 from nroutersdk._unsupported import nRouterUnsupportedError
 from nroutersdk._version import __version__
@@ -99,6 +100,8 @@ from nroutersdk.models import (
 
 __all__ = [
     "DEFAULT_MODEL",
+    "HOST_VALUES",
+    "HostName",
     "PROMPT_WIRE_FIELDS",
     "SYSTEM_VARIABLE_NAMES",
     "VALID_AUDIO_FORMATS",
@@ -139,6 +142,7 @@ __all__ = [
     "build_sampling_params",
     "sampling_params_deprecated",
     "format_error",
+    "format_host",
     "create_array_store",
     "create_memory",
     "compute_jittered_backoff",

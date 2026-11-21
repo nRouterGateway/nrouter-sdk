@@ -46,7 +46,7 @@ from nroutersdk._errors import (
     nRouterServiceError,
     parse_retry_after,
 )
-from nroutersdk._options import build_extra_body, vet_extra
+from nroutersdk._options import HostName, build_extra_body, format_host, vet_extra
 from nroutersdk._response import nRouterResponseMeta
 from nroutersdk._unsupported import UNSUPPORTED
 from nroutersdk.mcp import _AsyncMCP, _MCP
@@ -252,6 +252,7 @@ def _prepare_default_headers(
     session_id: str | None = None,
     tags: Mapping[str, str] | Sequence[str] | str | None = None,
     compress: bool | str | None = None,
+    host: HostName | str | None = None,
 ) -> dict[str, str]:
     if trace_id is not None and any(c in trace_id for c in "\r\n"):
         raise ValueError("trace_id must not contain CRLF characters")
@@ -278,6 +279,8 @@ def _prepare_default_headers(
         if any(c in val for c in "\r\n"):
             raise ValueError("compress must not contain CRLF characters")
         headers["x-nr-compress"] = val
+    if host is not None:
+        headers["x-nr-host"] = format_host(host)
     return headers
 
 
@@ -707,6 +710,7 @@ def _messages_payload(
     max_tokens: int | None = None,
     prompt_template_id: str | None,
     prompt_variables: dict[str, str] | None,
+    host: HostName | None = None,
     kwargs: dict[str, Any],
 ) -> dict[str, Any]:
     """Build one `/v1/messages` body, vetting the caller's escape hatch.
@@ -805,6 +809,7 @@ def _messages_payload(
         build_extra_body(
             prompt_template_id=prompt_template_id,
             prompt_variables=prompt_variables,
+            host=host,
         )
     )
     return payload
@@ -831,6 +836,7 @@ class _Messages:
         stream: bool = False,
         prompt_template_id: str | None = None,
         prompt_variables: dict[str, str] | None = None,
+        host: HostName | None = None,
         **kwargs,
     ) -> dict:
         """Send a buffered Messages request, optionally with a managed prompt.
@@ -844,6 +850,7 @@ class _Messages:
             prompt_variables: Jinja2 variables. Meaningful WITHOUT a template
                 id too — the gateway then renders the assigned template with
                 them.
+            host: Optional upstream host offering pin (``nrouter_host``).
             **kwargs: Any other body field, vetted by `vet_extra`.
         """
         if stream:
@@ -856,6 +863,7 @@ class _Messages:
             max_tokens=max_tokens,
             prompt_template_id=prompt_template_id,
             prompt_variables=prompt_variables,
+            host=host,
             kwargs=kwargs,
         )
         return cast(dict, self._c._nrouter_post("/v1/messages", json=payload))
@@ -892,6 +900,7 @@ class _AsyncMessages:
         stream: bool = False,
         prompt_template_id: str | None = None,
         prompt_variables: dict[str, str] | None = None,
+        host: HostName | None = None,
         **kwargs,
     ) -> dict:
         """See :meth:`_Messages.create`. Same surface, same vetting."""
@@ -905,6 +914,7 @@ class _AsyncMessages:
             max_tokens=max_tokens,
             prompt_template_id=prompt_template_id,
             prompt_variables=prompt_variables,
+            host=host,
             kwargs=kwargs,
         )
         return cast(dict, await self._c._nrouter_post("/v1/messages", json=payload))
@@ -1056,6 +1066,7 @@ class _nRouterChat:
         cache: bool | None = None,
         optimize: Literal["quality", "balanced", "cost"] | None = None,
         cost_band: Literal["low", "mid", "high"] | None = None,
+        host: HostName | None = None,
         advanced_sampling: bool = False,
         temperature: float | None = None,
         top_p: float | None = None,
@@ -1107,8 +1118,13 @@ class _nRouterChat:
                 cache=cache,
                 optimize=optimize,
                 cost_band=cost_band,
+                host=host,
             )
         )
+        if host is not None:
+            extra_headers = dict(kwargs.pop("extra_headers", None) or {})
+            extra_headers.setdefault("x-nr-host", format_host(host))
+            kwargs["extra_headers"] = extra_headers
         kwargs.update(
             build_sampling_params(
                 advanced=advanced_sampling,
@@ -1182,6 +1198,7 @@ class nRouter(_OpenAI):
         session_id: str | None = None,
         tags: Mapping[str, str] | Sequence[str] | str | None = None,
         compress: bool | str | None = None,
+        host: HostName | str | None = None,
         **kwargs,
     ) -> None:
         """Initialize the nRouter client.
@@ -1210,6 +1227,7 @@ class nRouter(_OpenAI):
             session_id=session_id,
             tags=tags,
             compress=compress,
+            host=host,
         )
 
         super().__init__(
@@ -1388,6 +1406,7 @@ class AsyncnRouter(_AsyncOpenAI):
         session_id: str | None = None,
         tags: Mapping[str, str] | Sequence[str] | str | None = None,
         compress: bool | str | None = None,
+        host: HostName | str | None = None,
         **kwargs,
     ) -> None:
         """Initialize the AsyncnRouter client.
@@ -1416,6 +1435,7 @@ class AsyncnRouter(_AsyncOpenAI):
             session_id=session_id,
             tags=tags,
             compress=compress,
+            host=host,
         )
 
         super().__init__(

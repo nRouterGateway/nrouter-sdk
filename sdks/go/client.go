@@ -221,6 +221,7 @@ type Client struct {
 	sessionID       string
 	tags            string
 	compress        string
+	host            string
 }
 
 // Option configures a Client at construction.
@@ -249,6 +250,11 @@ func WithTags(tags string) Option {
 // WithCompress configures prompt compression instruction forwarded via x-nr-compress.
 func WithCompress(compress string) Option {
 	return func(c *Client) { c.compress = compress }
+}
+
+// WithHost pins the upstream host offering forwarded via x-nr-host.
+func WithHost(host string) Option {
+	return func(c *Client) { c.host = host }
 }
 
 // WithHTTPClient overrides the transport — proxy, timeout, connection pool.
@@ -307,6 +313,13 @@ func New(apiKey string, opts ...Option) (*Client, error) {
 	}
 	if strings.ContainsAny(c.compress, "\r\n") {
 		return nil, configErr("compress must not contain CRLF characters")
+	}
+	if c.host != "" {
+		h, err := FormatHost(c.host)
+		if err != nil {
+			return nil, err
+		}
+		c.host = h
 	}
 	parsedURL, err := url.Parse(c.baseURL)
 	if err != nil {
@@ -673,6 +686,9 @@ func (c *Client) request(ctx context.Context, method, path string, body io.Reade
 	}
 	if c.compress != "" {
 		req.Header.Set("x-nr-compress", c.compress)
+	}
+	if c.host != "" {
+		req.Header.Set("x-nr-host", c.host)
 	}
 	return req, nil
 }

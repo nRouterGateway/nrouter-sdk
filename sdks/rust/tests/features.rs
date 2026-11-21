@@ -1,5 +1,5 @@
 use nrouter::memory::Memory;
-use nrouter::options::{build_extra_body, vet_extra, FeatureOptions, OPTIMIZE_VALUES};
+use nrouter::options::{build_extra_body, vet_extra, FeatureOptions, HOST_VALUES, OPTIMIZE_VALUES};
 use nrouter::prompts::{
     prompt_extra_body, prompt_template, prompt_variables, system_variable_conflicts, with_variables,
 };
@@ -140,6 +140,56 @@ fn cost_band_maps_onto_the_gateway_field_and_refuses_other_values() {
         ..FeatureOptions::default()
     })
     .is_err());
+}
+
+#[test]
+fn host_maps_onto_the_gateway_field_and_client_header_and_refuses_retired_aliases() {
+    assert_eq!(
+        HOST_VALUES,
+        [
+            "openai",
+            "anthropic",
+            "azure",
+            "bedrock",
+            "vertex",
+            "alibaba",
+            "deepinfra",
+            "meta",
+            "typesafe",
+        ]
+    );
+    for host in HOST_VALUES {
+        let body = build_extra_body(&FeatureOptions {
+            host: Some(host.into()),
+            ..FeatureOptions::default()
+        })
+        .unwrap();
+        assert_eq!(body["nrouter_host"], json!(host));
+        let client = nrouter::http::Client::new("sk-nrouter-test1234")
+            .unwrap()
+            .with_host(host)
+            .unwrap();
+        assert_eq!(client.host(), Some(host));
+    }
+    for retired in [
+        "openai_direct",
+        "anthropic_direct",
+        "gcp_vertex_ai",
+        "aws_bedrock",
+        "alibaba_dashscope",
+        "typesafe_ai",
+        "azure\r\n",
+    ] {
+        assert!(build_extra_body(&FeatureOptions {
+            host: Some(retired.into()),
+            ..FeatureOptions::default()
+        })
+        .is_err());
+        assert!(nrouter::http::Client::new("sk-nrouter-test1234")
+            .unwrap()
+            .with_host(retired)
+            .is_err());
+    }
 }
 
 #[test]

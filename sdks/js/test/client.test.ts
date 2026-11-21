@@ -1245,3 +1245,29 @@ test('trace context is snapshotted at construction, not re-read from caller-owne
   );
 });
 
+test('host option forwards x-nr-host header and nrouter_host body field with per-call override', async () => {
+  let seenHeaders: Headers | undefined;
+  let seenBody: Record<string, unknown> | undefined;
+  const client = new nRouter({
+    apiKey: TEST_KEY,
+    host: 'openai',
+    fetch: async (_url: unknown, init: any) => {
+      seenHeaders = new Headers(init.headers);
+      const raw = init.body instanceof Uint8Array ? new TextDecoder().decode(init.body) : String(init.body);
+      seenBody = JSON.parse(raw);
+      return new Response(JSON.stringify({ choices: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+
+  await client.nr.chat({ model: 'openai/gpt-4o', prompt: 'hi' });
+  assert.equal(seenHeaders?.get('x-nr-host'), 'openai');
+
+  await client.nr.chat({ model: 'openai/gpt-4o', prompt: 'hi', host: 'azure' });
+  assert.equal(seenHeaders?.get('x-nr-host'), 'azure');
+  assert.equal(seenBody?.nrouter_host, 'azure');
+});
+
+

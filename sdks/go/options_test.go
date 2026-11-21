@@ -105,6 +105,23 @@ func TestBuildExtraBodyMapsCostBandAndRefusesOtherValues(t *testing.T) {
 	}
 }
 
+func TestBuildExtraBodyMapsHostAndRefusesRetiredAliases(t *testing.T) {
+	for _, h := range ValidHosts {
+		body, err := BuildExtraBody(FeatureOptions{Host: h})
+		if err != nil || body["nrouter_host"] != h {
+			t.Errorf("Host %q: body %v, err %v", h, body, err)
+		}
+	}
+	for _, retired := range []string{"openai_direct", "gcp_vertex_ai", "aws_bedrock", "alibaba_dashscope", "typesafe_ai", "azure\r\n"} {
+		if _, err := BuildExtraBody(FeatureOptions{Host: retired}); err == nil {
+			t.Errorf("expected retired/invalid Host %q to be refused", retired)
+		}
+		if _, err := New("sk-nrouter-test1234", WithHost(retired)); err == nil {
+			t.Errorf("expected New WithHost(%q) to be refused", retired)
+		}
+	}
+}
+
 // Refused locally, before egress. The gateway refuses an over-long list with a
 // 400 naming `fallback_not_allowed`, which costs a round trip and does not name
 // the Go field the caller set.
@@ -137,6 +154,7 @@ func TestExtraBodyFieldsCoversEveryEmittableField(t *testing.T) {
 		Fallbacks:        []string{"m"},
 		Optimize:         "cost",
 		CostBand:         "mid",
+		Host:             HostAzure,
 		Cache:            &cacheOff,
 	})
 	if err != nil {

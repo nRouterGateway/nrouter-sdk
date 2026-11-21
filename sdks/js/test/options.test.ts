@@ -35,7 +35,8 @@ const path = require('node:path');
 /** spec/nrouter-sdk-spec.json — the Rule #14 source of truth, four levels up. */
 const SPEC_PATH = path.resolve(__dirname, '..', '..', '..', 'spec', 'nrouter-sdk-spec.json');
 
-const { buildExtraBody, buildMessages, buildChatBody } = require('../dist/options');
+const { buildExtraBody, buildMessages, buildChatBody, formatHost } = require('../dist/options');
+const { NROUTER_HOSTS } = require('../dist/types');
 
 // ---------------------------------------------------------------------------
 // Case 8 — buildExtraBody
@@ -138,6 +139,46 @@ test('costBand MAPS onto nrouter_cost_band and anything else is refused, naming 
   );
 });
 
+test('host MAPS onto nrouter_host / formatHost and refuses retired host aliases', () => {
+  assert.deepEqual(NROUTER_HOSTS, [
+    'openai',
+    'anthropic',
+    'azure',
+    'bedrock',
+    'vertex',
+    'alibaba',
+    'deepinfra',
+    'meta',
+    'typesafe',
+  ]);
+  for (const h of NROUTER_HOSTS) {
+    assert.deepEqual(buildExtraBody({ model: 'openai/gpt-4o', host: h }), {
+      nrouter_host: h,
+    });
+    assert.equal(formatHost(h), h);
+  }
+  for (const retired of [
+    'openai_direct',
+    'anthropic_direct',
+    'gcp_vertex_ai',
+    'aws_bedrock',
+    'alibaba_dashscope',
+    'typesafe_ai',
+    'azure\r\n',
+  ]) {
+    assert.throws(
+      () => buildExtraBody({ model: 'openai/gpt-4o', host: retired as never }),
+      (err: unknown) => {
+        const e = err as { kind?: string; message?: string };
+        assert.equal(e.kind, 'configuration');
+        assert.match(String(e.message), /nrouter_host/);
+        return true;
+      },
+    );
+    assert.throws(() => formatHost(retired), (err: unknown) => (err as { kind?: string }).kind === 'configuration');
+  }
+});
+
 test('more than four fallbacks is refused locally, naming the option', () => {
   assert.throws(
     () => buildExtraBody({ model: 'gpt-4o', fallbacks: ['a', 'b', 'c', 'd', 'e'] }),
@@ -174,6 +215,7 @@ test('NO invented nrouter_ key can reach the wire', () => {
     fallbacks: ['gpt-4o-mini'],
     optimize: 'quality',
     costBand: 'mid',
+    host: 'azure',
     cache: false,
   });
   for (const key of Object.keys(extra)) {
@@ -237,6 +279,7 @@ test('the emittable fields and the SPEC agree in BOTH directions', () => {
       guardrails: ['pii-strict'],
       optimize: 'cost',
       costBand: 'mid',
+      host: 'azure',
     }),
   ).sort();
   assert.deepEqual(

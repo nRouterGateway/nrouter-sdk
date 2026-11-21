@@ -22,10 +22,10 @@ import {
   type TransportRequest,
   type TransportResponse,
 } from './multimodal';
-import { buildFeatureBody, formatTags, formatCompress } from './options';
+import { buildFeatureBody, formatTags, formatCompress, formatHost } from './options';
 import { jsonRequest } from './json';
 import { streamChat, type StreamRunner, type StreamResult } from './stream';
-import type { NRouterCallOptions, NRouterFeatureOptions, NRouterResponse, ResponseMeta } from './types';
+import type { NRouterCallOptions, NRouterFeatureOptions, NRouterHost, NRouterResponse, ResponseMeta } from './types';
 
 // The one route this hybrid client delegates without an nRouter-native helper.
 // This type is erased at runtime but compiled against the lock-resolved OpenAI
@@ -407,6 +407,8 @@ type NRouterOptions = Omit<
   tags?: Record<string, string> | string[] | string;
   /** Prompt compression instruction forwarded to the gateway via `x-nr-compress`. */
   compress?: boolean | string;
+  /** Pin the upstream host offering forwarded to the gateway via `x-nr-host`. */
+  host?: NRouterHost;
   /**
    * `headers` is omitted deliberately. The constructor discards it — the
    * vendor spreads `fetchOptions` onto the request after the headers this SDK
@@ -738,6 +740,7 @@ export class nRouter extends OpenAI {
       : undefined;
     const tagsStr = options.tags ? formatTags(options.tags) : undefined;
     const compressStr = options.compress !== undefined ? formatCompress(options.compress) : undefined;
+    const hostStr = options.host !== undefined ? formatHost(options.host) : undefined;
 
     // MEASURED against openai 7.8.0, with OPENAI_CUSTOM_HEADERS and
     // OPENAI_ORG_ID set in the environment: `nr.chat()` sent
@@ -832,6 +835,9 @@ export class nRouter extends OpenAI {
       }
       if (compressStr && !headers.has('x-nr-compress')) {
         headers.set('x-nr-compress', compressStr);
+      }
+      if (hostStr && !headers.has('x-nr-host')) {
+        headers.set('x-nr-host', hostStr);
       }
       if (!headers.has('x-nr-client-language')) {
         headers.set('x-nr-client-language', 'js');

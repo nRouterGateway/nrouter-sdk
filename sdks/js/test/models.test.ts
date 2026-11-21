@@ -129,7 +129,7 @@ test('has() lets an auth or transport failure propagate as itself', async () => 
 
 const CAPABILITIES_BODY = {
   gateway: 'nrouter',
-  providers: ['anthropic', 'bedrock', 'dashscope', 'openai', 'vertex_ai'],
+  providers: ['alibaba', 'anthropic', 'azure', 'bedrock', 'openai', 'vertex'],
   models: ['claude-haiku-4-5', 'gpt-4o'],
   endpoints: ['/v1/chat/completions', '/v1/messages'],
   mcp_servers: ['filesystem', 'fetch'],
@@ -141,7 +141,7 @@ test('capabilities() retrieves gateway capabilities document and preserves field
   const caps = await models.capabilities();
 
   assert.equal(caps.gateway, 'nrouter');
-  assert.deepEqual(caps.providers, ['anthropic', 'bedrock', 'dashscope', 'openai', 'vertex_ai']);
+  assert.deepEqual(caps.providers, ['alibaba', 'anthropic', 'azure', 'bedrock', 'openai', 'vertex']);
   assert.deepEqual(caps.models, ['claude-haiku-4-5', 'gpt-4o']);
   assert.deepEqual(caps.endpoints, ['/v1/chat/completions', '/v1/messages']);
   assert.deepEqual(caps.mcp_servers, ['filesystem', 'fetch']);
@@ -155,7 +155,7 @@ test('capabilities() falls back to /capabilities if /../capabilities fails', asy
   const models = new NRouterModels(client);
   const caps = await models.capabilities();
 
-  assert.deepEqual(caps.providers, ['anthropic', 'bedrock', 'dashscope', 'openai', 'vertex_ai']);
+  assert.deepEqual(caps.providers, ['alibaba', 'anthropic', 'azure', 'bedrock', 'openai', 'vertex']);
 });
 
 test('providers() returns list of providers from capabilities', async () => {
@@ -163,7 +163,7 @@ test('providers() returns list of providers from capabilities', async () => {
   const models = new NRouterModels(client);
   const providers = await models.providers();
 
-  assert.deepEqual(providers, ['anthropic', 'bedrock', 'dashscope', 'openai', 'vertex_ai']);
+  assert.deepEqual(providers, ['alibaba', 'anthropic', 'azure', 'bedrock', 'openai', 'vertex']);
 });
 
 test('capabilities() degrades gracefully on non-object body', async () => {

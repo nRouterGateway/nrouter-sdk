@@ -18,6 +18,7 @@ var ExtraBodyFields = []string{
 	"nrouter_optimize",
 	"nrouter_cost_band",
 	"nrouter_guardrails",
+	"nrouter_host",
 }
 
 // Published ceilings, from the spec's extra_body_fields entries.
@@ -34,7 +35,32 @@ const (
 	OptimizeQuality  = "quality"
 	OptimizeBalanced = "balanced"
 	OptimizeCost     = "cost"
+
+	// Canonical upstream host keys accepted by FeatureOptions.Host (nrouter_host)
+	// and WithHost (x-nr-host).
+	HostOpenAI    = "openai"
+	HostAnthropic = "anthropic"
+	HostAzure     = "azure"
+	HostBedrock   = "bedrock"
+	HostVertex    = "vertex"
+	HostAlibaba   = "alibaba"
+	HostDeepInfra = "deepinfra"
+	HostMeta      = "meta"
+	HostTypeSafe  = "typesafe"
 )
+
+// ValidHosts lists the canonical upstream host keys in spec order.
+var ValidHosts = []string{
+	HostOpenAI,
+	HostAnthropic,
+	HostAzure,
+	HostBedrock,
+	HostVertex,
+	HostAlibaba,
+	HostDeepInfra,
+	HostMeta,
+	HostTypeSafe,
+}
 
 var forbiddenTenancyKeys = map[string]struct{}{
 	"organizationid": {},
@@ -80,7 +106,24 @@ type FeatureOptions struct {
 	// it on a Direct model or under "quality" or "balanced" is refused by the
 	// gateway with 400 invalid_request.
 	CostBand string
-	Cache    *bool
+	// Host pins the upstream host offering for this request ("openai",
+	// "anthropic", "azure", "bedrock", "vertex", "alibaba", "deepinfra",
+	// "meta", or "typesafe"). Empty omits it.
+	Host  string
+	Cache *bool
+}
+
+// FormatHost validates a canonical upstream host key for nrouter_host / x-nr-host.
+func FormatHost(host string) (string, error) {
+	if strings.ContainsAny(host, "\r\n") {
+		return "", configErr("Host must not contain CRLF characters")
+	}
+	for _, h := range ValidHosts {
+		if host == h {
+			return host, nil
+		}
+	}
+	return "", configErr(`Host must be one of "openai", "anthropic", "azure", "bedrock", "vertex", "alibaba", "deepinfra", "meta", or "typesafe"; it maps onto the gateway field nrouter_host and header x-nr-host`)
 }
 
 // BuildExtraBody produces the nRouter extra body map.
@@ -124,6 +167,13 @@ func BuildExtraBody(opts FeatureOptions) (map[string]any, error) {
 			return nil, err
 		}
 		extra["nrouter_guardrails"] = names
+	}
+	if opts.Host != "" {
+		h, err := FormatHost(opts.Host)
+		if err != nil {
+			return nil, err
+		}
+		extra["nrouter_host"] = h
 	}
 	return extra, nil
 }
