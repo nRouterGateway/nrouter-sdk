@@ -452,8 +452,9 @@ export function classifyErrorClass(
         ? nRouterBudgetExceededError
         : nRouterCreditError;
     case 403:
-      // A permission refusal. No dedicated class: the base class keeps the
-      // status, and a code (model_denied_by_*) rides on `code`.
+    case 409:
+      // A permission or credential-state refusal. No dedicated class: the base
+      // class keeps the status, and any stable code rides on `code`.
       return nRouterError;
     case 404:
       // Scoped to MODELS. A 404 is also a missing video job, an unknown MCP

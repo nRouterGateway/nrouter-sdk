@@ -543,8 +543,8 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
             meta=meta,
         ) from err
 
-    if status == 403:
-        # A permission refusal with no code: the base class keeps the status.
+    if status in (403, 409):
+        # A permission or credential-state refusal with no code: the base class keeps the status.
         raise nRouterError(
             message,
             request_id=request_id,

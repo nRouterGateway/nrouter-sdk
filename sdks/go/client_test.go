@@ -266,6 +266,7 @@ func TestEveryDeclaredHeaderIsRead(t *testing.T) {
 		"x-nr-budget-warning":     "org soft_budget 80.00/100.00",
 		"x-nr-guardrails":         "pass",
 		"x-nr-funding-source":     "allowance",
+		"x-nr-byok-fallback":      "plan_inactive",
 		"x-nr-pot-fallback":       "pot_empty",
 		"x-nr-allowance-reset":    "86400",
 		"x-nr-compression":        "applied",
@@ -317,6 +318,9 @@ func TestEveryDeclaredHeaderIsRead(t *testing.T) {
 	}
 	if m.FundingSource != "allowance" || m.AllowanceReset == nil || *m.AllowanceReset != 86400 {
 		t.Fatalf("funding headers not parsed: %+v", m)
+	}
+	if m.ByokFallback != "plan_inactive" {
+		t.Fatalf("byok fallback header not parsed: %q", m.ByokFallback)
 	}
 	if m.PotFallback != "pot_empty" {
 		t.Fatalf("pot fallback header not parsed: %q", m.PotFallback)
@@ -462,6 +466,37 @@ func TestPromoAndHackRouteCodesMapToTheirKinds(t *testing.T) {
 	for code, want := range cases {
 		t.Run(code, func(t *testing.T) {
 			c := newTestClient(t, jsonHandler(want.status, nil, map[string]any{
+				"error": map[string]any{"code": code, "message": "refused"},
+			}))
+			_, err := c.Models(context.Background())
+			var e *Error
+			if !errors.As(err, &e) {
+				t.Fatalf("got %#v; want *Error", err)
+			}
+			if e.Kind != want.kind || e.Code != code || e.Status != want.status {
+				t.Fatalf("code %s: kind/code/status not preserved: %+v", code, e)
+			}
+		})
+	}
+}
+
+func TestByokCodesMapToTheirKinds(t *testing.T) {
+	cases := map[string]struct {
+		status int
+		kind   Kind
+	}{
+		"byok_plan_required":          {402, KindCredit},
+		"byok_fair_use_exceeded":      {429, KindRateLimit},
+		"byok_credential_rejected":    {401, KindAuthentication},
+		"byok_credential_unavailable": {409, KindOther},
+	}
+	for code, want := range cases {
+		t.Run(code, func(t *testing.T) {
+			headers := map[string]string{"x-nr-request-id": "req-byok"}
+			if code == "byok_fair_use_exceeded" {
+				headers["x-nr-limit-source"] = "byok_fair_use"
+			}
+			c := newTestClient(t, jsonHandler(want.status, headers, map[string]any{
 				"error": map[string]any{"code": code, "message": "refused"},
 			}))
 			_, err := c.Models(context.Background())

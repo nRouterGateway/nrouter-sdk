@@ -63,18 +63,21 @@ sealed class NRouterError implements Exception {
       case 'guardrail_blocked':
         return NRouterGuardrailBlockedError(body);
       case 'invalid_api_key':
+      case 'byok_credential_rejected':
         return NRouterAuthenticationError(body);
       case 'insufficient_credits':
       case 'plan_allowance_exhausted':
       case 'plan_required':
       case 'insufficient_promo_credit':
       case 'insufficient_hack_credit':
+      case 'byok_plan_required':
         return NRouterCreditError(body);
       case 'model_not_found':
         return NRouterNotFoundError(body);
       case 'rate_limit_exceeded':
       case 'tpm_limit_exceeded':
       case 'pot_spend_limit_exceeded':
+      case 'byok_fair_use_exceeded':
         return NRouterRateLimitError(body);
       case 'credit_check_failed':
       case 'service_unavailable':
@@ -82,8 +85,9 @@ sealed class NRouterError implements Exception {
       case 'model_denied_by_org':
       case 'model_denied_by_team':
       case 'model_denied_by_key':
-        // 403 model deny lists: no permission type, so NRouterOtherError
-        // carries the code and the status.
+      case 'byok_credential_unavailable':
+        // 403 model deny lists and 409 BYOK credential unavailable: no
+        // dedicated type, so NRouterOtherError carries the code and status.
         return NRouterOtherError(body);
       case null:
         switch (body.status) {
@@ -96,7 +100,8 @@ sealed class NRouterError implements Exception {
           case 401:
             return NRouterAuthenticationError(body);
           case 403:
-            // A permission refusal with no code: the base type keeps the status.
+          case 409:
+            // A permission or credential-state refusal with no code: the base type keeps the status.
             return NRouterOtherError(body);
           case 402:
             // The gateway's own wording is the only discriminator, and it is

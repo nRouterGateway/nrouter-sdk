@@ -135,6 +135,7 @@ class NRouterHttpClientTest {
                 "x-nr-attempts",
                 "x-nr-intent",
                 "x-nr-funding-source",
+                "x-nr-byok-fallback",
                 "x-nr-pot-fallback",
                 "x-nr-allowance-reset",
                 "x-nr-model-deprecated",
@@ -167,6 +168,27 @@ class NRouterHttpClientTest {
         NRouterResponseMeta mangled = NRouterResponseMeta.fromHeaders(HttpHeaders.of(
                 Map.of("x-nr-latency-ms", List.of("4.5")), (a, b) -> true));
         assertNull(mangled.latencyMs());
+
+        NRouterResponseMeta byokFb = NRouterResponseMeta.fromHeaders(HttpHeaders.of(
+                Map.of(
+                        "x-nr-funding-source", List.of("credits"),
+                        "x-nr-byok-fallback", List.of("plan_inactive")),
+                (a, b) -> true));
+        assertEquals("credits", byokFb.fundingSource());
+        assertEquals("plan_inactive", byokFb.byokFallback());
+
+        assertEquals(
+                NRouterException.Kind.CREDIT,
+                NRouterException.gateway("refused", "byok_plan_required", 402, null).kind());
+        assertEquals(
+                NRouterException.Kind.RATE_LIMIT,
+                NRouterException.gateway("refused", "byok_fair_use_exceeded", 429, null).kind());
+        assertEquals(
+                NRouterException.Kind.AUTHENTICATION,
+                NRouterException.gateway("refused", "byok_credential_rejected", 401, null).kind());
+        assertEquals(
+                NRouterException.Kind.OTHER,
+                NRouterException.gateway("refused", "byok_credential_unavailable", 409, null).kind());
     }
 
     @Test

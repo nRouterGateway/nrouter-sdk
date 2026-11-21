@@ -47,6 +47,7 @@ fn every_spec_header_is_read() {
         "x-nr-budget-warning",
         "x-nr-guardrails",
         "x-nr-funding-source",
+        "x-nr-byok-fallback",
         "x-nr-pot-fallback",
         "x-nr-allowance-reset",
         "x-nr-model-deprecated",
@@ -105,6 +106,11 @@ fn each_gateway_code_maps_to_its_variant() {
         ("insufficient_hack_credit", "Credit"),
         ("pot_spend_limit_exceeded", "RateLimit"),
         ("pot_route_feature_unsupported", "Request"),
+        // BYOK refusals.
+        ("byok_plan_required", "Credit"),
+        ("byok_fair_use_exceeded", "RateLimit"),
+        ("byok_credential_rejected", "Authentication"),
+        ("byok_credential_unavailable", "Other"),
     ] {
         let got = match NRouterError::from_code(body(code)) {
             NRouterError::Request(_) => "Request",
@@ -502,6 +508,14 @@ fn test_parses_funding_source_and_allowance_reset() {
     let meta = nrouter::meta::ResponseMeta::from_lookup(get);
     assert_eq!(meta.funding_source.as_deref(), Some("allowance"));
     assert_eq!(meta.allowance_reset, Some(86400));
+
+    let byok_fb = nrouter::meta::ResponseMeta::from_lookup(|name| match name {
+        "x-nr-funding-source" => Some("credits".into()),
+        "x-nr-byok-fallback" => Some("plan_inactive".into()),
+        _ => None,
+    });
+    assert_eq!(byok_fb.funding_source.as_deref(), Some("credits"));
+    assert_eq!(byok_fb.byok_fallback.as_deref(), Some("plan_inactive"));
 }
 
 #[test]

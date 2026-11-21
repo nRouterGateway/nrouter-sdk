@@ -85,6 +85,9 @@ nrouter_meta <- function(headers = list()) {
       attempts           = get_int("x-nr-attempts"),
       intent             = get_chr("x-nr-intent"),
       funding_source     = get_chr("x-nr-funding-source"),
+      # Why a saved provider key attempt fell back to prepaid credits when BYOK
+      # credit fallback is enabled (e.g. plan_inactive, rate_limited); NULL otherwise.
+      byok_fallback      = get_chr("x-nr-byok-fallback"),
       # Why promo/hack credit did not fund a request charged to prepaid
       # credits under the organization's paid fallback; NULL otherwise.
       pot_fallback       = get_chr("x-nr-pot-fallback"),
@@ -126,6 +129,7 @@ nrouter_header_names <- function() {
     "x-nr-attempts",
     "x-nr-intent",
     "x-nr-funding-source",
+    "x-nr-byok-fallback",
     "x-nr-pot-fallback",
     "x-nr-allowance-reset",
     "x-nr-model-deprecated",

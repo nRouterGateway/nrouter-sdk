@@ -334,6 +334,7 @@ Standalone starter scripts and framework integrations in `sdks/*/demo/`:
 | **Vercel AI SDK** | [`sdks/js/demo/vercel_ai.ts`](sdks/js/demo/vercel_ai.ts) | `@ai-sdk/openai` integration |
 | **CrewAI** | [`sdks/python/demo/frameworks/crewai.py`](sdks/python/demo/frameworks/crewai.py) | `OPENAI_API_BASE` integration |
 | **AutoGen** | [`sdks/python/demo/frameworks/autogen.py`](sdks/python/demo/frameworks/autogen.py) | `base_url` config integration |
+| **BYOK Inspection** | [`examples/byok_inspection.py`](examples/byok_inspection.py) | Inspecting `x-nr-funding-source`, `x-nr-byok-fallback` (`plan_inactive`, C7 refusals), and typed BYOK errors |
 
 ---
 
@@ -363,14 +364,14 @@ not itself the register of which ones exist.
 | `x-nr-total-tokens` | integer | Total token count, including cache tokens |
 | `x-nr-cache-read-tokens` | integer | Cache-read tokens; emitted only when nonzero |
 | `x-nr-cache-write-tokens` | integer | Cache-write tokens; emitted only when nonzero |
-| `x-nr-limit-source` | string | `key`, `plan`, `team`, `user`, `budget`, `plan_window_h8`, `plan_window_day`, `plan_window_week`, `capacity`, `plan_allowance_exhausted`, or `plan_required` on 429 and 402 responses |
+| `x-nr-limit-source` | string | `key`, `plan`, `team`, `user`, `budget`, `plan_window_h8`, `plan_window_day`, `plan_window_week`, `capacity`, `plan_allowance_exhausted`, `plan_required`, `pot_window`, or `byok_fair_use` on 429 and 402 responses |
 | `x-nr-budget-warning` | string | A soft budget you configured was crossed by this request, which still served; `<scope> soft_budget <spend>/<ceiling>`, e.g. `org soft_budget 80.00/100.00` |
 | `x-nr-guardrails` | string | Pre-call guardrail posture — `none`, `monitor`, `redacted`, `pass`, `partial`, `blocked` or `unavailable`; absent means the response makes no guardrail claim, never `none`, which is an explicit token |
 | `x-nr-auth-reason` | string | On a 401, the gateway's stable reason for refusing the key |
 | `x-nr-response-cache` | string | `hit` or `miss`; absent when the response cache did not participate |
 | `x-nr-response-cache-age` | integer | Age of a cache `hit` in seconds |
 | `x-nr-funding-source` | string | Which balance or credential paid for this request: the plan's usage allowance, credits, promotional credit (`promo`-labeled models), hackathon credit (`hack`-labeled models), or saved provider key (`allowance`, `credits`, `promo`, `hack`, or `byok`) |
-| `x-nr-byok-fallback` | string | Present only when a request covered by a saved provider key fell back to prepaid credits because credit fallback is enabled (`credential_rejected`, `permission_denied`, `rate_limited`, `overloaded`, or `connect_refused`). Absent otherwise |
+| `x-nr-byok-fallback` | string | Present only when a request covered by a saved provider key fell back to prepaid credits (`x-nr-funding-source: credits`) because credit fallback is enabled and either the BYOK plan is inactive pre-provider (`plan_inactive`) or the saved key attempt failed with a non-billable provider refusal (`credential_rejected`, `permission_denied`, `rate_limited`, `overloaded`, or `connect_refused`). Absent otherwise |
 | `x-nr-pot-fallback` | string | Present only when a request for a `promo`- or `hack`-labeled model was charged to prepaid credits because the organization turned on paid fallback in Settings; names why the pot did not fund it (`pot_empty`, `pot_insufficient`, `window_hour`, `window_day`, `window_week`, `window_month`, `platform_day`, `platform_month`, `policy_excluded`, `feature` or `fallbacks_ineligible`). Absent otherwise |
 | `x-nr-allowance-reset` | integer | Seconds until the tightest usage-allowance window resets; sent on allowance-window 429s (equal to `Retry-After`) and the monthly 402 `plan_allowance_exhausted` |
 | `x-nr-routing` | string | Which chain entry answered: `direct` for the first, `fallback:<n>` for the entry n fallbacks deep; absent on cache hits and refusals |

@@ -1421,7 +1421,7 @@ def check_option_builders(root: Path = ROOT, spec: dict | None = None) -> list[s
 # callers see a generic error for these four refusals.
 # ---------------------------------------------------------------------------
 _SDKS_PENDING_REFUSAL_CODES: set[str] = set()
-_SDKS_PENDING_BYOK: set[str] = set(SDK_SOURCES) - set(WRAPPER_ONLY) - {"python", "js"}
+_SDKS_PENDING_BYOK: frozenset[str] = frozenset()
 
 CODES_PENDING_SDK_MAPPING: dict[str, set[str]] = {
     **{
@@ -1444,8 +1444,8 @@ CODES_PENDING_SDK_MAPPING: dict[str, set[str]] = {
     },
 }
 
-# Every native SDK declares and parses both deprecation headers; x-nr-byok-fallback
-# is pending per-language SDK metadata wiring and expires via the stale check below.
+# Every native SDK declares and parses all spec response headers; any temporary
+# pending entry expires via the stale check below.
 HEADERS_PENDING_SDK_MAPPING: dict[str, set[str]] = {
     "x-nr-byok-fallback": set(_SDKS_PENDING_BYOK),
 }
@@ -1456,6 +1456,7 @@ _BYOK_EXPECTED_FALLBACK_REASONS: list[str] = [
     "rate_limited",
     "overloaded",
     "connect_refused",
+    "plan_inactive",
 ]
 
 _BYOK_EXPECTED_ERRORS: dict[str, tuple[int, str]] = {

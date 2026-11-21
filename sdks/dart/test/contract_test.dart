@@ -48,6 +48,7 @@ void main() {
         'x-nr-budget-warning',
         'x-nr-guardrails',
         'x-nr-funding-source',
+        'x-nr-byok-fallback',
         'x-nr-pot-fallback',
         'x-nr-allowance-reset',
         'x-nr-model-deprecated',
@@ -100,6 +101,10 @@ void main() {
       expect(build('model_denied_by_org'), isA<NRouterOtherError>());
       expect(build('model_denied_by_team'), isA<NRouterOtherError>());
       expect(build('model_denied_by_key'), isA<NRouterOtherError>());
+      expect(build('byok_plan_required'), isA<NRouterCreditError>());
+      expect(build('byok_fair_use_exceeded'), isA<NRouterRateLimitError>());
+      expect(build('byok_credential_rejected'), isA<NRouterAuthenticationError>());
+      expect(build('byok_credential_unavailable'), isA<NRouterOtherError>());
     });
 
     test('a codeless 400 is split on the message', () {
@@ -242,6 +247,13 @@ void main() {
       expect(meta.compression, 'applied');
       expect(meta.routing, 'fallback:1');
       expect(meta.attempts, 2);
+
+      final byokMeta = NRouterResponseMeta.fromHeaders({
+        'x-nr-funding-source': 'credits',
+        'x-nr-byok-fallback': 'plan_inactive',
+      });
+      expect(byokMeta.fundingSource, 'credits');
+      expect(byokMeta.byokFallback, 'plan_inactive');
     });
 
     test('compression, routing, and attempts are null when missing', () {

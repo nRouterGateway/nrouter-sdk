@@ -307,6 +307,8 @@ def test_the_header_name_list_matches_what_is_parsed():
     assert meta.compression is not None
     assert meta.routing is not None
     assert meta.attempts is not None
+    assert meta.byok_fallback is not None
+    assert meta.pot_fallback is not None
 
 
 def test_compression_routing_attempts_reach_the_metadata():
@@ -639,3 +641,83 @@ def test_promo_and_hack_route_refusals_classify_and_keep_their_code(status, code
     assert type(caught.value) is expected
     assert caught.value.code == code
     assert caught.value.request_id == "req-pot-1"
+
+
+def test_byok_funding_and_fallback_headers_are_parsed():
+    """Verify BYOK funding/cost metadata and all six x-nr-byok-fallback reasons
+    (including plan_inactive and credential_rejected)."""
+    from nroutersdk import nRouterResponseMeta
+
+    pure_byok = nRouterResponseMeta.from_headers({
+        "x-nr-request-id": "req-byok-1",
+        "x-nr-funding-source": "byok",
+        "x-nr-cost-status": "byok",
+    })
+    assert pure_byok.funding_source == "byok"
+    assert pure_byok.cost_status == "byok"
+    assert pure_byok.cost is None
+    assert pure_byok.is_priced is False
+    assert pure_byok.byok_fallback is None
+
+    for reason in (
+        "credential_rejected",
+        "permission_denied",
+        "rate_limited",
+        "overloaded",
+        "connect_refused",
+        "plan_inactive",
+    ):
+        fb = nRouterResponseMeta.from_headers({
+            "x-nr-request-id": f"req-fb-{reason}",
+            "x-nr-funding-source": "credits",
+            "x-nr-cost-status": "exact",
+            "x-nr-request-cost": "0.00125",
+            "x-nr-byok-fallback": reason,
+        })
+        assert fb.funding_source == "credits"
+        assert fb.byok_fallback == reason
+        assert fb.is_priced is True
+        assert fb.cost == 0.00125
+
+
+@pytest.mark.parametrize(
+    ("status", "code", "headers", "expected"),
+    [
+        (402, "byok_plan_required", {"x-nr-request-id": "req-byok-402"}, nRouterCreditError),
+        (
+            429,
+            "byok_fair_use_exceeded",
+            {
+                "x-nr-request-id": "req-byok-429",
+                "x-nr-limit-source": "byok_fair_use",
+                "retry-after": "3600",
+            },
+            nRouterRateLimitError,
+        ),
+        (
+            401,
+            "byok_credential_rejected",
+            {"x-nr-request-id": "req-byok-401"},
+            nRouterAuthenticationError,
+        ),
+        (
+            409,
+            "byok_credential_unavailable",
+            {"x-nr-request-id": "req-byok-409"},
+            nRouterError,
+        ),
+    ],
+)
+def test_byok_refusal_codes_classify_and_preserve_code_and_metadata(
+    status, code, headers, expected
+):
+    err = status_error(status, f"BYOK refusal: {code}", headers, code=code)
+    with pytest.raises(expected) as caught:
+        _maybe_raise_nrouter_error(err)
+    assert type(caught.value) is expected
+    assert caught.value.code == code
+    assert caught.value.status_code == status
+    assert caught.value.request_id == headers["x-nr-request-id"]
+    if code == "byok_fair_use_exceeded":
+        assert caught.value.limit_source == "byok_fair_use"
+        assert caught.value.retry_after == 3600

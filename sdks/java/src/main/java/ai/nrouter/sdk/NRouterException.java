@@ -79,23 +79,27 @@ public final class NRouterException extends RuntimeException {
                 case "pot_route_feature_unsupported":
                 case "cost_band_unsatisfiable": return Kind.REQUEST;
                 case "guardrail_blocked": return Kind.GUARDRAIL_BLOCKED;
-                case "invalid_api_key": return Kind.AUTHENTICATION;
+                case "invalid_api_key":
+                case "byok_credential_rejected": return Kind.AUTHENTICATION;
                 case "insufficient_credits":
                 case "plan_allowance_exhausted":
                 case "plan_required":
                 case "insufficient_promo_credit":
-                case "insufficient_hack_credit": return Kind.CREDIT;
+                case "insufficient_hack_credit":
+                case "byok_plan_required": return Kind.CREDIT;
                 case "model_not_found": return Kind.NOT_FOUND;
                 case "rate_limit_exceeded":
                 case "tpm_limit_exceeded":
-                case "pot_spend_limit_exceeded": return Kind.RATE_LIMIT;
+                case "pot_spend_limit_exceeded":
+                case "byok_fair_use_exceeded": return Kind.RATE_LIMIT;
                 case "credit_check_failed":
                 case "service_unavailable": return Kind.SERVICE;
-                // 403 model deny lists: no permission kind, so OTHER carries
-                // the code and the status.
+                // 403 model deny lists and 409 BYOK credential unavailable: no
+                // dedicated kind, so OTHER carries the code and the status.
                 case "model_denied_by_org":
                 case "model_denied_by_team":
-                case "model_denied_by_key": return Kind.OTHER;
+                case "model_denied_by_key":
+                case "byok_credential_unavailable": return Kind.OTHER;
                 default: return Kind.OTHER;
             }
         }
@@ -108,7 +112,8 @@ public final class NRouterException extends RuntimeException {
                 return Kind.REQUEST;
             case 401: return Kind.AUTHENTICATION;
             case 402: return lower.startsWith("budget") ? Kind.BUDGET_EXCEEDED : Kind.CREDIT;
-            case 403: return Kind.OTHER; // permission refusal: the base kind keeps the status
+            case 403:
+            case 409: return Kind.OTHER; // permission or credential-state refusal: the base kind keeps the status
             case 404: return lower.contains("model") ? Kind.NOT_FOUND : Kind.OTHER;
             case 408: return Kind.TRANSPORT;
             case 425: return Kind.SERVICE;

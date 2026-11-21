@@ -27,7 +27,7 @@ final class ContractTests: XCTestCase {
             "x-nr-cache-read-tokens", "x-nr-cache-write-tokens", "x-nr-limit-source",
             "x-nr-auth-reason", "x-nr-response-cache", "x-nr-response-cache-age",
             "x-nr-compression", "x-nr-routing", "x-nr-attempts", "x-nr-intent",
-            "x-nr-budget-warning", "x-nr-guardrails", "x-nr-funding-source", "x-nr-pot-fallback",
+            "x-nr-budget-warning", "x-nr-guardrails", "x-nr-funding-source", "x-nr-byok-fallback", "x-nr-pot-fallback",
             "x-nr-allowance-reset", "x-nr-model-deprecated", "x-nr-deprecation-notice",
         ]
         XCTAssertEqual(NRouterResponseMeta.headerNames.count, expected.count)
@@ -48,6 +48,9 @@ final class ContractTests: XCTestCase {
         let meta = NRouterResponseMeta { headers[$0] }
         XCTAssertEqual(meta.latencyMs, 318)
         XCTAssertEqual(meta.traceID, "4bf92f3577b34da6a3ce929d0e0e4736")
+
+        let byokMeta = NRouterResponseMeta { $0 == "x-nr-byok-fallback" ? "plan_inactive" : nil }
+        XCTAssertEqual(byokMeta.byokFallback, "plan_inactive")
 
         // Whole milliseconds only: a fractional or garbage value is a mangled
         // header, not a latency a caller should chart.
@@ -87,6 +90,10 @@ final class ContractTests: XCTestCase {
             ("model_denied_by_org", "other"),
             ("model_denied_by_team", "other"),
             ("model_denied_by_key", "other"),
+            ("byok_plan_required", "credit"),
+            ("byok_fair_use_exceeded", "rateLimit"),
+            ("byok_credential_rejected", "authentication"),
+            ("byok_credential_unavailable", "other"),
         ]
         for (code, want) in expected {
             let error = NRouterError.fromCode(NRouterErrorBody(message: "boom", code: code))

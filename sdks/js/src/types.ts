@@ -104,8 +104,10 @@ export interface ResponseMeta {
   fundingSource: string | null;
   /**
    * Why a saved provider key attempt fell back to prepaid credits when BYOK
-   * credit fallback is enabled (e.g. `rate_limited`, `credential_rejected`).
-   * `null` on every other response.
+   * credit fallback is enabled (`credential_rejected`, `permission_denied`,
+   * `rate_limited`, `overloaded`, `connect_refused`, or `plan_inactive` when
+   * the BYOK subscription is inactive pre-provider). `null` on every other
+   * response.
    */
   byokFallback: string | null;
   /**

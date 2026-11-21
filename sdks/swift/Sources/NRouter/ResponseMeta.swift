@@ -67,6 +67,10 @@ public struct NRouterResponseMeta: Equatable, Sendable {
     public var intent: String?
     /// How this response was funded.
     public var fundingSource: String?
+    /// Why a saved provider key attempt fell back to prepaid credits when BYOK
+    /// credit fallback is enabled (e.g. `credential_rejected`, `rate_limited`,
+    /// `plan_inactive`); `nil` on every other response.
+    public var byokFallback: String?
     /// Why promo/hack credit did not fund a request charged to prepaid credits
     /// under the organization's paid fallback (e.g. `pot_empty`, `window_day`);
     /// `nil` on every other response.
@@ -102,6 +106,7 @@ public struct NRouterResponseMeta: Equatable, Sendable {
         "x-nr-attempts",
         "x-nr-intent",
         "x-nr-funding-source",
+        "x-nr-byok-fallback",
         "x-nr-pot-fallback",
         "x-nr-allowance-reset",
         "x-nr-model-deprecated",
@@ -148,6 +153,7 @@ public struct NRouterResponseMeta: Equatable, Sendable {
         attempts = int("x-nr-attempts")
         intent = lookup("x-nr-intent")
         fundingSource = lookup("x-nr-funding-source")
+        byokFallback = lookup("x-nr-byok-fallback")
         potFallback = lookup("x-nr-pot-fallback")
         allowanceReset = int("x-nr-allowance-reset")
         modelDeprecated = flag("x-nr-model-deprecated")
