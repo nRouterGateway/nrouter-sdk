@@ -92,7 +92,10 @@ class nRouterResponseMeta:
     intent: str | None = None
     funding_source: str | None = None
     #: Why a saved provider key attempt fell back to prepaid credits when the
-    #: organization enabled BYOK credit fallback (e.g. ``rate_limited``).
+    #: organization enabled BYOK credit fallback (``credential_rejected``,
+    #: ``permission_denied``, ``rate_limited``, ``overloaded``,
+    #: ``connect_refused``, or ``plan_inactive`` when the BYOK subscription is
+    #: inactive pre-provider). ``None`` on every other response.
     byok_fallback: str | None = None
     #: Why promo/hack credit did not fund a request charged to prepaid credits
     #: under the organization's paid fallback (e.g. ``pot_empty``,

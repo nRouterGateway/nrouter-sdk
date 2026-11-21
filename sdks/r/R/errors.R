@@ -37,6 +37,10 @@ NROUTER_ERROR_CLASSES <- c(
   pot_spend_limit_exceeded = "nrouter_rate_limit_error",
   pot_route_feature_unsupported = "nrouter_request_error",
   cost_band_unsatisfiable  = "nrouter_request_error",
+  byok_plan_required       = "nrouter_credit_error",
+  byok_fair_use_exceeded   = "nrouter_rate_limit_error",
+  byok_credential_rejected = "nrouter_authentication_error",
+  byok_credential_unavailable = "nrouter_other_error",
   # 403 model deny lists: no permission class, so the base class carries the
   # code and the status.
   model_denied_by_org      = "nrouter_other_error",
@@ -51,6 +55,7 @@ NROUTER_STATUS_CLASSES <- c(
   "403" = "nrouter_other_error",
   "404" = "nrouter_not_found_error",
   "408" = "nrouter_transport_error",
+  "409" = "nrouter_other_error",
   "425" = "nrouter_service_error",
   "429" = "nrouter_rate_limit_error",
   "502" = "nrouter_service_error",

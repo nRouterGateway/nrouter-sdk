@@ -261,6 +261,12 @@ class NRouterAndroidTest {
         val rateLimitError = NRouterError.RateLimit(ai.nrouter.sdk.NRouterErrorBody("Too many requests", code = "rate_limit_exceeded", status = 429))
         assertEquals("Rate limit reached. Please wait and try again.", NRouterAndroid.formatUserMessage(rateLimitError))
 
+        val byokPlanError = NRouterError.fromCode(ai.nrouter.sdk.NRouterErrorBody("BYOK plan required", code = "byok_plan_required", status = 402))
+        assertEquals("Credit balance or budget limit reached.", NRouterAndroid.formatUserMessage(byokPlanError))
+
+        val byokMeta = ai.nrouter.sdk.NRouterResponseMeta.fromLookup { if (it == "x-nr-byok-fallback") "plan_inactive" else null }
+        assertEquals("plan_inactive", byokMeta.byokFallback)
+
         val diagnostic = NRouterAndroid.formatDiagnosticMessage(authError)
         assertTrue(diagnostic.contains("[authentication]"))
         assertTrue(diagnostic.contains("sk-nrouter-***"))

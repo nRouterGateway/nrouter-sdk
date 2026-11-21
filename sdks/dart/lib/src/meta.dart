@@ -30,6 +30,7 @@ class NRouterResponseMeta {
     this.attempts,
     this.intent,
     this.fundingSource,
+    this.byokFallback,
     this.potFallback,
     this.allowanceReset,
     this.modelDeprecated,
@@ -112,6 +113,10 @@ class NRouterResponseMeta {
 
   /// How this response was funded.
   final String? fundingSource;
+  /// Why a saved provider key attempt fell back to prepaid credits when BYOK
+  /// credit fallback is enabled (e.g. `credential_rejected`, `rate_limited`,
+  /// `plan_inactive`); `null` on every other response.
+  final String? byokFallback;
   /// Why promo/hack credit did not fund a request charged to prepaid credits
   /// under the organization's paid fallback (e.g. `pot_empty`, `window_day`);
   /// `null` on every other response.
@@ -147,6 +152,7 @@ class NRouterResponseMeta {
     'x-nr-attempts',
     'x-nr-intent',
     'x-nr-funding-source',
+    'x-nr-byok-fallback',
     'x-nr-pot-fallback',
     'x-nr-allowance-reset',
     'x-nr-model-deprecated',
@@ -194,6 +200,7 @@ class NRouterResponseMeta {
       attempts: asInt('x-nr-attempts'),
       intent: get('x-nr-intent'),
       fundingSource: get('x-nr-funding-source'),
+      byokFallback: get('x-nr-byok-fallback'),
       potFallback: get('x-nr-pot-fallback'),
       allowanceReset: asInt('x-nr-allowance-reset'),
       modelDeprecated: asBool('x-nr-model-deprecated'),

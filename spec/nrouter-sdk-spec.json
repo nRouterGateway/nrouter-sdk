@@ -214,14 +214,15 @@
     },
     "x-nr-byok-fallback": {
       "type": "string",
-      "description": "Present only when a request covered by an organization's saved provider key was charged to prepaid credits (x-nr-funding-source: credits) because the organization enabled credit fallback and the saved key attempt failed with a non-billable provider refusal before any output; names why the saved key attempt did not serve the request. Absent otherwise, including on every byok-funded response.",
+      "description": "Present only when a request covered by an organization's saved provider key was charged to prepaid credits (x-nr-funding-source: credits) because the organization enabled credit fallback and either the organization's BYOK subscription is inactive pre-provider (plan_inactive) or the saved key attempt failed with a non-billable provider refusal before any output; names why the saved key did not fund the request. Absent otherwise, including on every byok-funded response.",
       "always": false,
       "values": [
         "credential_rejected",
         "permission_denied",
         "rate_limited",
         "overloaded",
-        "connect_refused"
+        "connect_refused",
+        "plan_inactive"
       ]
     },
     "x-nr-pot-fallback": {

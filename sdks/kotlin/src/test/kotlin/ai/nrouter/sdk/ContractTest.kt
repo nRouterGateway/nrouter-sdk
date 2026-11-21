@@ -99,7 +99,7 @@ class ContractTest {
             "x-nr-input-tokens", "x-nr-output-tokens", "x-nr-total-tokens",
             "x-nr-cache-read-tokens", "x-nr-cache-write-tokens", "x-nr-limit-source",
             "x-nr-auth-reason", "x-nr-response-cache", "x-nr-response-cache-age",
-            "x-nr-budget-warning", "x-nr-guardrails", "x-nr-funding-source", "x-nr-pot-fallback",
+            "x-nr-budget-warning", "x-nr-guardrails", "x-nr-funding-source", "x-nr-byok-fallback", "x-nr-pot-fallback",
             "x-nr-allowance-reset", "x-nr-compression", "x-nr-routing", "x-nr-attempts", "x-nr-intent",
             "x-nr-model-deprecated", "x-nr-deprecation-notice",
         )
@@ -119,6 +119,16 @@ class ContractTest {
         val meta = NRouterResponseMeta.fromLookup { headers[it] }
         assertEquals(318L, meta.latencyMs)
         assertEquals("4bf92f3577b34da6a3ce929d0e0e4736", meta.traceId)
+
+        val byokMeta = NRouterResponseMeta.fromLookup {
+            when (it) {
+                "x-nr-funding-source" -> "credits"
+                "x-nr-byok-fallback" -> "plan_inactive"
+                else -> null
+            }
+        }
+        assertEquals("credits", byokMeta.fundingSource)
+        assertEquals("plan_inactive", byokMeta.byokFallback)
 
         // Whole milliseconds only: a fractional or garbage value is a mangled
         // header, not a latency a caller should chart.
@@ -145,6 +155,10 @@ class ContractTest {
             "model_denied_by_org" to NRouterError.Other::class,
             "model_denied_by_team" to NRouterError.Other::class,
             "model_denied_by_key" to NRouterError.Other::class,
+            "byok_plan_required" to NRouterError.Credit::class,
+            "byok_fair_use_exceeded" to NRouterError.RateLimit::class,
+            "byok_credential_rejected" to NRouterError.Authentication::class,
+            "byok_credential_unavailable" to NRouterError.Other::class,
         )
         expected.forEach { (code, type) ->
             val error = NRouterError.fromCode(NRouterErrorBody("boom", code = code))

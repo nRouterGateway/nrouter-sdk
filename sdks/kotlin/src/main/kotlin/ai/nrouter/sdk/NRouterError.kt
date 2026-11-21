@@ -120,16 +120,21 @@ public sealed class NRouterError(
             "cost_band_unsatisfiable",
             -> Request(body)
             "guardrail_blocked" -> GuardrailBlocked(body)
-            "invalid_api_key" -> Authentication(body)
+            "invalid_api_key", "byok_credential_rejected" -> Authentication(body)
             "insufficient_credits", "plan_allowance_exhausted", "plan_required",
             "insufficient_promo_credit", "insufficient_hack_credit",
+            "byok_plan_required",
             -> Credit(body)
             "model_not_found" -> NotFound(body)
-            "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded" -> RateLimit(body)
+            "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded",
+            "byok_fair_use_exceeded",
+            -> RateLimit(body)
             "credit_check_failed", "service_unavailable" -> Service(body)
-            // 403 model deny lists: no permission class, so Other carries the
-            // code and the status.
-            "model_denied_by_org", "model_denied_by_team", "model_denied_by_key" -> Other(body)
+            // 403 model deny lists and 409 BYOK credential unavailable: no
+            // dedicated class, so Other carries the code and the status.
+            "model_denied_by_org", "model_denied_by_team", "model_denied_by_key",
+            "byok_credential_unavailable",
+            -> Other(body)
             null -> when (body.status) {
                 400 -> if (body.guardrails == "blocked" || body.type == "guardrail_blocked" || body.message.contains("guardrail", ignoreCase = true)) {
                     GuardrailBlocked(body)
@@ -137,8 +142,8 @@ public sealed class NRouterError(
                     Request(body)
                 }
                 401 -> Authentication(body)
-                // A permission refusal with no code: Other keeps the status.
-                403 -> Other(body)
+                // A permission or credential-state refusal with no code: Other keeps the status.
+                403, 409 -> Other(body)
                 // The gateway's own wording is the only discriminator, and it
                 // is stable: GatewayError::{BudgetExceeded,
                 // ScopedBudgetExceeded} both start their Display with "budget".

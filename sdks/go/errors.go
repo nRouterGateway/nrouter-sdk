@@ -290,20 +290,22 @@ func classify(code, message string, status int) Kind {
 		return KindRequest
 	case "guardrail_blocked":
 		return KindGuardrailBlocked
-	case "invalid_api_key":
+	case "invalid_api_key", "byok_credential_rejected":
 		return KindAuthentication
 	case "insufficient_credits", "plan_allowance_exhausted", "plan_required",
-		"insufficient_promo_credit", "insufficient_hack_credit":
+		"insufficient_promo_credit", "insufficient_hack_credit", "byok_plan_required":
 		return KindCredit
 	case "model_not_found":
 		return KindNotFound
-	case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded":
+	case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded",
+		"byok_fair_use_exceeded":
 		return KindRateLimit
 	case "credit_check_failed", "service_unavailable":
 		return KindService
-	case "model_denied_by_org", "model_denied_by_team", "model_denied_by_key":
-		// 403 model deny lists. No permission kind exists: the base kind keeps
-		// the code and the status on the Error.
+	case "model_denied_by_org", "model_denied_by_team", "model_denied_by_key",
+		"byok_credential_unavailable":
+		// 403 model deny lists and 409 BYOK credential unavailable. No dedicated
+		// kind exists: the base kind keeps the code and the status on the Error.
 		return KindOther
 	case "":
 		// fall through to status dispatch below
@@ -328,8 +330,8 @@ func classify(code, message string, status int) Kind {
 			return KindBudgetExceeded
 		}
 		return KindCredit
-	case 403:
-		// A permission refusal with no code: the base kind keeps the status.
+	case 403, 409:
+		// A permission or credential-state refusal with no code: the base kind keeps the status.
 		return KindOther
 	case 404:
 		// Scoped to MODELS. A 404 is also a missing video job, an unknown MCP

@@ -23,7 +23,7 @@ test_that("every spec header is read", {
     "x-nr-cache-read-tokens", "x-nr-cache-write-tokens", "x-nr-limit-source",
     "x-nr-auth-reason", "x-nr-response-cache", "x-nr-response-cache-age",
     "x-nr-compression", "x-nr-routing", "x-nr-attempts", "x-nr-intent",
-    "x-nr-budget-warning", "x-nr-guardrails", "x-nr-funding-source", "x-nr-pot-fallback",
+    "x-nr-budget-warning", "x-nr-guardrails", "x-nr-funding-source", "x-nr-byok-fallback", "x-nr-pot-fallback",
     "x-nr-allowance-reset", "x-nr-model-deprecated", "x-nr-deprecation-notice"
   )
   expect_length(nrouter_header_names(), length(expected))
@@ -52,6 +52,13 @@ test_that("latency and trace reach the metadata", {
   }
   expect_null(nrouter_meta(list())$latency_ms)
   expect_null(nrouter_meta(list())$trace_id)
+
+  byok_meta <- nrouter_meta(list(
+    "x-nr-funding-source" = "credits",
+    "x-nr-byok-fallback"  = "plan_inactive"
+  ))
+  expect_equal(byok_meta$funding_source, "credits")
+  expect_equal(byok_meta$byok_fallback, "plan_inactive")
 })
 
 test_that("each gateway code maps to its condition class", {
@@ -68,7 +75,11 @@ test_that("each gateway code maps to its condition class", {
     service_unavailable      = "nrouter_service_error",
     model_denied_by_org      = "nrouter_other_error",
     model_denied_by_team     = "nrouter_other_error",
-    model_denied_by_key      = "nrouter_other_error"
+    model_denied_by_key      = "nrouter_other_error",
+    byok_plan_required       = "nrouter_credit_error",
+    byok_fair_use_exceeded   = "nrouter_rate_limit_error",
+    byok_credential_rejected = "nrouter_authentication_error",
+    byok_credential_unavailable = "nrouter_other_error"
   )
   for (code in names(expected)) {
     cond <- nrouter_condition("boom", code = code)

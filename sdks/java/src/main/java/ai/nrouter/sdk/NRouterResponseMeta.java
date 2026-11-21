@@ -29,6 +29,7 @@ public final class NRouterResponseMeta {
             "x-nr-attempts",
             "x-nr-intent",
             "x-nr-funding-source",
+            "x-nr-byok-fallback",
             "x-nr-pot-fallback",
             "x-nr-allowance-reset",
             "x-nr-model-deprecated",
@@ -56,6 +57,7 @@ public final class NRouterResponseMeta {
     private final Long attempts;
     private final String intent;
     private final String fundingSource;
+    private final String byokFallback;
     private final String potFallback;
     private final Long allowanceReset;
     private final Boolean modelDeprecated;
@@ -87,6 +89,7 @@ public final class NRouterResponseMeta {
         attempts = integer(headers, "x-nr-attempts");
         intent = value(headers, "x-nr-intent");
         fundingSource = value(headers, "x-nr-funding-source");
+        byokFallback = value(headers, "x-nr-byok-fallback");
         potFallback = value(headers, "x-nr-pot-fallback");
         allowanceReset = integer(headers, "x-nr-allowance-reset");
         modelDeprecated = flag(headers, "x-nr-model-deprecated");
@@ -176,6 +179,13 @@ public final class NRouterResponseMeta {
     public Long attempts() { return attempts; }
     public String intent() { return intent; }
     public String fundingSource() { return fundingSource; }
+    /**
+     * Why a saved provider key attempt fell back to prepaid credits when BYOK
+     * credit fallback is enabled (e.g. {@code credential_rejected},
+     * {@code rate_limited}, {@code plan_inactive}); {@code null} on every other
+     * response.
+     */
+    public String byokFallback() { return byokFallback; }
     /**
      * Why promo/hack credit did not fund a request charged to prepaid credits
      * under the organization's paid fallback (e.g. {@code pot_empty},

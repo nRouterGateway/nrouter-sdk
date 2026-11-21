@@ -91,6 +91,12 @@ public data class NRouterResponseMeta(
      * `null` on every other response. Last so positional callers keep working.
      */
     val potFallback: String? = null,
+    /**
+     * Why a saved provider key attempt fell back to prepaid credits when BYOK
+     * credit fallback is enabled (e.g. `credential_rejected`, `rate_limited`,
+     * `plan_inactive`); `null` on every other response.
+     */
+    val byokFallback: String? = null,
 ) {
     /** True when the gateway priced this request exactly. */
     val isPriced: Boolean get() = costStatus == "exact" && cost != null
@@ -145,6 +151,7 @@ public data class NRouterResponseMeta(
             "x-nr-attempts",
             "x-nr-intent",
             "x-nr-funding-source",
+            "x-nr-byok-fallback",
             "x-nr-pot-fallback",
             "x-nr-allowance-reset",
             "x-nr-model-deprecated",
@@ -191,6 +198,7 @@ public data class NRouterResponseMeta(
                 attempts = num("x-nr-attempts"),
                 intent = lookup("x-nr-intent"),
                 fundingSource = lookup("x-nr-funding-source"),
+                byokFallback = lookup("x-nr-byok-fallback"),
                 potFallback = lookup("x-nr-pot-fallback"),
                 allowanceReset = num("x-nr-allowance-reset"),
                 modelDeprecated = flag("x-nr-model-deprecated"),

@@ -99,6 +99,11 @@ type ResponseMeta struct {
 	// FundingSource is how this response was funded.
 	FundingSource string
 
+	// ByokFallback is why a saved provider key attempt fell back to prepaid
+	// credits when BYOK credit fallback is enabled (e.g. "credential_rejected",
+	// "rate_limited", "plan_inactive"). Empty on every other response.
+	ByokFallback string
+
 	// PotFallback is why promo/hack credit did not fund a request charged to
 	// prepaid credits under the organization's paid fallback (e.g. "pot_empty",
 	// "window_day"). Empty on every other response.
@@ -153,6 +158,7 @@ var HeaderNames = []string{
 	"x-nr-response-cache",
 	"x-nr-response-cache-age",
 	"x-nr-funding-source",
+	"x-nr-byok-fallback",
 	"x-nr-pot-fallback",
 	"x-nr-allowance-reset",
 	"x-nr-compression",
@@ -216,6 +222,7 @@ func MetaFromLookup(get func(string) string) ResponseMeta {
 		ResponseCache:     get("x-nr-response-cache"),
 		ResponseCacheAge:  num("x-nr-response-cache-age"),
 		FundingSource:     get("x-nr-funding-source"),
+		ByokFallback:      get("x-nr-byok-fallback"),
 		PotFallback:       get("x-nr-pot-fallback"),
 		AllowanceReset:    num("x-nr-allowance-reset"),
 		Compression:       get("x-nr-compression"),

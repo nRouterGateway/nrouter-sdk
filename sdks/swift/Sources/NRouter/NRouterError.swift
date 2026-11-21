@@ -67,16 +67,21 @@ public enum NRouterError: Error, Equatable {
              "cost_band_unsatisfiable":
             return .request(body)
         case "guardrail_blocked": return .guardrailBlocked(body)
-        case "invalid_api_key": return .authentication(body)
+        case "invalid_api_key", "byok_credential_rejected": return .authentication(body)
         case "insufficient_credits", "plan_allowance_exhausted", "plan_required",
-             "insufficient_promo_credit", "insufficient_hack_credit":
+             "insufficient_promo_credit", "insufficient_hack_credit",
+             "byok_plan_required":
             return .credit(body)
         case "model_not_found": return .notFound(body)
-        case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded": return .rateLimit(body)
+        case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded",
+             "byok_fair_use_exceeded":
+            return .rateLimit(body)
         case "credit_check_failed", "service_unavailable": return .service(body)
-        // 403 model deny lists: no permission case, so `.other` carries the
-        // code and the status.
-        case "model_denied_by_org", "model_denied_by_team", "model_denied_by_key": return .other(body)
+        // 403 model deny lists and 409 BYOK credential unavailable: no
+        // dedicated case, so `.other` carries the code and the status.
+        case "model_denied_by_org", "model_denied_by_team", "model_denied_by_key",
+             "byok_credential_unavailable":
+            return .other(body)
         case .some: return .other(body)
         case nil:
             switch body.status {
@@ -85,8 +90,8 @@ public enum NRouterError: Error, Equatable {
                     ? .guardrailBlocked(body)
                     : .request(body)
             case 401: return .authentication(body)
-            // A permission refusal with no code: `.other` keeps the status.
-            case 403: return .other(body)
+            // A permission or credential-state refusal with no code: `.other` keeps the status.
+            case 403, 409: return .other(body)
             case 402:
                 // The gateway's own wording is the only discriminator, and it
                 // is stable: GatewayError::{BudgetExceeded,
