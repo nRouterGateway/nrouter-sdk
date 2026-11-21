@@ -267,6 +267,36 @@
         "0"
       ]
     },
+    "x-nr-mcp-server": {
+      "type": "string",
+      "description": "Target MCP server identifier when routing MCP requests through /mcp when multiple MCP servers are configured."
+    },
+    "x-nr-trace": {
+      "type": "string",
+      "description": "Per-request trace detail cap for lifecycle spans ('off', 'stages', 'verbose'; '0'/'false' alias 'off' and '1'/'true' alias 'stages'). May lower, never raise, the organization's trace level.",
+      "values": [
+        "off",
+        "stages",
+        "verbose",
+        "0",
+        "1",
+        "true",
+        "false"
+      ]
+    },
+    "x-nr-trace-stages": {
+      "type": "string",
+      "description": "Per-request stage-level trace emission cap ('off', 'stages', 'verbose'; '0'/'false' alias 'off' and '1'/'true' alias 'stages'). May lower, never raise, the organization's trace level.",
+      "values": [
+        "off",
+        "stages",
+        "verbose",
+        "0",
+        "1",
+        "true",
+        "false"
+      ]
+    },
     "x-nr-trace-id": {
       "type": "string",
       "description": "Client OpenTelemetry trace ID for correlating spans across client and gateway."
@@ -687,7 +717,7 @@
     },
     "nrouter_auto_routing": {
       "type": "object",
-      "description": "Present on a request for nrouter/auto: how the model was chosen, as { mode, source, task, task_outcome, model_outcome }. `mode` is off, shadow or enforce. `source` is signals (chosen from the request's own shape: reasoning asked for, input length, tools) or decision (chosen by nRouter's model-selection step). `task` is the task type, present only when `task_outcome` is answered. `task_outcome` and `model_outcome` are one of answered, low_confidence, invalid, timeout, error, skipped, cancelled, not_asked or not_enabled. The served model is nrouter_model."
+      "description": "Present on a request for nrouter/auto: how the model was chosen, as { mode, source, optimize, task, task_outcome, model_outcome } (or { mode, refused, optimize, optimize_source } when refused before model selection). `mode` is off or enforce. `source` is calibrated (scored by nRouter's single public-leaderboard and cost utility selector; historical rows may carry decision). `optimize` is quality, balanced or cost when recorded. `task` is the assessed task type, present only when `task_outcome` is answered. `task_outcome` is one of answered, low_confidence, invalid, timeout, error, skipped, cancelled, not_asked or not_enabled; `model_outcome` uses the same values on historical decision rows and is omitted on calibrated rows because task assessment never picks a model. The served model is nrouter_model."
     },
     "nrouter_checks": {
       "type": "object",

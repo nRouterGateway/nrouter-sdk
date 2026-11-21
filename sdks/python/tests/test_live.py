@@ -102,7 +102,7 @@ def assert_honest_cost(client: nRouter, wire: str) -> None:
     assert meta is not None, f"{wire} answered without any x-nr-* metadata"
     if meta.cost_status is None:
         return
-    assert meta.cost_status in ("exact", "unpriced"), (
+    assert meta.cost_status in ("exact", "unpriced", "byok"), (
         f"{wire} reported x-nr-cost-status {meta.cost_status!r}"
     )
     if meta.cost_status == "exact":

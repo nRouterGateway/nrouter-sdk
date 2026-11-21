@@ -23,8 +23,9 @@ class nRouterResponseMeta:
             ``x-nr-session-id``) to correlate its own spans; the gateway
             overwrites the response value with its own, so join on this one
             rather than assuming it echoes what was sent.
-        cost: Exact USD request cost, absent when the model is unpriced.
-        cost_status: Cost result (``exact`` or ``unpriced``).
+        cost: Exact USD request cost, absent when the model is unpriced or
+            funded by ``byok``.
+        cost_status: Cost result (``exact``, ``unpriced``, or ``byok``).
         model: Model that served the request.
         input_tokens: Input token count.
         output_tokens: Output token count.

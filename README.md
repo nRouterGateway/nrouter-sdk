@@ -295,6 +295,8 @@ Also from the spec (`request_headers`, `extra_body_fields`). The body fields app
 | `nrouter_prompt_template_id` / `nrouter_prompt_variables` | body | Select a prompt template and supply its variables |
 | `x-nr-tags` | request header | Custom spend tags, `key=value,key2=value2` |
 | `x-nr-compress` | request header | `on` / `off`: request prompt compression; the outcome comes back in `x-nr-compression` |
+| `x-nr-mcp-server` | request header | Target MCP server identifier when routing MCP requests through `/mcp` |
+| `x-nr-trace` / `x-nr-trace-stages` | request header | Per-request trace detail cap (`off`, `stages`, `verbose`); may lower, never raise, the organization's trace level |
 | `x-nr-trace-id` / `x-nr-session-id` | request header | Correlate your own traces and multi-turn sessions |
 | `x-nr-client-language` | request header | Set automatically by each official SDK |
 

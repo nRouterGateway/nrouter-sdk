@@ -515,6 +515,128 @@ class SpecContractTests(unittest.TestCase):
                 f"the public spend-row section names `{word}`",
             )
 
+    def test_spend_row_auto_routing_reflects_calibrated_selector_without_retired_modes(
+        self,
+    ) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        description = spec["spend_row_metadata_fields"]["nrouter_auto_routing"][
+            "description"
+        ]
+        for expected in ("calibrated", "off", "enforce"):
+            self.assertIn(
+                expected,
+                description,
+                f"nrouter_auto_routing description omits `{expected}`",
+            )
+        for retired in ("shadow", "signals"):
+            self.assertNotRegex(
+                description,
+                rf"(?i)\b{retired}\b",
+                f"nrouter_auto_routing still advertises retired `{retired}`",
+            )
+
+    def test_spec_request_headers_match_gateway_accepted_registry(self) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        request_headers = spec["request_headers"]
+        expected = {
+            "x-nr-tags",
+            "x-nr-mcp-server",
+            "x-nr-compress",
+            "x-nr-client-language",
+            "x-nr-session-id",
+            "x-nr-trace-id",
+            "x-nr-trace",
+            "x-nr-trace-stages",
+        }
+        self.assertEqual(set(request_headers), expected)
+        for name, entry in request_headers.items():
+            self.assertEqual(entry.get("type"), "string", name)
+            self.assertTrue(entry.get("description", "").strip(), name)
+        for trace_header in ("x-nr-trace", "x-nr-trace-stages"):
+            self.assertTrue(
+                {"off", "stages", "verbose"} <= set(request_headers[trace_header]["values"]),
+                f"{trace_header} values must cover off/stages/verbose",
+            )
+
+        gateway_src = ROOT.parent / "nrouter-rust-gateway" / "src"
+        nr_headers_file = gateway_src / "http" / "nr_headers.rs"
+        try:
+            if nr_headers_file.exists():
+                gateway_text = re.sub(
+                    r"/\*.*?\*/", "", nr_headers_file.read_text(), flags=re.DOTALL
+                )
+                accepted_body = re.search(
+                    r"pub fn all_accepted_request_names\(\).*?\{\s*&\[(.*?)\]\s*\}",
+                    gateway_text,
+                    flags=re.DOTALL,
+                )
+                self.assertIsNotNone(accepted_body)
+                const_pattern = r'^pub(?:\([^)]*\))?\s+const ([A-Z_]+): &str = "(x-nr-[^"]+)";'
+                const_map = dict(
+                    re.findall(const_pattern, gateway_text, flags=re.MULTILINE)
+                )
+                for extra_file in (
+                    gateway_src / "proxy" / "tags.rs",
+                    gateway_src / "mcp" / "route.rs",
+                ):
+                    if extra_file.exists():
+                        const_map.update(
+                            re.findall(
+                                const_pattern,
+                                extra_file.read_text(),
+                                flags=re.MULTILINE,
+                            )
+                        )
+                symbols = [
+                    entry.strip().rsplit("::", 1)[-1]
+                    for entry in re.sub(
+                        r"//.*$", "", accepted_body.group(1), flags=re.MULTILINE
+                    ).split(",")
+                    if entry.strip()
+                ]
+                resolved = {const_map[sym] for sym in symbols}
+                self.assertEqual(set(request_headers), resolved)
+        except (OSError, PermissionError):
+            pass
+
+    def test_cost_status_docstrings_and_validation_playbooks_match_spec(self) -> None:
+        js_types = (SDK_ROOT / "sdks" / "js" / "src" / "types.ts").read_text(
+            encoding="utf-8"
+        )
+        cost_status_doc = re.search(
+            r"/\*\*([^*]|\*(?!/))*\*/\s*costStatus:\s*string\s*\|\s*null;",
+            js_types,
+        )
+        self.assertIsNotNone(cost_status_doc, "costStatus JSDoc missing in types.ts")
+        for val in ("exact", "unpriced", "byok"):
+            self.assertIn(
+                val,
+                cost_status_doc.group(0),
+                f"sdks/js/src/types.ts costStatus JSDoc omits `{val}`",
+            )
+
+        py_response = (
+            SDK_ROOT / "sdks" / "python" / "nroutersdk" / "_response.py"
+        ).read_text(encoding="utf-8")
+        py_cost_status = re.search(r"cost_status:\s*([^\n]+)", py_response)
+        self.assertIsNotNone(
+            py_cost_status, "cost_status docstring missing in _response.py"
+        )
+        for val in ("exact", "unpriced", "byok"):
+            self.assertIn(
+                val,
+                py_cost_status.group(1),
+                f"sdks/python/nroutersdk/_response.py cost_status docstring omits `{val}`",
+            )
+
+        for rel in (
+            "sdks/python/docs/validation-playbook.md",
+            "docs/validation-playbook-template.md",
+        ):
+            text = (SDK_ROOT / rel).read_text(encoding="utf-8")
+            self.assertNotIn("x-nr-guardrail-*", text, rel)
+            self.assertIn("x-nr-guardrails", text, rel)
+
 
 class ClientContractTests(unittest.TestCase):
     def test_every_advertised_python_sdk_method_is_callable(self) -> None:
