@@ -41,9 +41,9 @@ export interface ResponseMeta {
    * is what to join on — never assume it echoes what you sent.
    */
   traceId: string | null;
-  /** Exact settled cost in USD. `null` when unpriced. Never treat null as 0. */
+  /** Exact settled cost in USD. `null` when unpriced or funded by `byok`. Never treat null as 0. */
   cost: number | null;
-  /** `exact` or `unpriced`. */
+  /** `exact`, `unpriced`, or `byok`. */
   costStatus: string | null;
   /** The model that actually served the request, which is not always the alias asked for. */
   model: string | null;

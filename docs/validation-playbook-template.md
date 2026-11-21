@@ -185,7 +185,7 @@ Capture for every live request:
 - exact cost (`x-nr-request-cost`)
 - latency
 - cache state (`x-nr-response-cache`)
-- guardrail state (`x-nr-guardrail-*`)
+- guardrail state (`x-nr-guardrails`)
 - error class/message if failed
 
 ### Short agent prompt

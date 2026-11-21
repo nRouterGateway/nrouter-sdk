@@ -79,7 +79,7 @@ function assertCorrelatable(meta: any, wire: string) {
 function assertHonestCost(meta: any, wire: string) {
   if (meta.costStatus === undefined || meta.costStatus === null) return;
   assert.ok(
-    meta.costStatus === 'exact' || meta.costStatus === 'unpriced',
+    meta.costStatus === 'exact' || meta.costStatus === 'unpriced' || meta.costStatus === 'byok',
     `${wire} reported x-nr-cost-status ${meta.costStatus}`,
   );
   if (meta.costStatus === 'exact') {

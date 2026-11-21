@@ -1,9 +1,7 @@
 ---
 name: nrouter-sdk
 description: >-
-  Use when developing, testing or auditing the official nRouter multi-language SDKs: generated model
-  constants, request/response types, conformance suites, wire serialization, error classification,
-  retries, the @nrouter_ai/support-agent library. Not for registry publishing (use deploy, references/sdk.md).
+  Use when developing, testing, or auditing official nRouter multi-language SDKs: generated model constants, request/response types, conformance suites, wire serialization, error classification, retries, @nrouter_ai/support-agent. Not for registry publishing (deploy, references/sdk.md).
 metadata:
   version: 1.3.0
 ---
