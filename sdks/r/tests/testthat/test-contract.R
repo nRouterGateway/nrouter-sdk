@@ -121,6 +121,25 @@ test_that("an unpriced response reports no cost rather than zero", {
   expect_equal(meta$request_id, "req_1")
 })
 
+test_that("a byok response is never platform-priced and prints byok instead of unpriced", {
+  byok_meta <- nrouter_meta(list(
+    "x-nr-cost-status"    = "byok",
+    "x-nr-funding-source" = "byok",
+    "x-nr-request-id"     = "req_byok_1"
+  ))
+  expect_null(byok_meta$cost)
+  expect_false(nrouter_is_priced(byok_meta))
+  rendered <- paste(capture.output(print(byok_meta)), collapse = "\n")
+  expect_true(grepl("byok", rendered, fixed = TRUE))
+  expect_false(grepl("unpriced", rendered, fixed = TRUE))
+
+  byok_with_cost <- nrouter_meta(list(
+    "x-nr-cost-status"  = "byok",
+    "x-nr-request-cost" = "0.00123"
+  ))
+  expect_false(nrouter_is_priced(byok_with_cost))
+})
+
 test_that("a priced response parses its numbers", {
   meta <- nrouter_meta(list(
     "x-nr-request-cost"      = "0.00042",
@@ -690,12 +709,20 @@ test_that("guardrail blocked error preserves guardrails and meta", {
 test_that("response meta cache_age_seconds and is_priced work as properties and functions", {
   meta_priced <- nrouter_meta(list(
     "x-nr-request-cost" = "0.0025",
+    "x-nr-cost-status" = "exact",
     "x-nr-response-cache-age" = "42"
   ))
   expect_true(meta_priced$is_priced)
   expect_true(nrouter_is_priced(meta_priced))
   expect_equal(meta_priced$cache_age_seconds, 42)
   expect_equal(nrouter_cache_age_seconds(meta_priced), 42)
+
+  meta_byok <- nrouter_meta(list(
+    "x-nr-request-cost" = "0",
+    "x-nr-cost-status" = "byok"
+  ))
+  expect_false(meta_byok$is_priced)
+  expect_false(nrouter_is_priced(meta_byok))
 
   meta_unpriced <- nrouter_meta(list())
   expect_false(meta_unpriced$is_priced)

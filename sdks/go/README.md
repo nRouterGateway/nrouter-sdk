@@ -64,6 +64,8 @@ func main() {
 
 	if res.Meta.Cost != nil {
 		fmt.Printf("cost $%v (%s)\n", *res.Meta.Cost, res.Meta.CostStatus)
+	} else if res.Meta.CostStatus == "byok" {
+		fmt.Println("cost byok (billed by your provider)")
 	} else {
 		// Unpriced is NOT free — it is unknown. Never render it as 0.
 		fmt.Printf("unpriced (%s)\n", res.Meta.CostStatus)
@@ -95,8 +97,8 @@ field is a pointer, deliberately:
 | `RequestID` | `x-nr-request-id` | — (always present) |
 | `LatencyMs` | `x-nr-latency-ms` | the header was absent or unparseable; the edge stamps it on every response, and it is time-to-HEADERS, never time to the last streamed byte |
 | `TraceID` | `x-nr-trace-id` | no valid trace existed for this request |
-| `Cost` | `x-nr-request-cost` | **unpriced, not free** |
-| `CostStatus` | `x-nr-cost-status` | `exact` or `unpriced` |
+| `Cost` | `x-nr-request-cost` | **unpriced or `byok`, not free** |
+| `CostStatus` | `x-nr-cost-status` | `"exact"`, `"unpriced"`, or `"byok"` |
 | `Model` | `x-nr-model` | the model that served it |
 | `InputTokens` / `OutputTokens` / `TotalTokens` | `x-nr-*-tokens` | not measured |
 | `CacheReadTokens` / `CacheWriteTokens` | `x-nr-cache-*-tokens` | zero, so omitted |

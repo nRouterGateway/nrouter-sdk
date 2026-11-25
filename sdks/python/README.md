@@ -246,7 +246,7 @@ meta = client.last_response
 
 print("Request ID:        ", meta.request_id)
 print("Exact Cost (USD):  ", meta.cost)
-print("Cost Status:       ", meta.cost_status)        # "exact" or "unpriced"
+print("Cost Status:       ", meta.cost_status)        # "exact", "unpriced", or "byok"
 print("Served Model:      ", meta.model)
 print("Input Tokens:      ", meta.input_tokens)
 print("Output Tokens:     ", meta.output_tokens)
@@ -259,7 +259,7 @@ print("Limit Source:      ", meta.limit_source)       # "key", "team", "org", or
 print("Budget Warning:    ", meta.budget_warning)     # "org soft_budget 80.00/100.00" when a soft budget was crossed
 ```
 
-> **Note on Cost Accuracy:** Unpriced models return `cost=None` and `cost_status="unpriced"`. Never treat `None` as `$0.00` — free routes (like `/v1/messages/count_tokens`) emit no cost header, while billable inferences always track usage.
+> **Note on Cost Accuracy:** Unpriced models return `cost=None` and `cost_status="unpriced"`; calls funded by your saved provider key return `cost=None` and `cost_status="byok"` (billed directly by your provider). Never treat `unpriced` `None` as `$0.00` — free routes (like `/v1/messages/count_tokens`) emit no cost header, while billable inferences always track usage.
 
 ### 6. Autonomous Agents (Native nRouter SDK)
 

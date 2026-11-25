@@ -93,7 +93,11 @@ println("tokens  ${meta.inputTokens} in / ${meta.outputTokens} out")
 // Branch on the status, never on `cost` being null-ish. An unpriced model
 // reports cost == null, and rendering that as $0 reports a free request —
 // which no enabled model is.
-if (meta.isPriced) println("cost $${meta.cost}") else println("cost unpriced")
+when {
+    meta.isPriced -> println("cost $${meta.cost}")
+    meta.costStatus == "byok" -> println("cost byok (billed by your provider)")
+    else -> println("cost unpriced")
+}
 ```
 
 | Property | Header | Meaning |
@@ -101,8 +105,8 @@ if (meta.isPriced) println("cost $${meta.cost}") else println("cost unpriced")
 | `requestId` | `x-nr-request-id` | Always present; the id for a support ticket |
 | `latencyMs` | `x-nr-latency-ms` | Time the gateway measured from edge arrival to response headers ready — time-to-HEADERS, never time to the last streamed byte |
 | `traceId` | `x-nr-trace-id` | The gateway's OpenTelemetry trace id; **null** when no valid trace exists |
-| `cost` | `x-nr-request-cost` | Exact USD; **null** when unpriced, never `0` |
-| `costStatus` | `x-nr-cost-status` | `exact` or `unpriced` |
+| `cost` | `x-nr-request-cost` | Exact USD; **null** when unpriced or `byok`, never `0` |
+| `costStatus` | `x-nr-cost-status` | `"exact"`, `"unpriced"`, or `"byok"` |
 | `model` | `x-nr-model` | Model that served the request |
 | `inputTokens` / `outputTokens` / `totalTokens` | `x-nr-*-tokens` | Token counts |
 | `cacheReadTokens` / `cacheWriteTokens` | `x-nr-cache-*-tokens` | Provider cache tokens |

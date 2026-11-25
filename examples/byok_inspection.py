@@ -1,7 +1,7 @@
 """BYOK Header & Error Inspection Example.
 
 Demonstrates:
-1. Calling a BYOK-eligible model (OpenAI, Anthropic, DeepInfra, Meta, or Alibaba)
+1. Calling a BYOK-eligible model (OpenAI, Anthropic, Azure, DeepInfra, Meta, or Alibaba)
    with a standard virtual key (sk-nrouter-...)
 2. Inspecting `funding_source`, `cost_status`, `cost`, and `byok_fallback`
    (`credential_rejected`, `permission_denied`, `rate_limited`, `overloaded`,

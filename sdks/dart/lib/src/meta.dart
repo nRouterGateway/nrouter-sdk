@@ -208,8 +208,8 @@ class NRouterResponseMeta {
     );
   }
 
-  /// True when the gateway priced this request.
-  bool get isPriced => cost != null && costStatus != 'unpriced';
+  /// True when the gateway priced this request (`costStatus == 'exact'`).
+  bool get isPriced => cost != null && costStatus == 'exact';
 
   bool get isCacheHit => responseCache == 'hit';
   bool get isCacheMiss => responseCache == 'miss';

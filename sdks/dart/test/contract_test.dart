@@ -219,6 +219,22 @@ void main() {
       expect(meta.requestId, 'req_1');
     });
 
+    test('a byok response is never reported as platform-priced', () {
+      final byokAbsent = NRouterResponseMeta.fromHeaders({
+        'x-nr-cost-status': 'byok',
+        'x-nr-funding-source': 'byok',
+        'x-nr-request-id': 'req_byok_1',
+      });
+      expect(byokAbsent.cost, isNull);
+      expect(byokAbsent.isPriced, isFalse);
+
+      final byokWithRogueCost = NRouterResponseMeta.fromHeaders({
+        'x-nr-cost-status': 'byok',
+        'x-nr-request-cost': '0.00123',
+      });
+      expect(byokWithRogueCost.isPriced, isFalse);
+    });
+
     test('a priced response parses its numbers', () {
       final meta = NRouterResponseMeta.fromHeaders({
         'x-nr-request-cost': '0.00042',
@@ -1229,10 +1245,17 @@ void main() {
     test('response meta cacheAgeSeconds and isPriced', () {
       final metaPriced = NRouterResponseMeta.fromHeaders({
         'x-nr-request-cost': '0.0025',
+        'x-nr-cost-status': 'exact',
         'x-nr-response-cache-age': '42',
       });
       expect(metaPriced.isPriced, isTrue);
       expect(metaPriced.cacheAgeSeconds, 42);
+
+      final metaByok = NRouterResponseMeta.fromHeaders({
+        'x-nr-request-cost': '0',
+        'x-nr-cost-status': 'byok',
+      });
+      expect(metaByok.isPriced, isFalse);
 
       final metaUnpriced = NRouterResponseMeta.fromHeaders({});
       expect(metaUnpriced.isPriced, isFalse);

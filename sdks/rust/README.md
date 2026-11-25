@@ -75,9 +75,10 @@ let out = client.chat_completions(&json!({
 // Branch on the status, never on `cost` being None-ish. An unpriced model
 // reports cost == None, and rendering that as 0.0 reports a free request —
 // which no enabled model is.
-match out.meta.cost {
-    Some(usd) => println!("cost ${usd}"),
-    None => println!("unpriced ({:?})", out.meta.cost_status),
+match (out.meta.cost, out.meta.cost_status.as_deref()) {
+    (Some(usd), _) => println!("cost ${usd}"),
+    (None, Some("byok")) => println!("byok (billed by your provider)"),
+    (None, status) => println!("unpriced ({status:?})"),
 }
 ```
 
