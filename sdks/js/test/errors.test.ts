@@ -43,17 +43,35 @@ const SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8')) as {
 // Case 3 — the nine spec codes, asserted against the spec file.
 // ---------------------------------------------------------------------------
 
-test('the spec declares twenty-eight error codes including BYOK and cost_band_unsatisfiable', () => {
-  // Twenty-three through pot_route_feature_unsupported, plus four BYOK codes
-  // (byok_plan_required, byok_fair_use_exceeded, byok_credential_rejected,
-  // byok_credential_unavailable) and cost_band_unsatisfiable (400, request
-  // class — active nrouter_cost_band left zero eligible models).
+test('the spec declares twenty-nine error codes including BYOK, rate_limit_unavailable, and cost_band_unsatisfiable', () => {
+  // Twenty-three through pot_route_feature_unsupported, plus five BYOK/limiter
+  // codes (byok_plan_required, byok_fair_use_exceeded, byok_credential_rejected,
+  // byok_credential_unavailable, rate_limit_unavailable) and
+  // cost_band_unsatisfiable (400, request class — active nrouter_cost_band left
+  // zero eligible models).
   assert.strictEqual(
     Object.keys(SPEC.errors).length,
-    28,
+    29,
     'The gateway shipped a new code. Map it in ERROR_CLASS_BY_CODE and add it here.',
   );
   assert.strictEqual(ERROR_STATUS_BY_CODE.cost_band_unsatisfiable, 400);
+  assert.strictEqual(ERROR_STATUS_BY_CODE.rate_limit_unavailable, 503);
+});
+
+test('rate_limit_unavailable maps to retryable nRouterServiceError without fabricating limitSource', () => {
+  const err = createError('rate limiting is temporarily unavailable; please retry', {
+    code: 'rate_limit_unavailable',
+    status: 503,
+    requestId: 'req-rl-503',
+  });
+  assert.strictEqual(err.name, 'nRouterServiceError');
+  assert.strictEqual(err.kind, 'service');
+  assert.strictEqual(err.code, 'rate_limit_unavailable');
+  assert.strictEqual(err.status, 503);
+  assert.strictEqual(err.limitSource, null);
+  assert.strictEqual(err.retryAfter, null);
+  assert.strictEqual(err.retryable, true);
+  assert.strictEqual(isRetryable(err), true);
 });
 
 test('every spec code maps to the class the spec names, at the status it names', () => {

@@ -300,7 +300,7 @@ func classify(code, message string, status int) Kind {
 	case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded",
 		"byok_fair_use_exceeded":
 		return KindRateLimit
-	case "credit_check_failed", "service_unavailable":
+	case "credit_check_failed", "service_unavailable", "rate_limit_unavailable":
 		return KindService
 	case "model_denied_by_org", "model_denied_by_team", "model_denied_by_key",
 		"byok_credential_unavailable":

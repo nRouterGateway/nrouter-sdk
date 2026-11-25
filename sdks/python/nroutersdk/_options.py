@@ -44,6 +44,10 @@ HOST_VALUES = (
     "deepinfra",
     "meta",
     "typesafe",
+    "deepseek",
+    "mistral",
+    "groq",
+    "together",
 )
 
 HostName = Literal[
@@ -56,6 +60,10 @@ HostName = Literal[
     "deepinfra",
     "meta",
     "typesafe",
+    "deepseek",
+    "mistral",
+    "groq",
+    "together",
 ]
 
 #: Published ceilings, from ``spec/nrouter-sdk-spec.json`` (``extra_body_fields``).

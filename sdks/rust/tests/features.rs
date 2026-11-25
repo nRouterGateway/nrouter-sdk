@@ -156,6 +156,10 @@ fn host_maps_onto_the_gateway_field_and_client_header_and_refuses_retired_aliase
             "deepinfra",
             "meta",
             "typesafe",
+            "deepseek",
+            "mistral",
+            "groq",
+            "together",
         ]
     );
     for host in HOST_VALUES {

@@ -219,7 +219,8 @@ export interface NRouterExtraBody {
   nrouter_guardrails?: string[];
   /**
    * Pin the upstream host offering for this request ('openai', 'anthropic',
-   * 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra', 'meta', or 'typesafe').
+   * 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra', 'meta', 'typesafe',
+   * 'deepseek', 'mistral', 'groq', or 'together').
    */
   nrouter_host?: NRouterHost;
 }
@@ -235,6 +236,10 @@ export const NROUTER_HOSTS = [
   'deepinfra',
   'meta',
   'typesafe',
+  'deepseek',
+  'mistral',
+  'groq',
+  'together',
 ] as const;
 
 export type NRouterHost = (typeof NROUTER_HOSTS)[number];
@@ -309,7 +314,8 @@ export interface NRouterFeatureOptions {
   /**
    * Pin the upstream host offering for this request via `nrouter_host` and
    * `x-nr-host` ('openai', 'anthropic', 'azure', 'bedrock', 'vertex',
-   * 'alibaba', 'deepinfra', 'meta', or 'typesafe').
+   * 'alibaba', 'deepinfra', 'meta', 'typesafe', 'deepseek', 'mistral',
+   * 'groq', or 'together').
    */
   host?: NRouterHost;
 }

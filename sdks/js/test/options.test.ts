@@ -150,6 +150,10 @@ test('host MAPS onto nrouter_host / formatHost and refuses retired host aliases'
     'deepinfra',
     'meta',
     'typesafe',
+    'deepseek',
+    'mistral',
+    'groq',
+    'together',
   ]);
   for (const h of NROUTER_HOSTS) {
     assert.deepEqual(buildExtraBody({ model: 'openai/gpt-4o', host: h }), {

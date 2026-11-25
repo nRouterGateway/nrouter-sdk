@@ -93,7 +93,8 @@ public final class NRouterException extends RuntimeException {
                 case "pot_spend_limit_exceeded":
                 case "byok_fair_use_exceeded": return Kind.RATE_LIMIT;
                 case "credit_check_failed":
-                case "service_unavailable": return Kind.SERVICE;
+                case "service_unavailable":
+                case "rate_limit_unavailable": return Kind.SERVICE;
                 // 403 model deny lists and 409 BYOK credential unavailable: no
                 // dedicated kind, so OTHER carries the code and the status.
                 case "model_denied_by_org":

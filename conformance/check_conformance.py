@@ -1464,6 +1464,7 @@ _BYOK_EXPECTED_ERRORS: dict[str, tuple[int, str]] = {
     "byok_fair_use_exceeded": (429, "nRouterRateLimitError"),
     "byok_credential_rejected": (401, "nRouterAuthenticationError"),
     "byok_credential_unavailable": (409, "nRouterError"),
+    "rate_limit_unavailable": (503, "nRouterServiceError"),
 }
 
 # Assembled from fragments so repository-wide forbidden-token scans never trip on

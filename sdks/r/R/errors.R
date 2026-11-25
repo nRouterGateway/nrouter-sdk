@@ -27,6 +27,7 @@ NROUTER_ERROR_CLASSES <- c(
   tpm_limit_exceeded       = "nrouter_rate_limit_error",
   credit_check_failed      = "nrouter_service_error",
   service_unavailable      = "nrouter_service_error",
+  rate_limit_unavailable   = "nrouter_service_error",
   input_too_large          = "nrouter_request_error",
   max_output_tokens_too_large = "nrouter_request_error",
   fallback_not_allowed     = "nrouter_request_error",

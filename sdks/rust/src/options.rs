@@ -26,7 +26,7 @@ pub const EXTRA_BODY_FIELDS: [&str; 8] = [
 pub const MAX_FALLBACKS: usize = 4;
 pub const MAX_GUARDRAILS: usize = 8;
 pub const OPTIMIZE_VALUES: [&str; 3] = ["quality", "balanced", "cost"];
-pub const HOST_VALUES: [&str; 9] = [
+pub const HOST_VALUES: [&str; 13] = [
     "openai",
     "anthropic",
     "azure",
@@ -36,6 +36,10 @@ pub const HOST_VALUES: [&str; 9] = [
     "deepinfra",
     "meta",
     "typesafe",
+    "deepseek",
+    "mistral",
+    "groq",
+    "together",
 ];
 
 const TENANCY_KEYS: [&str; 5] = ["organizationid", "orgid", "teamid", "userid", "nrouterorg"];
@@ -63,7 +67,8 @@ pub struct FeatureOptions {
     pub cost_band: Option<String>,
     /// Pin the upstream host offering for this request (`"openai"`,
     /// `"anthropic"`, `"azure"`, `"bedrock"`, `"vertex"`, `"alibaba"`,
-    /// `"deepinfra"`, `"meta"`, or `"typesafe"`).
+    /// `"deepinfra"`, `"meta"`, `"typesafe"`, `"deepseek"`, `"mistral"`,
+    /// `"groq"`, or `"together"`).
     pub host: Option<String>,
 }
 
@@ -71,8 +76,9 @@ pub fn validate_host(host: &str) -> Result<&str, NRouterError> {
     if host.contains('\r') || host.contains('\n') || !HOST_VALUES.contains(&host) {
         return Err(NRouterError::Configuration(
             "host must be one of \"openai\", \"anthropic\", \"azure\", \"bedrock\", \"vertex\", \
-             \"alibaba\", \"deepinfra\", \"meta\", or \"typesafe\"; it maps onto the gateway \
-             field nrouter_host and header x-nr-host."
+             \"alibaba\", \"deepinfra\", \"meta\", \"typesafe\", \"deepseek\", \"mistral\", \
+             \"groq\", or \"together\"; it maps onto the gateway field nrouter_host and header \
+             x-nr-host."
                 .into(),
         ));
     }

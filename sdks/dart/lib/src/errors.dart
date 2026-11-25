@@ -81,6 +81,7 @@ sealed class NRouterError implements Exception {
         return NRouterRateLimitError(body);
       case 'credit_check_failed':
       case 'service_unavailable':
+      case 'rate_limit_unavailable':
         return NRouterServiceError(body);
       case 'model_denied_by_org':
       case 'model_denied_by_team':

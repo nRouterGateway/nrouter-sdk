@@ -270,7 +270,7 @@
     },
     "x-nr-host": {
       "type": "string",
-      "description": "Pin the upstream host offering for this request ('openai', 'anthropic', 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra', 'meta', 'typesafe'). Equivalent to the nrouter_host request-body field; takes precedence over virtual-key host defaults and organization BYOK host_priority.",
+      "description": "Pin the upstream host offering for this request ('openai', 'anthropic', 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra', 'meta', 'typesafe', 'deepseek', 'mistral', 'groq', 'together'). Equivalent to the nrouter_host request-body field; takes precedence over virtual-key host defaults and organization BYOK host_priority.",
       "values": [
         "openai",
         "anthropic",
@@ -280,7 +280,11 @@
         "alibaba",
         "deepinfra",
         "meta",
-        "typesafe"
+        "typesafe",
+        "deepseek",
+        "mistral",
+        "groq",
+        "together"
       ]
     },
     "x-nr-mcp-server": {
@@ -395,6 +399,11 @@
       "http": 503,
       "class": "nRouterServiceError",
       "description": "A required gateway dependency is unavailable. Also covers an enforcing GUARDRAIL that could not run, in which case `x-nr-guardrails: unavailable` is present: the request was refused WITHOUT being judged, so retry it rather than rewriting the prompt. Both are transient and nothing was charged."
+    },
+    "rate_limit_unavailable": {
+      "http": 503,
+      "class": "nRouterServiceError",
+      "description": "Rate-limiting or BYOK fair-use metering is temporarily unavailable (HTTP 503; x-nr-limit-source and Retry-After are absent because no customer ceiling was crossed). Transient: retry the request. Refused before any provider egress; nothing was reserved and nothing was spent."
     },
     "plan_allowance_exhausted": {
       "http": 402,
@@ -683,9 +692,13 @@
         "alibaba",
         "deepinfra",
         "meta",
-        "typesafe"
+        "typesafe",
+        "deepseek",
+        "mistral",
+        "groq",
+        "together"
       ],
-      "description": "Pin the upstream host offering for this request ('openai', 'anthropic', 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra', 'meta', or 'typesafe'; also accepted via the x-nr-host request header). Evaluated with 3-tier precedence: per-request nrouter_host (or x-nr-host) -> virtual-key host -> organization BYOK host_priority. Sending an unrecognized host key or a non-string value is refused before any provider egress with 400 invalid_request."
+      "description": "Pin the upstream host offering for this request ('openai', 'anthropic', 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra', 'meta', 'typesafe', 'deepseek', 'mistral', 'groq', or 'together'; also accepted via the x-nr-host request header). Evaluated with 3-tier precedence: per-request nrouter_host (or x-nr-host) -> virtual-key host -> organization BYOK host_priority. Sending an unrecognized host key or a non-string value is refused before any provider egress with 400 invalid_request."
     }
   },
   "spend_row_metadata_fields": {

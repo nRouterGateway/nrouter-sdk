@@ -47,6 +47,10 @@ const (
 	HostDeepInfra = "deepinfra"
 	HostMeta      = "meta"
 	HostTypeSafe  = "typesafe"
+	HostDeepSeek  = "deepseek"
+	HostMistral   = "mistral"
+	HostGroq      = "groq"
+	HostTogether  = "together"
 )
 
 // ValidHosts lists the canonical upstream host keys in spec order.
@@ -60,6 +64,10 @@ var ValidHosts = []string{
 	HostDeepInfra,
 	HostMeta,
 	HostTypeSafe,
+	HostDeepSeek,
+	HostMistral,
+	HostGroq,
+	HostTogether,
 }
 
 var forbiddenTenancyKeys = map[string]struct{}{
@@ -108,7 +116,8 @@ type FeatureOptions struct {
 	CostBand string
 	// Host pins the upstream host offering for this request ("openai",
 	// "anthropic", "azure", "bedrock", "vertex", "alibaba", "deepinfra",
-	// "meta", or "typesafe"). Empty omits it.
+	// "meta", "typesafe", "deepseek", "mistral", "groq", or "together").
+	// Empty omits it.
 	Host  string
 	Cache *bool
 }
@@ -123,7 +132,7 @@ func FormatHost(host string) (string, error) {
 			return host, nil
 		}
 	}
-	return "", configErr(`Host must be one of "openai", "anthropic", "azure", "bedrock", "vertex", "alibaba", "deepinfra", "meta", or "typesafe"; it maps onto the gateway field nrouter_host and header x-nr-host`)
+	return "", configErr(`Host must be one of "openai", "anthropic", "azure", "bedrock", "vertex", "alibaba", "deepinfra", "meta", "typesafe", "deepseek", "mistral", "groq", or "together"; it maps onto the gateway field nrouter_host and header x-nr-host`)
 }
 
 // BuildExtraBody produces the nRouter extra body map.

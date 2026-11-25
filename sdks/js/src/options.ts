@@ -607,7 +607,12 @@ export function formatCompress(compress: boolean | string): string {
   return str;
 }
 
-/** Validates a canonical host key for `nrouter_host` and `x-nr-host`. */
+/**
+ * Validates one of the 13 canonical upstream host keys (`NROUTER_HOSTS`:
+ * 'openai', 'anthropic', 'azure', 'bedrock', 'vertex', 'alibaba', 'deepinfra',
+ * 'meta', 'typesafe', 'deepseek', 'mistral', 'groq', 'together') for
+ * `nrouter_host` and `x-nr-host`.
+ */
 export function formatHost(host: string): NRouterHost {
   if (typeof host !== 'string' || /[\r\n]/.test(host)) {
     throw configurationError(

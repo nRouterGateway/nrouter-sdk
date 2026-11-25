@@ -64,6 +64,8 @@ func main() {
 
 	if res.Meta.Cost != nil {
 		fmt.Printf("cost $%v (%s)\n", *res.Meta.Cost, res.Meta.CostStatus)
+	} else if res.Meta.CostStatus == "byok" {
+		fmt.Println("cost byok (billed by your provider)")
 	} else {
 		// Unpriced is NOT free — it is unknown. Never render it as 0.
 		fmt.Printf("unpriced (%s)\n", res.Meta.CostStatus)
@@ -78,7 +80,7 @@ keeps working and stays supported. The vendor client owns its own transport and
 discards the raw response, so the `x-nr-*` metadata is out of reach without
 `.WithRawResponse()` plumbing at every call site. This SDK exists for the
 metadata: cost, tokens, cache outcome and limit source come back beside every
-response, and the gateway's twenty-eight error codes arrive as typed values.
+response, and the gateway's twenty-nine error codes arrive as typed values.
 
 ## Response metadata
 
@@ -95,8 +97,8 @@ field is a pointer, deliberately:
 | `RequestID` | `x-nr-request-id` | — (always present) |
 | `LatencyMs` | `x-nr-latency-ms` | the header was absent or unparseable; the edge stamps it on every response, and it is time-to-HEADERS, never time to the last streamed byte |
 | `TraceID` | `x-nr-trace-id` | no valid trace existed for this request |
-| `Cost` | `x-nr-request-cost` | **unpriced, not free** |
-| `CostStatus` | `x-nr-cost-status` | `exact` or `unpriced` |
+| `Cost` | `x-nr-request-cost` | **unpriced or `byok`, not free** |
+| `CostStatus` | `x-nr-cost-status` | `"exact"`, `"unpriced"`, or `"byok"` |
 | `Model` | `x-nr-model` | the model that served it |
 | `InputTokens` / `OutputTokens` / `TotalTokens` | `x-nr-*-tokens` | not measured |
 | `CacheReadTokens` / `CacheWriteTokens` | `x-nr-cache-*-tokens` | zero, so omitted |
@@ -142,7 +144,7 @@ to add money is a wrong answer delivered confidently.
 | `ErrCredit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
 | `ErrNotFound` | `model_not_found` | 404 |
 | `ErrRateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
-| `ErrService` | `credit_check_failed`, `service_unavailable` | 503 |
+| `ErrService` | `credit_check_failed`, `service_unavailable`, `rate_limit_unavailable` | 503 |
 | `ErrOther` | `model_denied_by_org`, `model_denied_by_team`, `model_denied_by_key`, `byok_credential_unavailable`, anything newer than this SDK | 403 / 409 / — |
 | `ErrTransport` | never reached the gateway | — |
 

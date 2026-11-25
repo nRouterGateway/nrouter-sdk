@@ -489,6 +489,7 @@ func TestByokCodesMapToTheirKinds(t *testing.T) {
 		"byok_fair_use_exceeded":      {429, KindRateLimit},
 		"byok_credential_rejected":    {401, KindAuthentication},
 		"byok_credential_unavailable": {409, KindOther},
+		"rate_limit_unavailable":      {503, KindService},
 	}
 	for code, want := range cases {
 		t.Run(code, func(t *testing.T) {
@@ -506,6 +507,11 @@ func TestByokCodesMapToTheirKinds(t *testing.T) {
 			}
 			if e.Kind != want.kind || e.Code != code || e.Status != want.status {
 				t.Fatalf("code %s: kind/code/status not preserved: %+v", code, e)
+			}
+			if code == "rate_limit_unavailable" {
+				if !errors.Is(err, ErrService) || !e.IsRetryable() || e.LimitSource != "" {
+					t.Fatalf("rate_limit_unavailable must be retryable ErrService with empty LimitSource: %+v", e)
+				}
 			}
 		})
 	}

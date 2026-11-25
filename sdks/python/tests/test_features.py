@@ -120,6 +120,10 @@ def test_host_maps_onto_the_gateway_field_and_header_and_refuses_retired_aliases
         "deepinfra",
         "meta",
         "typesafe",
+        "deepseek",
+        "mistral",
+        "groq",
+        "together",
     )
     for host in HOST_VALUES:
         assert build_extra_body(host=host) == {"nrouter_host": host}

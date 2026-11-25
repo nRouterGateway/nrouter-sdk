@@ -87,6 +87,7 @@ final class ContractTests: XCTestCase {
             ("tpm_limit_exceeded", "rateLimit"),
             ("credit_check_failed", "service"),
             ("service_unavailable", "service"),
+            ("rate_limit_unavailable", "service"),
             ("model_denied_by_org", "other"),
             ("model_denied_by_team", "other"),
             ("model_denied_by_key", "other"),
@@ -136,7 +137,7 @@ final class ContractTests: XCTestCase {
     }
 
     func testOnlyTransientFailuresAreRetryable() {
-        for code in ["rate_limit_exceeded", "service_unavailable", "credit_check_failed"] {
+        for code in ["rate_limit_exceeded", "service_unavailable", "credit_check_failed", "rate_limit_unavailable"] {
             XCTAssertTrue(
                 NRouterError.fromCode(NRouterErrorBody(message: "x", code: code)).isRetryable,
                 "\(code) should be retryable"

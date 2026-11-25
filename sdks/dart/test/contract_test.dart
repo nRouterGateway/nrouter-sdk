@@ -98,6 +98,7 @@ void main() {
       expect(build('tpm_limit_exceeded'), isA<NRouterRateLimitError>());
       expect(build('credit_check_failed'), isA<NRouterServiceError>());
       expect(build('service_unavailable'), isA<NRouterServiceError>());
+      expect(build('rate_limit_unavailable'), isA<NRouterServiceError>());
       expect(build('model_denied_by_org'), isA<NRouterOtherError>());
       expect(build('model_denied_by_team'), isA<NRouterOtherError>());
       expect(build('model_denied_by_key'), isA<NRouterOtherError>());
@@ -187,6 +188,7 @@ void main() {
         'rate_limit_exceeded',
         'service_unavailable',
         'credit_check_failed',
+        'rate_limit_unavailable',
       ]) {
         expect(build(code).isRetryable, isTrue, reason: code);
       }
@@ -217,6 +219,22 @@ void main() {
       expect(meta.cost, isNull, reason: 'unpriced must not become a number');
       expect(meta.isPriced, isFalse);
       expect(meta.requestId, 'req_1');
+    });
+
+    test('a byok response is never reported as platform-priced', () {
+      final byokAbsent = NRouterResponseMeta.fromHeaders({
+        'x-nr-cost-status': 'byok',
+        'x-nr-funding-source': 'byok',
+        'x-nr-request-id': 'req_byok_1',
+      });
+      expect(byokAbsent.cost, isNull);
+      expect(byokAbsent.isPriced, isFalse);
+
+      final byokWithRogueCost = NRouterResponseMeta.fromHeaders({
+        'x-nr-cost-status': 'byok',
+        'x-nr-request-cost': '0.00123',
+      });
+      expect(byokWithRogueCost.isPriced, isFalse);
     });
 
     test('a priced response parses its numbers', () {
@@ -1229,10 +1247,17 @@ void main() {
     test('response meta cacheAgeSeconds and isPriced', () {
       final metaPriced = NRouterResponseMeta.fromHeaders({
         'x-nr-request-cost': '0.0025',
+        'x-nr-cost-status': 'exact',
         'x-nr-response-cache-age': '42',
       });
       expect(metaPriced.isPriced, isTrue);
       expect(metaPriced.cacheAgeSeconds, 42);
+
+      final metaByok = NRouterResponseMeta.fromHeaders({
+        'x-nr-request-cost': '0',
+        'x-nr-cost-status': 'byok',
+      });
+      expect(metaByok.isPriced, isFalse);
 
       final metaUnpriced = NRouterResponseMeta.fromHeaders({});
       expect(metaUnpriced.isPriced, isFalse);

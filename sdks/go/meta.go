@@ -37,11 +37,11 @@ type ResponseMeta struct {
 	// join on this rather than assuming it echoes what was sent.
 	TraceID string
 
-	// Cost is the exact settled cost in USD. Nil when unpriced. Never treat
-	// nil as 0.
+	// Cost is the exact settled cost in USD. Nil when unpriced or funded by
+	// byok. Never treat nil as 0.
 	Cost *float64
 
-	// CostStatus is "exact" or "unpriced".
+	// CostStatus is "exact", "unpriced", or "byok".
 	CostStatus string
 
 	// Model is the model that actually served the request, which is not

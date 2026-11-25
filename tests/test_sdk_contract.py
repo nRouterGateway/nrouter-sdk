@@ -293,6 +293,20 @@ class SpecContractTests(unittest.TestCase):
             self.assertEqual(entry["class"], "nRouterRequestError")
             self.assertTrue(entry["description"].strip(), f"{code} has no description")
 
+    def test_spec_publishes_rate_limit_unavailable_and_pot_fallback_fallbacks_ineligible(
+        self,
+    ) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        self.assertIn("rate_limit_unavailable", spec["errors"])
+        rl_entry = spec["errors"]["rate_limit_unavailable"]
+        self.assertEqual(sorted(rl_entry), ["class", "description", "http"])
+        self.assertEqual(rl_entry["http"], 503)
+        self.assertEqual(rl_entry["class"], "nRouterServiceError")
+        self.assertTrue(rl_entry["description"].strip())
+
+        pot_fallback = spec["response_headers"]["x-nr-pot-fallback"]
+        self.assertIn("fallbacks_ineligible", pot_fallback["values"])
+
     def test_spec_extra_body_carries_the_per_request_routing_and_guardrail_overrides(
         self,
     ) -> None:
@@ -560,7 +574,39 @@ class SpecContractTests(unittest.TestCase):
             "deepinfra",
             "meta",
             "typesafe",
+            "deepseek",
+            "mistral",
+            "groq",
+            "together",
         ]
+        gateway_request_options = (
+            ROOT.parent / "nrouter-rust-gateway" / "src" / "http" / "request_options.rs"
+        )
+        try:
+            if gateway_request_options.exists():
+                ro_text = re.sub(
+                    r"/\*.*?\*/",
+                    "",
+                    gateway_request_options.read_text(encoding="utf-8"),
+                    flags=re.DOTALL,
+                )
+                host_block = re.search(
+                    r"pub const CANONICAL_HOST_KEYS:\s*&\[&str\]\s*=\s*&\[(.*?)\];",
+                    ro_text,
+                    flags=re.DOTALL,
+                )
+                self.assertIsNotNone(
+                    host_block, "gateway CANONICAL_HOST_KEYS is missing"
+                )
+                gateway_hosts = re.findall(
+                    r'"([^"]+)"',
+                    re.sub(r"//.*$", "", host_block.group(1), flags=re.MULTILINE),
+                )
+                self.assertEqual(canonical_hosts, gateway_hosts)
+        except (OSError, PermissionError):
+            pass
+
+        self.assertEqual(len(canonical_hosts), 13)
         self.assertEqual(request_headers["x-nr-host"]["values"], canonical_hosts)
         self.assertEqual(
             spec["extra_body_fields"]["nrouter_host"]["enum"], canonical_hosts
@@ -644,6 +690,24 @@ class SpecContractTests(unittest.TestCase):
                 py_cost_status.group(1),
                 f"sdks/python/nroutersdk/_response.py cost_status docstring omits `{val}`",
             )
+
+        go_meta = (SDK_ROOT / "sdks" / "go" / "meta.go").read_text(encoding="utf-8")
+        go_cost_status = re.search(r"//\s*CostStatus\s+([^\n]+)", go_meta)
+        self.assertIsNotNone(go_cost_status, "CostStatus comment missing in meta.go")
+        for val in ("exact", "unpriced", "byok"):
+            self.assertIn(
+                val,
+                go_cost_status.group(1),
+                f"sdks/go/meta.go CostStatus comment omits `{val}`",
+            )
+
+        for rel in (
+            "sdks/go/README.md",
+            "sdks/kotlin/README.md",
+            "sdks/python/README.md",
+        ):
+            readme = (SDK_ROOT / rel).read_text(encoding="utf-8")
+            self.assertIn("byok", readme, f"{rel} omits `byok` cost status")
 
         for rel in (
             "sdks/python/docs/validation-playbook.md",

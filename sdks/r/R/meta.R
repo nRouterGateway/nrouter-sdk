@@ -63,7 +63,7 @@ nrouter_meta <- function(headers = list()) {
       trace_id           = get_chr("x-nr-trace-id"),
       cost               = cost_val,
       cost_status        = cost_stat,
-      is_priced          = !is.null(cost_val) && !identical(cost_stat, "unpriced"),
+      is_priced          = !is.null(cost_val) && identical(cost_stat, "exact"),
       model              = get_chr("x-nr-model"),
       input_tokens       = get_num("x-nr-input-tokens"),
       output_tokens      = get_num("x-nr-output-tokens"),
@@ -143,7 +143,7 @@ nrouter_header_names <- function() {
 #' @return Logical TRUE if priced.
 #' @export
 nrouter_is_priced <- function(meta) {
-  !is.null(meta$cost) && !identical(meta$cost_status, "unpriced")
+  !is.null(meta$cost) && identical(meta$cost_status, "exact")
 }
 
 #' Parse structured budget warning from response metadata
@@ -258,7 +258,9 @@ nrouter_with_trace_context <- function(headers = list(), trace_id = NULL, sessio
 
 #' @export
 print.nrouter_meta <- function(x, ...) {
-  cost <- if (is.null(x$cost)) {
+  cost <- if (identical(x$cost_status, "byok")) {
+    "byok (billed by your provider)"
+  } else if (is.null(x$cost)) {
     # Unpriced is unknown, not free. Never print it as 0.
     paste0("unpriced", if (!is.null(x$cost_status)) paste0(" (", x$cost_status, ")") else "")
   } else {
