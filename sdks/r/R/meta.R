@@ -259,7 +259,7 @@ nrouter_with_trace_context <- function(headers = list(), trace_id = NULL, sessio
 #' @export
 print.nrouter_meta <- function(x, ...) {
   cost <- if (identical(x$cost_status, "byok")) {
-    "$0.00 (byok — billed by your provider)"
+    "byok (billed by your provider)"
   } else if (is.null(x$cost)) {
     # Unpriced is unknown, not free. Never print it as 0.
     paste0("unpriced", if (!is.null(x$cost_status)) paste0(" (", x$cost_status, ")") else "")

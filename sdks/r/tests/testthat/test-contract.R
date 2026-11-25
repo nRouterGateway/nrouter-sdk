@@ -130,7 +130,8 @@ test_that("a byok response is never platform-priced and prints byok instead of u
   expect_null(byok_meta$cost)
   expect_false(nrouter_is_priced(byok_meta))
   rendered <- paste(capture.output(print(byok_meta)), collapse = "\n")
-  expect_true(grepl("byok", rendered, fixed = TRUE))
+  expect_true(grepl("byok (billed by your provider)", rendered, fixed = TRUE))
+  expect_false(grepl("$0", rendered, fixed = TRUE))
   expect_false(grepl("unpriced", rendered, fixed = TRUE))
 
   byok_with_cost <- nrouter_meta(list(
