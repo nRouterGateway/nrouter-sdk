@@ -111,6 +111,7 @@ fn each_gateway_code_maps_to_its_variant() {
         ("byok_fair_use_exceeded", "RateLimit"),
         ("byok_credential_rejected", "Authentication"),
         ("byok_credential_unavailable", "Other"),
+        ("rate_limit_unavailable", "Service"),
     ] {
         let got = match NRouterError::from_code(body(code)) {
             NRouterError::Request(_) => "Request",
@@ -143,6 +144,7 @@ fn an_unknown_code_is_never_reclassified() {
 fn only_transient_failures_are_retryable() {
     assert!(NRouterError::from_code(body("rate_limit_exceeded")).is_retryable());
     assert!(NRouterError::from_code(body("service_unavailable")).is_retryable());
+    assert!(NRouterError::from_code(body("rate_limit_unavailable")).is_retryable());
     assert!(NRouterError::Transport("dns".into()).is_retryable());
     // A local configuration failure is PERMANENT. Marking it retryable makes a
     // caller's retry loop spin forever without ever making a request.

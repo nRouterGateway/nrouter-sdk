@@ -337,7 +337,7 @@ with nRouter() as client:
 | `nRouterBudgetExceededError` | spend ceiling exceeded (key, team, org) | 402 / 429 |
 | `nRouterNotFoundError` | `model_not_found` | 404 |
 | `nRouterRateLimitError` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
-| `nRouterServiceError` | `credit_check_failed`, `service_unavailable` | 503 |
+| `nRouterServiceError` | `credit_check_failed`, `service_unavailable`, `rate_limit_unavailable` | 503 |
 | `nRouterError` | `model_denied_by_org`, `model_denied_by_team`, `model_denied_by_key`, `byok_credential_unavailable`, anything newer than this SDK | 403 / 409 / — |
 
 `is_retryable(e)` is true only for `nRouterRateLimitError`, `nRouterServiceError`, and transport/connection failures. Every other case names something permanent, where a retry burns quota and cannot change the answer.

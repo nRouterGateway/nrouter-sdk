@@ -294,7 +294,7 @@ export class nRouterRateLimitError extends nRouterError {
   }
 }
 
-/** `credit_check_failed` / `service_unavailable` (503), and transient upstream 502/504. */
+/** `credit_check_failed` / `service_unavailable` / `rate_limit_unavailable` (503), and transient upstream 502/504. */
 export class nRouterServiceError extends nRouterError {
   static readonly kind: nRouterErrorKind = 'service';
   constructor(message: string, options: nRouterErrorOptions = {}) {
@@ -353,6 +353,7 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   tpm_limit_exceeded: nRouterRateLimitError,
   credit_check_failed: nRouterServiceError,
   service_unavailable: nRouterServiceError,
+  rate_limit_unavailable: nRouterServiceError,
   plan_allowance_exhausted: nRouterCreditError,
   plan_required: nRouterCreditError,
   input_too_large: nRouterRequestError,
@@ -391,6 +392,7 @@ export const ERROR_STATUS_BY_CODE: Readonly<Record<string, number>> = Object.fre
   tpm_limit_exceeded: 429,
   credit_check_failed: 503,
   service_unavailable: 503,
+  rate_limit_unavailable: 503,
   plan_allowance_exhausted: 402,
   plan_required: 402,
   input_too_large: 400,

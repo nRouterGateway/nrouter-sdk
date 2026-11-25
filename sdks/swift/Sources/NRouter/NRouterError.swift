@@ -76,7 +76,8 @@ public enum NRouterError: Error, Equatable {
         case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded",
              "byok_fair_use_exceeded":
             return .rateLimit(body)
-        case "credit_check_failed", "service_unavailable": return .service(body)
+        case "credit_check_failed", "service_unavailable", "rate_limit_unavailable":
+            return .service(body)
         // 403 model deny lists and 409 BYOK credential unavailable: no
         // dedicated case, so `.other` carries the code and the status.
         case "model_denied_by_org", "model_denied_by_team", "model_denied_by_key",

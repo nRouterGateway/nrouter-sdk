@@ -189,6 +189,9 @@ class NRouterHttpClientTest {
         assertEquals(
                 NRouterException.Kind.OTHER,
                 NRouterException.gateway("refused", "byok_credential_unavailable", 409, null).kind());
+        NRouterException rlUnavailable = NRouterException.gateway("refused", "rate_limit_unavailable", 503, null);
+        assertEquals(NRouterException.Kind.SERVICE, rlUnavailable.kind());
+        assertTrue(rlUnavailable.isRetryable());
     }
 
     @Test

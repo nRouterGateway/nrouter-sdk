@@ -152,6 +152,7 @@ class ContractTest {
             "tpm_limit_exceeded" to NRouterError.RateLimit::class,
             "credit_check_failed" to NRouterError.Service::class,
             "service_unavailable" to NRouterError.Service::class,
+            "rate_limit_unavailable" to NRouterError.Service::class,
             "model_denied_by_org" to NRouterError.Other::class,
             "model_denied_by_team" to NRouterError.Other::class,
             "model_denied_by_key" to NRouterError.Other::class,
@@ -200,7 +201,7 @@ class ContractTest {
 
     @Test
     fun `only transient failures are retryable`() {
-        listOf("rate_limit_exceeded", "service_unavailable", "credit_check_failed").forEach {
+        listOf("rate_limit_exceeded", "service_unavailable", "credit_check_failed", "rate_limit_unavailable").forEach {
             assertTrue(NRouterError.fromCode(NRouterErrorBody("x", code = it)).isRetryable, it)
         }
         listOf(

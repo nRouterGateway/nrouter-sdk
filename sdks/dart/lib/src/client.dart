@@ -957,6 +957,7 @@ bool _knownErrorCode(String code) => const {
       'tpm_limit_exceeded',
       'credit_check_failed',
       'service_unavailable',
+      'rate_limit_unavailable',
       'input_too_large',
       'max_output_tokens_too_large',
       'fallback_not_allowed',

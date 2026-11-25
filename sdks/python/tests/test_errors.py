@@ -706,6 +706,12 @@ def test_byok_funding_and_fallback_headers_are_parsed():
             {"x-nr-request-id": "req-byok-409"},
             nRouterError,
         ),
+        (
+            503,
+            "rate_limit_unavailable",
+            {"x-nr-request-id": "req-rl-503"},
+            nRouterServiceError,
+        ),
     ],
 )
 def test_byok_refusal_codes_classify_and_preserve_code_and_metadata(
@@ -721,3 +727,21 @@ def test_byok_refusal_codes_classify_and_preserve_code_and_metadata(
     if code == "byok_fair_use_exceeded":
         assert caught.value.limit_source == "byok_fair_use"
         assert caught.value.retry_after == 3600
+    if code == "rate_limit_unavailable":
+        from nroutersdk import is_retryable
+
+        assert is_retryable(caught.value) is True
+        assert caught.value.retry_after is None
+
+
+def test_rate_limit_unavailable_stream_frame_raises_retryable_service_error():
+    from nroutersdk import is_retryable
+    from nroutersdk.client import parse_stream_frame
+
+    with pytest.raises(nRouterServiceError) as caught:
+        parse_stream_frame(
+            "error",
+            '{"error":{"code":"rate_limit_unavailable","type":"service_unavailable","message":"rate limiting is temporarily unavailable; please retry"}}',
+        )
+    assert caught.value.code == "rate_limit_unavailable"
+    assert is_retryable(caught.value) is True

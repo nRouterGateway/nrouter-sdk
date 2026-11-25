@@ -129,7 +129,7 @@ public sealed class NRouterError(
             "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded",
             "byok_fair_use_exceeded",
             -> RateLimit(body)
-            "credit_check_failed", "service_unavailable" -> Service(body)
+            "credit_check_failed", "service_unavailable", "rate_limit_unavailable" -> Service(body)
             // 403 model deny lists and 409 BYOK credential unavailable: no
             // dedicated class, so Other carries the code and the status.
             "model_denied_by_org", "model_denied_by_team", "model_denied_by_key",

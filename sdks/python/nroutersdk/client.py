@@ -425,6 +425,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "model_not_found": nRouterNotFoundError,
         "credit_check_failed": nRouterServiceError,
         "service_unavailable": nRouterServiceError,
+        "rate_limit_unavailable": nRouterServiceError,
     }
     if gateway_code in _BY_CODE:
         cls = _BY_CODE[gateway_code]
@@ -1731,7 +1732,11 @@ def parse_stream_frame(
                 guardrails=guardrails,
                 meta=meta,
             )
-        if code in ("credit_check_failed", "service_unavailable"):
+        if code in (
+            "credit_check_failed",
+            "service_unavailable",
+            "rate_limit_unavailable",
+        ):
             raise nRouterServiceError(
                 str(message),
                 request_id=request_id,

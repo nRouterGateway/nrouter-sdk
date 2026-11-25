@@ -118,7 +118,9 @@ impl NRouterError {
             | Some("tpm_limit_exceeded")
             | Some("pot_spend_limit_exceeded")
             | Some("byok_fair_use_exceeded") => Self::RateLimit(body),
-            Some("credit_check_failed") | Some("service_unavailable") => Self::Service(body),
+            Some("credit_check_failed")
+            | Some("service_unavailable")
+            | Some("rate_limit_unavailable") => Self::Service(body),
             // 403 model deny lists and 409 BYOK credential unavailable: no
             // dedicated variant, so `Other` carries the code and the status.
             Some("model_denied_by_org")

@@ -73,6 +73,7 @@ test_that("each gateway code maps to its condition class", {
     tpm_limit_exceeded       = "nrouter_rate_limit_error",
     credit_check_failed      = "nrouter_service_error",
     service_unavailable      = "nrouter_service_error",
+    rate_limit_unavailable   = "nrouter_service_error",
     model_denied_by_org      = "nrouter_other_error",
     model_denied_by_team     = "nrouter_other_error",
     model_denied_by_key      = "nrouter_other_error",
@@ -98,7 +99,7 @@ test_that("an unknown code is never reclassified", {
 })
 
 test_that("only transient failures are retryable", {
-  for (code in c("rate_limit_exceeded", "service_unavailable", "credit_check_failed")) {
+  for (code in c("rate_limit_exceeded", "service_unavailable", "credit_check_failed", "rate_limit_unavailable")) {
     expect_true(nrouter_is_retryable(nrouter_condition("x", code = code)), info = code)
   }
   for (code in c("invalid_request", "cost_band_unsatisfiable", "guardrail_blocked",

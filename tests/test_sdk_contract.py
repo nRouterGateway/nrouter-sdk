@@ -293,6 +293,20 @@ class SpecContractTests(unittest.TestCase):
             self.assertEqual(entry["class"], "nRouterRequestError")
             self.assertTrue(entry["description"].strip(), f"{code} has no description")
 
+    def test_spec_publishes_rate_limit_unavailable_and_pot_fallback_fallbacks_ineligible(
+        self,
+    ) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        self.assertIn("rate_limit_unavailable", spec["errors"])
+        rl_entry = spec["errors"]["rate_limit_unavailable"]
+        self.assertEqual(sorted(rl_entry), ["class", "description", "http"])
+        self.assertEqual(rl_entry["http"], 503)
+        self.assertEqual(rl_entry["class"], "nRouterServiceError")
+        self.assertTrue(rl_entry["description"].strip())
+
+        pot_fallback = spec["response_headers"]["x-nr-pot-fallback"]
+        self.assertIn("fallbacks_ineligible", pot_fallback["values"])
+
     def test_spec_extra_body_carries_the_per_request_routing_and_guardrail_overrides(
         self,
     ) -> None:

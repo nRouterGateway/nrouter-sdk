@@ -325,7 +325,7 @@ func knownErrorCode(code string) bool {
 	case "invalid_request", "guardrail_blocked", "invalid_api_key", "insufficient_credits",
 		"plan_allowance_exhausted", "plan_required",
 		"model_not_found", "rate_limit_exceeded", "tpm_limit_exceeded",
-		"credit_check_failed", "service_unavailable",
+		"credit_check_failed", "service_unavailable", "rate_limit_unavailable",
 		"input_too_large", "max_output_tokens_too_large", "fallback_not_allowed", "guardrail_not_found",
 		"image_input_unsupported", "cost_band_unsatisfiable",
 		"insufficient_promo_credit", "insufficient_hack_credit",

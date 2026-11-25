@@ -407,8 +407,9 @@ class nRouterRateLimitError(nRouterError):
 class nRouterServiceError(nRouterError):
     """A dependency the gateway needs was unavailable. Transient — retry.
 
-    Covers both ``credit_check_failed`` and ``service_unavailable``: the
-    gateway refuses rather than assuming, so nothing was charged.
+    Covers ``credit_check_failed``, ``service_unavailable`` and
+    ``rate_limit_unavailable``: the gateway refuses rather than assuming, so
+    nothing was charged.
     """
 
     code = "service_unavailable"

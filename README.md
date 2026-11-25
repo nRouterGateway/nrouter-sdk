@@ -402,6 +402,7 @@ The gateway classifies refusals into typed error codes:
 | `tpm_limit_exceeded` | 429 | `nRouterRateLimitError` | TPM limit exceeded; see `x-nr-limit-source` |
 | `credit_check_failed` | 503 | `nRouterServiceError` | Credit system unavailable |
 | `service_unavailable` | 503 | `nRouterServiceError` | A required gateway dependency is unavailable |
+| `rate_limit_unavailable` | 503 | `nRouterServiceError` | Rate-limiting or BYOK fair-use metering temporarily unavailable; retry the request |
 | `plan_allowance_exhausted` | 402 | `nRouterCreditError` | The plan's monthly usage allowance is used up (HTTP 402; the 8-hour, daily and weekly windows answer 429 `rate_limit_exceeded` instead). It resets at the next billing period (see `x-nr-allowance-reset`); no `Retry-After` is sent. With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused. |
 | `plan_required` | 402 | `nRouterCreditError` | An organization's legacy subscription plan usage allowance is paused pending payment. Pay-as-you-go organizations are served `nrouter/auto` and named models from credits and do not receive this code. `promo`- and `hack`-labeled models are funded from their promotional or hackathon credit first (falling back to credits only when the organization has turned on paid fallback, or never held that credit) and never receive this code. |
 | `input_too_large` | 400 | `nRouterRequestError` | The input exceeds the served model's context window. Refused before any provider call; nothing was spent |
