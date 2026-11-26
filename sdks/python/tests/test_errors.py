@@ -192,6 +192,28 @@ def test_an_unmapped_status_is_left_for_the_openai_sdk():
     assert _maybe_raise_nrouter_error(status_error(418, "teapot")) is None
 
 
+@pytest.mark.parametrize(
+    ("status", "code"),
+    [
+        (405, "waf_method_not_allowed"),
+        (414, "waf_uri_too_long"),
+        (400, "waf_malformed_path"),
+        (400, "waf_malformed_headers"),
+        (400, "waf_ambiguous_length"),
+        (431, "waf_headers_too_large"),
+        (415, "waf_unsupported_media_type"),
+        (413, "waf_body_too_large"),
+        (400, "waf_body_too_complex"),
+        (408, "waf_body_read_timeout"),
+    ],
+)
+def test_waf_edge_refusal_codes_classify_as_request_error_and_preserve_status(status, code):
+    with pytest.raises(nRouterRequestError) as caught:
+        _maybe_raise_nrouter_error(status_error(status, "edge refusal", code=code))
+    assert caught.value.code == code
+    assert caught.value.status_code == status
+
+
 def test_a_non_json_body_does_not_mask_the_original_error():
     request = httpx.Request("POST", "https://api.nrouter.ai/v1/chat/completions")
     response = httpx.Response(502, request=request, text="<html>gateway</html>")

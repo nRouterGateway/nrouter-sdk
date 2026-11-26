@@ -517,6 +517,36 @@ func TestByokCodesMapToTheirKinds(t *testing.T) {
 	}
 }
 
+func TestWafCodesMapToKindRequest(t *testing.T) {
+	cases := map[string]int{
+		"waf_method_not_allowed":     405,
+		"waf_uri_too_long":           414,
+		"waf_malformed_path":         400,
+		"waf_malformed_headers":      400,
+		"waf_ambiguous_length":       400,
+		"waf_headers_too_large":      431,
+		"waf_unsupported_media_type": 415,
+		"waf_body_too_large":         413,
+		"waf_body_too_complex":       400,
+		"waf_body_read_timeout":      408,
+	}
+	for code, status := range cases {
+		t.Run(code, func(t *testing.T) {
+			c := newTestClient(t, jsonHandler(status, nil, map[string]any{
+				"error": map[string]any{"code": code, "type": "invalid_request_error", "message": "edge refusal"},
+			}))
+			_, err := c.Models(context.Background())
+			var e *Error
+			if !errors.As(err, &e) {
+				t.Fatalf("got %#v; want *Error", err)
+			}
+			if e.Kind != KindRequest || e.Code != code || e.Status != status || !errors.Is(err, ErrRequest) {
+				t.Fatalf("code %s: expected KindRequest with status %d, got %+v", code, status, e)
+			}
+		})
+	}
+}
+
 // The gateway's MAIN error path sends {"error":{"type","message"}} with no
 // code at all, so status dispatch is the ordinary route, not a fallback.
 func TestCodelessResponsesAreClassifiedByStatusAndMessage(t *testing.T) {

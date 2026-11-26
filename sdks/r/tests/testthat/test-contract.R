@@ -80,7 +80,17 @@ test_that("each gateway code maps to its condition class", {
     byok_plan_required       = "nrouter_credit_error",
     byok_fair_use_exceeded   = "nrouter_rate_limit_error",
     byok_credential_rejected = "nrouter_authentication_error",
-    byok_credential_unavailable = "nrouter_other_error"
+    byok_credential_unavailable = "nrouter_other_error",
+    waf_method_not_allowed   = "nrouter_request_error",
+    waf_uri_too_long         = "nrouter_request_error",
+    waf_malformed_path       = "nrouter_request_error",
+    waf_malformed_headers    = "nrouter_request_error",
+    waf_ambiguous_length     = "nrouter_request_error",
+    waf_headers_too_large    = "nrouter_request_error",
+    waf_unsupported_media_type = "nrouter_request_error",
+    waf_body_too_large       = "nrouter_request_error",
+    waf_body_too_complex     = "nrouter_request_error",
+    waf_body_read_timeout    = "nrouter_request_error"
   )
   for (code in names(expected)) {
     cond <- nrouter_condition("boom", code = code)

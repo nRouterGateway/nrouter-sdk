@@ -264,16 +264,16 @@ provider key. This table is derived from `spec/nrouter-sdk-spec.json` › `suppo
 | Endpoint | SDK Method | nRouter Features |
 |----------|-----------|---------------|
 | `POST /v1/chat/completions` | `chat.completions.create()` | Guardrails + Prompts + A/B Testing + Credits + Response cache |
-| `POST /v1/completions` | `completions.create()` | Credits + Response cache |
-| `POST /v1/embeddings` | `embeddings.create()` | Credits |
-| `POST /v1/images/generations` | `images.generate()` | Credits |
-| `POST /v1/audio/speech` | `audio.speech.create()` | Credits (text to speech) |
-| `POST /v1/audio/transcriptions` | `audio.transcriptions.create()` | Credits (speech to text) |
-| `POST /v1/audio/translations` | `audio.translations.create()` | Credits |
+| `POST /v1/completions` | `completions.create()` | Guardrails + Credits + Response cache |
+| `POST /v1/embeddings` | `embeddings.create()` | Guardrails + Credits |
+| `POST /v1/images/generations` | `images.generate()` | Guardrails + Credits |
+| `POST /v1/audio/speech` | `audio.speech.create()` | Guardrails + Credits (text to speech) |
+| `POST /v1/audio/transcriptions` | `audio.transcriptions.create()` | Guardrails + Credits (speech to text) |
+| `POST /v1/audio/translations` | `audio.translations.create()` | Guardrails + Credits |
 | `POST /v1/messages` | `messages.create()` | Anthropic Messages wire; Guardrails + Prompts + A/B Testing + Credits + Response cache |
-| `POST /v1/messages/count_tokens` | `messages.count_tokens()` | Count before spending (free) |
+| `POST /v1/messages/count_tokens` | `messages.count_tokens()` | Guardrails + Count before spending (free) |
 | `POST /v1/responses` | `responses.create()` | OpenAI Responses wire; Guardrails + Prompts + A/B Testing + Credits + Response cache |
-| `POST /v1/videos` | `videos.create()` | Start a video job (billed) |
+| `POST /v1/videos` | `videos.create()` | Guardrails + Start a video job (billed) |
 | `GET /v1/videos/{id}` | `videos.retrieve()` | Poll job status (free) |
 | `GET /v1/videos/{id}/content` | `videos.download_content()` | Download the video (free) |
 | `GET /v1/models` | `models.list()` | Tenant-filtered model list |
@@ -422,6 +422,16 @@ The gateway classifies refusals into typed error codes:
 | `byok_fair_use_exceeded` | 429 | `nRouterRateLimitError` | The monthly BYOK token fair-use allowance is reached (`x-nr-limit-source: byok_fair_use`); models paid from prepaid credits keep working |
 | `byok_credential_rejected` | 401 | `nRouterAuthenticationError` | The saved provider API key was rejected by the upstream provider and credit fallback is disabled |
 | `byok_credential_unavailable` | 409 | `nRouterError` | The saved provider API key is unavailable and credit fallback is disabled or cannot cover the request |
+| `waf_method_not_allowed` | 405 | `nRouterRequestError` | HTTP method is not allowed on this gateway endpoint; see the `Allow` response header. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_uri_too_long` | 414 | `nRouterRequestError` | Request target exceeds the 4,096-byte URI ceiling. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_malformed_path` | 400 | `nRouterRequestError` | Request path or query contains invalid characters, double slashes, null bytes, CRLF, or path-traversal sequences. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_malformed_headers` | 400 | `nRouterRequestError` | Request header value contains control characters, CRLF, or non-visible ASCII bytes. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_ambiguous_length` | 400 | `nRouterRequestError` | Request carries duplicate, comma-separated, or signed `Content-Length`, `Content-Length` alongside `Transfer-Encoding`, or an unsupported transfer coding. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_headers_too_large` | 431 | `nRouterRequestError` | Request headers exceed 64 headers, 8 KiB for a single header value, or 32 KiB total header bytes. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_unsupported_media_type` | 415 | `nRouterRequestError` | `Content-Type` is missing, duplicated, or not accepted on this route, or `multipart/form-data` lacks a valid RFC 2046 boundary. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_body_too_large` | 413 | `nRouterRequestError` | Request body exceeds the route class ceiling (8 MiB on JSON inference routes, 25 MiB on audio upload routes, 64 KiB on management and unmapped routes). Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_body_too_complex` | 400 | `nRouterRequestError` | JSON request body is malformed or exceeds structural limits (32 nesting levels, 16,384 entries per container, or 200,000 total values). Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_body_read_timeout` | 408 | `nRouterRequestError` | Request body did not finish arriving within the gateway upload read timeout. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
 
 ---
 

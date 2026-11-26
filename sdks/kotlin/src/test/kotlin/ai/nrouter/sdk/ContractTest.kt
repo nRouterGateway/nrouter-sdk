@@ -160,6 +160,16 @@ class ContractTest {
             "byok_fair_use_exceeded" to NRouterError.RateLimit::class,
             "byok_credential_rejected" to NRouterError.Authentication::class,
             "byok_credential_unavailable" to NRouterError.Other::class,
+            "waf_method_not_allowed" to NRouterError.Request::class,
+            "waf_uri_too_long" to NRouterError.Request::class,
+            "waf_malformed_path" to NRouterError.Request::class,
+            "waf_malformed_headers" to NRouterError.Request::class,
+            "waf_ambiguous_length" to NRouterError.Request::class,
+            "waf_headers_too_large" to NRouterError.Request::class,
+            "waf_unsupported_media_type" to NRouterError.Request::class,
+            "waf_body_too_large" to NRouterError.Request::class,
+            "waf_body_too_complex" to NRouterError.Request::class,
+            "waf_body_read_timeout" to NRouterError.Request::class,
         )
         expected.forEach { (code, type) ->
             val error = NRouterError.fromCode(NRouterErrorBody("boom", code = code))

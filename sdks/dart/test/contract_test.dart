@@ -90,6 +90,16 @@ void main() {
     test('each gateway code maps to its type', () {
       expect(build('invalid_request'), isA<NRouterRequestError>());
       expect(build('cost_band_unsatisfiable'), isA<NRouterRequestError>());
+      expect(build('waf_method_not_allowed'), isA<NRouterRequestError>());
+      expect(build('waf_uri_too_long'), isA<NRouterRequestError>());
+      expect(build('waf_malformed_path'), isA<NRouterRequestError>());
+      expect(build('waf_malformed_headers'), isA<NRouterRequestError>());
+      expect(build('waf_ambiguous_length'), isA<NRouterRequestError>());
+      expect(build('waf_headers_too_large'), isA<NRouterRequestError>());
+      expect(build('waf_unsupported_media_type'), isA<NRouterRequestError>());
+      expect(build('waf_body_too_large'), isA<NRouterRequestError>());
+      expect(build('waf_body_too_complex'), isA<NRouterRequestError>());
+      expect(build('waf_body_read_timeout'), isA<NRouterRequestError>());
       expect(build('guardrail_blocked'), isA<NRouterGuardrailBlockedError>());
       expect(build('invalid_api_key'), isA<NRouterAuthenticationError>());
       expect(build('insufficient_credits'), isA<NRouterCreditError>());

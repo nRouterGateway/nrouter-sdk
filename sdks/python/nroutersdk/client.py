@@ -413,6 +413,16 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "image_input_unsupported": nRouterRequestError,
         "pot_route_feature_unsupported": nRouterRequestError,
         "cost_band_unsatisfiable": nRouterRequestError,
+        "waf_method_not_allowed": nRouterRequestError,
+        "waf_uri_too_long": nRouterRequestError,
+        "waf_malformed_path": nRouterRequestError,
+        "waf_malformed_headers": nRouterRequestError,
+        "waf_ambiguous_length": nRouterRequestError,
+        "waf_headers_too_large": nRouterRequestError,
+        "waf_unsupported_media_type": nRouterRequestError,
+        "waf_body_too_large": nRouterRequestError,
+        "waf_body_too_complex": nRouterRequestError,
+        "waf_body_read_timeout": nRouterRequestError,
         "guardrail_blocked": nRouterGuardrailBlockedError,
         "invalid_api_key": nRouterAuthenticationError,
         "byok_credential_rejected": nRouterAuthenticationError,
@@ -448,6 +458,17 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
                 message,
                 request_id=request_id,
                 retry_after=parse_retry_after(headers.get("retry-after")),
+                code=gateway_code,
+                status_code=status,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            ) from err
+        if cls is nRouterRequestError:
+            raise cls(
+                message,
+                request_id=request_id,
                 code=gateway_code,
                 status_code=status,
                 param=param,
@@ -530,6 +551,17 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         raise nRouterRequestError(
             message,
             request_id=request_id,
+            param=param,
+            type=error_type,
+            guardrails=guardrails,
+            meta=meta,
+        ) from err
+
+    if status in (405, 408, 413, 414, 415, 431):
+        raise nRouterRequestError(
+            message,
+            request_id=request_id,
+            status_code=status,
             param=param,
             type=error_type,
             guardrails=guardrails,
@@ -1722,6 +1754,16 @@ def parse_stream_frame(
             "image_input_unsupported",
             "pot_route_feature_unsupported",
             "cost_band_unsatisfiable",
+            "waf_method_not_allowed",
+            "waf_uri_too_long",
+            "waf_malformed_path",
+            "waf_malformed_headers",
+            "waf_ambiguous_length",
+            "waf_headers_too_large",
+            "waf_unsupported_media_type",
+            "waf_body_too_large",
+            "waf_body_too_complex",
+            "waf_body_read_timeout",
         ):
             raise nRouterRequestError(
                 str(message),

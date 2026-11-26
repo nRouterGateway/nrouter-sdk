@@ -95,6 +95,16 @@ final class ContractTests: XCTestCase {
             ("byok_fair_use_exceeded", "rateLimit"),
             ("byok_credential_rejected", "authentication"),
             ("byok_credential_unavailable", "other"),
+            ("waf_method_not_allowed", "request"),
+            ("waf_uri_too_long", "request"),
+            ("waf_malformed_path", "request"),
+            ("waf_malformed_headers", "request"),
+            ("waf_ambiguous_length", "request"),
+            ("waf_headers_too_large", "request"),
+            ("waf_unsupported_media_type", "request"),
+            ("waf_body_too_large", "request"),
+            ("waf_body_too_complex", "request"),
+            ("waf_body_read_timeout", "request"),
         ]
         for (code, want) in expected {
             let error = NRouterError.fromCode(NRouterErrorBody(message: "boom", code: code))

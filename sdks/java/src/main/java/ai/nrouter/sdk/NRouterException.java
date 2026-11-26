@@ -77,7 +77,17 @@ public final class NRouterException extends RuntimeException {
                 case "guardrail_not_found":
                 case "image_input_unsupported":
                 case "pot_route_feature_unsupported":
-                case "cost_band_unsatisfiable": return Kind.REQUEST;
+                case "cost_band_unsatisfiable":
+                case "waf_method_not_allowed":
+                case "waf_uri_too_long":
+                case "waf_malformed_path":
+                case "waf_malformed_headers":
+                case "waf_ambiguous_length":
+                case "waf_headers_too_large":
+                case "waf_unsupported_media_type":
+                case "waf_body_too_large":
+                case "waf_body_too_complex":
+                case "waf_body_read_timeout": return Kind.REQUEST;
                 case "guardrail_blocked": return Kind.GUARDRAIL_BLOCKED;
                 case "invalid_api_key":
                 case "byok_credential_rejected": return Kind.AUTHENTICATION;
@@ -110,6 +120,12 @@ public final class NRouterException extends RuntimeException {
                 if (lower.contains("guardrail") || (meta != null && "blocked".equals(meta.guardrails()))) {
                     return Kind.GUARDRAIL_BLOCKED;
                 }
+                return Kind.REQUEST;
+            case 405:
+            case 413:
+            case 414:
+            case 415:
+            case 431:
                 return Kind.REQUEST;
             case 401: return Kind.AUTHENTICATION;
             case 402: return lower.startsWith("budget") ? Kind.BUDGET_EXCEEDED : Kind.CREDIT;

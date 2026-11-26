@@ -112,8 +112,9 @@ fn normalize_names(
 pub fn build_extra_body(opts: &FeatureOptions) -> Result<Map<String, Value>, NRouterError> {
     if !opts.guardrail_ids.is_empty() {
         return Err(NRouterError::Configuration(
-            "guardrail_ids is not supported: guardrails are assigned per key, team, or organization \
-             in the nRouter dashboard and already apply automatically to every call."
+            "guardrail_ids is not supported: use FeatureOptions.guardrails (or .guardrails(...), \
+             mapping to nrouter_guardrails) to pass up to 8 organization-owned guardrail IDs or \
+             names in addition to assigned guardrails."
                 .into(),
         ));
     }

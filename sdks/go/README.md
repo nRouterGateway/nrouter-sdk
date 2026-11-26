@@ -80,7 +80,7 @@ keeps working and stays supported. The vendor client owns its own transport and
 discards the raw response, so the `x-nr-*` metadata is out of reach without
 `.WithRawResponse()` plumbing at every call site. This SDK exists for the
 metadata: cost, tokens, cache outcome and limit source come back beside every
-response, and the gateway's twenty-nine error codes arrive as typed values.
+response, and the gateway's thirty-nine error codes arrive as typed values.
 
 ## Response metadata
 
@@ -138,7 +138,7 @@ to add money is a wrong answer delivered confidently.
 
 | Condition | Code(s) | HTTP |
 |---|---|---|
-| `ErrRequest` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable` | 400 |
+| `ErrRequest` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable`, `waf_method_not_allowed`, `waf_uri_too_long`, `waf_malformed_path`, `waf_malformed_headers`, `waf_ambiguous_length`, `waf_headers_too_large`, `waf_unsupported_media_type`, `waf_body_too_large`, `waf_body_too_complex`, `waf_body_read_timeout` | 400 / 405 / 408 / 413 / 414 / 415 / 431 |
 | `ErrGuardrailBlocked` | `guardrail_blocked` | 400 |
 | `ErrAuthentication` | `invalid_api_key`, `byok_credential_rejected` | 401 |
 | `ErrCredit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |

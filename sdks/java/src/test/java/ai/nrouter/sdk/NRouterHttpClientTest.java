@@ -427,6 +427,28 @@ class NRouterHttpClientTest {
     }
 
     @Test
+    void wafEdgeRefusalCodesMapToRequestKind() {
+        Map<String, Integer> wafCodes = Map.of(
+                "waf_method_not_allowed", 405,
+                "waf_uri_too_long", 414,
+                "waf_malformed_path", 400,
+                "waf_malformed_headers", 400,
+                "waf_ambiguous_length", 400,
+                "waf_headers_too_large", 431,
+                "waf_unsupported_media_type", 415,
+                "waf_body_too_large", 413,
+                "waf_body_too_complex", 400,
+                "waf_body_read_timeout", 408);
+        for (Map.Entry<String, Integer> entry : wafCodes.entrySet()) {
+            NRouterException err = NRouterException.gateway(
+                    "edge refusal", entry.getKey(), entry.getValue(), null);
+            assertEquals(NRouterException.Kind.REQUEST, err.kind(), entry.getKey());
+            assertEquals(entry.getKey(), err.code());
+            assertEquals(entry.getValue(), err.status());
+        }
+    }
+
+    @Test
     void nonJsonProxyFailureDoesNotExposeItsBody() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/models", exchange -> {

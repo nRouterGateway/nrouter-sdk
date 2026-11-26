@@ -57,6 +57,16 @@ sealed class NRouterError implements Exception {
       case 'image_input_unsupported':
       case 'pot_route_feature_unsupported':
       case 'cost_band_unsatisfiable':
+      case 'waf_method_not_allowed':
+      case 'waf_uri_too_long':
+      case 'waf_malformed_path':
+      case 'waf_malformed_headers':
+      case 'waf_ambiguous_length':
+      case 'waf_headers_too_large':
+      case 'waf_unsupported_media_type':
+      case 'waf_body_too_large':
+      case 'waf_body_too_complex':
+      case 'waf_body_read_timeout':
         return (body.guardrails == 'blocked' || body.type == 'guardrail_blocked')
             ? NRouterGuardrailBlockedError(body)
             : NRouterRequestError(body);
@@ -98,6 +108,12 @@ sealed class NRouterError implements Exception {
                     body.message.toLowerCase().contains('guardrail'))
                 ? NRouterGuardrailBlockedError(body)
                 : NRouterRequestError(body);
+          case 405:
+          case 413:
+          case 414:
+          case 415:
+          case 431:
+            return NRouterRequestError(body);
           case 401:
             return NRouterAuthenticationError(body);
           case 403:

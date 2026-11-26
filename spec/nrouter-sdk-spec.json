@@ -107,7 +107,7 @@
     },
     "x-nr-guardrails": {
       "type": "string",
-      "description": "Posture of the PRE-CALL guardrail chain for this request. ABSENT means this response makes no guardrail claim — /v1/models, the control plane, an auth refusal that never reached preflight — exactly as absence works for x-nr-limit-source. Absence is never \"no guardrail applied\"; that is the explicit token `none`. Published on every wire that runs a pre-call guardrail chain: the four text wires `/v1/chat/completions`, `/v1/completions`, `/v1/messages` and `/v1/responses`, and the modality wires `/v1/images/generations`, `/v1/audio/speech`, `/v1/audio/transcriptions`, `/v1/audio/translations`, `/v1/embeddings` and `POST /v1/videos`. It is ABSENT on the two FREE video collection routes, `GET /v1/videos/{id}` and `GET /v1/videos/{id}/content`, which resolve no chain at all \u2014 absence there is the contract, and `none` would wrongly assert that a chain was looked for.",
+      "description": "Posture of the PRE-CALL guardrail chain for this request. ABSENT means this response makes no guardrail claim — /v1/models, the control plane, an auth refusal that never reached preflight — exactly as absence works for x-nr-limit-source. Absence is never \"no guardrail applied\"; that is the explicit token `none`. Published on every wire that runs a pre-call guardrail chain: the four text wires `/v1/chat/completions`, `/v1/completions`, `/v1/messages` and `/v1/responses`, `/v1/messages/count_tokens`, and the modality wires `/v1/images/generations`, `/v1/audio/speech`, `/v1/audio/transcriptions`, `/v1/audio/translations`, `/v1/embeddings` and `POST /v1/videos`. It is ABSENT on the two FREE video collection routes, `GET /v1/videos/{id}` and `GET /v1/videos/{id}/content`, which resolve no chain at all \u2014 absence there is the contract, and `none` would wrongly assert that a chain was looked for.",
       "always": false,
       "values": [
         "none",
@@ -499,6 +499,56 @@
       "http": 409,
       "class": "nRouterError",
       "description": "The organization's saved provider API key is currently unavailable (disabled, revoked, or undecryptable) and credit fallback is disabled or cannot cover the request. Re-save the provider key in BYOK settings or enable credit fallback. Refused before any provider egress; nothing was reserved and nothing was spent."
+    },
+    "waf_method_not_allowed": {
+      "http": 405,
+      "class": "nRouterRequestError",
+      "description": "HTTP method is not allowed on this gateway endpoint; see the Allow response header. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_uri_too_long": {
+      "http": 414,
+      "class": "nRouterRequestError",
+      "description": "Request target exceeds the 4,096-byte URI ceiling. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_malformed_path": {
+      "http": 400,
+      "class": "nRouterRequestError",
+      "description": "Request path or query contains invalid characters, double slashes, null bytes, CRLF, or path-traversal sequences. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_malformed_headers": {
+      "http": 400,
+      "class": "nRouterRequestError",
+      "description": "Request header value contains control characters, CRLF, or non-visible ASCII bytes. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_ambiguous_length": {
+      "http": 400,
+      "class": "nRouterRequestError",
+      "description": "Request carries duplicate, comma-separated, or signed Content-Length, Content-Length alongside Transfer-Encoding, or an unsupported transfer coding. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_headers_too_large": {
+      "http": 431,
+      "class": "nRouterRequestError",
+      "description": "Request headers exceed 64 headers, 8 KiB for a single header value, or 32 KiB total header bytes. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_unsupported_media_type": {
+      "http": 415,
+      "class": "nRouterRequestError",
+      "description": "Content-Type is missing, duplicated, or not accepted on this route, or multipart/form-data lacks a valid RFC 2046 boundary. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_body_too_large": {
+      "http": 413,
+      "class": "nRouterRequestError",
+      "description": "Request body exceeds the route class ceiling (8 MiB on JSON inference routes, 25 MiB on audio upload routes, 64 KiB on management and unmapped routes). Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_body_too_complex": {
+      "http": 400,
+      "class": "nRouterRequestError",
+      "description": "JSON request body is malformed or exceeds structural limits (32 nesting levels, 16,384 entries per container, or 200,000 total values). Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_body_read_timeout": {
+      "http": 408,
+      "class": "nRouterRequestError",
+      "description": "Request body did not finish arriving within the gateway upload read timeout. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
     }
   },
   "supported_endpoints": [
@@ -519,6 +569,7 @@
       "path": "/v1/completions",
       "sdk": "completions.create()",
       "features": [
+        "guardrails",
         "credits",
         "cache"
       ]
@@ -528,6 +579,7 @@
       "path": "/v1/embeddings",
       "sdk": "embeddings.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -536,6 +588,7 @@
       "path": "/v1/images/generations",
       "sdk": "images.generate()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -544,6 +597,7 @@
       "path": "/v1/videos",
       "sdk": "videos.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -552,6 +606,7 @@
       "path": "/v1/audio/speech",
       "sdk": "audio.speech.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -560,6 +615,7 @@
       "path": "/v1/audio/transcriptions",
       "sdk": "audio.transcriptions.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -591,7 +647,9 @@
       "method": "POST",
       "path": "/v1/messages/count_tokens",
       "sdk": "messages.count_tokens()",
-      "features": []
+      "features": [
+        "guardrails"
+      ]
     },
     {
       "method": "POST",
@@ -610,6 +668,7 @@
       "path": "/v1/audio/translations",
       "sdk": "audio.translations.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },

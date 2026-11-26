@@ -26,12 +26,14 @@ answers **HTTP 404** — the model exists, just not on the route it was asked fo
            "message": "your-model is not available on /v1/chat/completions"}}
 ```
 
-There is **no machine-readable code to branch on**. Every gateway error body
-carries the same `"type": "gateway_error"`, so the HTTP status plus the route
-named in `message` is what you match on — do not write a client that keys off a
-`code` field, because there isn't one. The branded SDKs already do this mapping:
-`spec/nrouter-sdk-spec.json` binds each HTTP status (plus `x-nr-auth-reason` and
-`x-nr-limit-source` where they narrow it) to a typed exception class.
+Every gateway refusal body carries `error.type` and `error.message`, and carries
+`error.code` whenever the refusal matches one of the stable codes in
+`spec/nrouter-sdk-spec.json` (omitting `error.code` on generic refusals such as
+route availability above rather than inventing an unlisted value). Branch on
+`error.code` first when present, then `error.type` (such as `guardrail_blocked`
+or `service_unavailable`), then the HTTP status (narrowed by `x-nr-auth-reason`,
+`x-nr-limit-source`, and `x-nr-guardrails`) — never on `message` prose. The
+branded SDKs implement this exact dispatch from `spec/nrouter-sdk-spec.json`.
 
 Anthropic declares no chat-completions path and no responses path, so a
 `claude-*` id sent through an OpenAI SDK's `chat.completions` fails with a valid
@@ -113,6 +115,7 @@ x-nr-total-tokens: 60
 | `x-nr-cache-write-tokens` | Cache-write tokens; emitted only when nonzero |
 | `x-nr-limit-source` | Rate-limit source (`key`, `plan`, `team`, `user`, or `budget`) on 429 |
 | `x-nr-budget-warning` | A soft budget you configured was crossed; the request still served (`<scope> soft_budget <spend>/<ceiling>`) |
+| `x-nr-guardrails` | Guardrail posture (`none`, `monitor`, `pass`, `redacted`, `partial`, `blocked`, or `unavailable`); absent on routes that make no guardrail claim |
 
 ### Platform Fee
 
@@ -373,7 +376,7 @@ const tools = await client.chat.completions.create({
 ## Go
 
 A branded SDK lives in [`sdks/go/`](sdks/go/). It hands back every
-`x-nr-*` header and types the gateway's 29 error codes, which the vendor
+`x-nr-*` header and types the gateway's 39 error codes, which the vendor
 client cannot do without `.WithRawResponse()` plumbing at every call site:
 
 ```go
@@ -708,7 +711,7 @@ async fn main() {
 ```kotlin
 // build.gradle.kts
 repositories { mavenLocal() }
-implementation("ai.nrouter:nrouter-sdk-kotlin:3.0.0")
+implementation("ai.nrouter:nrouter-sdk-kotlin:3.1.5")
 ```
 
 ```kotlin
@@ -723,7 +726,7 @@ val result = client.chatCompletions(
         .put("messages", listOf(mapOf("role" to "user", "content" to "Hello!")))
 )
 
-// Typed errors from the gateway's 29 codes, and every x-nr-* header.
+// Typed errors from the gateway's 39 codes, and every x-nr-* header.
 // Unpriced is unknown, not free — never render a null cost as 0.
 println(if (result.meta.isPriced) "cost $${result.meta.cost}" else "unpriced")
 ```

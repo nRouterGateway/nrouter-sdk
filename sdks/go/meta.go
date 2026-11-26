@@ -75,8 +75,11 @@ type ResponseMeta struct {
 	//
 	// Empty means the gateway made NO guardrail claim about this response — a
 	// /v1/models call, an auth refusal that never reached preflight — never "no
-	// guardrail applied", which is the explicit "none". Not published on the
-	// image, audio or video routes.
+	// guardrail applied", which is the explicit "none". Published on every
+	// inference route and /v1/messages/count_tokens with the seven closed-set
+	// tokens ("none", "monitor", "pass", "redacted", "partial", "blocked",
+	// "unavailable"); absent on /v1/models* and the free video collection routes
+	// GET /v1/videos/{id} and GET /v1/videos/{id}/content.
 	//
 	// Posture only, by design: the policy name, its id, the detector family,
 	// the rule count and, for "partial", which channel went uninspected are all

@@ -983,6 +983,20 @@ private fun isKnownStreamErrorCode(code: String): Boolean = code in setOf(
     "model_denied_by_org",
     "model_denied_by_team",
     "model_denied_by_key",
+    "byok_plan_required",
+    "byok_fair_use_exceeded",
+    "byok_credential_rejected",
+    "byok_credential_unavailable",
+    "waf_method_not_allowed",
+    "waf_uri_too_long",
+    "waf_malformed_path",
+    "waf_malformed_headers",
+    "waf_ambiguous_length",
+    "waf_headers_too_large",
+    "waf_unsupported_media_type",
+    "waf_body_too_large",
+    "waf_body_too_complex",
+    "waf_body_read_timeout",
 )
 
 // Android's platform org.json does not normalize Kotlin collections the same

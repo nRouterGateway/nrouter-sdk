@@ -118,6 +118,16 @@ public sealed class NRouterError(
             "image_input_unsupported",
             "pot_route_feature_unsupported",
             "cost_band_unsatisfiable",
+            "waf_method_not_allowed",
+            "waf_uri_too_long",
+            "waf_malformed_path",
+            "waf_malformed_headers",
+            "waf_ambiguous_length",
+            "waf_headers_too_large",
+            "waf_unsupported_media_type",
+            "waf_body_too_large",
+            "waf_body_too_complex",
+            "waf_body_read_timeout",
             -> Request(body)
             "guardrail_blocked" -> GuardrailBlocked(body)
             "invalid_api_key", "byok_credential_rejected" -> Authentication(body)
@@ -141,6 +151,7 @@ public sealed class NRouterError(
                 } else {
                     Request(body)
                 }
+                405, 413, 414, 415, 431 -> Request(body)
                 401 -> Authentication(body)
                 // A permission or credential-state refusal with no code: Other keeps the status.
                 403, 409 -> Other(body)

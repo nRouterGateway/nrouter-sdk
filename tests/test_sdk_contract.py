@@ -270,6 +270,53 @@ class SpecContractTests(unittest.TestCase):
         "cost_band_unsatisfiable",
     }
 
+    WAF_REFUSAL_CODES = {
+        "waf_method_not_allowed": 405,
+        "waf_uri_too_long": 414,
+        "waf_malformed_path": 400,
+        "waf_malformed_headers": 400,
+        "waf_ambiguous_length": 400,
+        "waf_headers_too_large": 431,
+        "waf_unsupported_media_type": 415,
+        "waf_body_too_large": 413,
+        "waf_body_too_complex": 400,
+        "waf_body_read_timeout": 408,
+    }
+
+    GUARDRAIL_BEARING_ENDPOINTS = {
+        ("POST", "/v1/chat/completions"),
+        ("POST", "/v1/completions"),
+        ("POST", "/v1/embeddings"),
+        ("POST", "/v1/images/generations"),
+        ("POST", "/v1/videos"),
+        ("POST", "/v1/audio/speech"),
+        ("POST", "/v1/audio/transcriptions"),
+        ("POST", "/v1/messages"),
+        ("POST", "/v1/messages/count_tokens"),
+        ("POST", "/v1/responses"),
+        ("POST", "/v1/audio/translations"),
+    }
+
+    def test_spec_errors_name_every_waf_edge_refusal_code(self) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        missing = sorted(set(self.WAF_REFUSAL_CODES) - set(spec["errors"]))
+        self.assertEqual(missing, [], f"spec missing edge WAF error codes: {missing}")
+        for code, expected_http in sorted(self.WAF_REFUSAL_CODES.items()):
+            entry = spec["errors"][code]
+            self.assertEqual(sorted(entry), ["class", "description", "http"], code)
+            self.assertEqual(entry["http"], expected_http, code)
+            self.assertEqual(entry["class"], "nRouterRequestError", code)
+            self.assertTrue(entry["description"].strip(), code)
+
+    def test_spec_advertises_guardrails_on_all_eleven_guardrail_routes(self) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        actual = {
+            (ep["method"], ep["path"])
+            for ep in spec["supported_endpoints"]
+            if "guardrails" in ep["features"]
+        }
+        self.assertEqual(actual, self.GUARDRAIL_BEARING_ENDPOINTS)
+
     def test_spec_errors_name_every_refusal_code_on_the_wire(self) -> None:
         spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
         missing = sorted(self.WIRE_REFUSAL_CODES - set(spec["errors"]))

@@ -286,7 +286,17 @@ func classify(code, message string, status int) Kind {
 		"guardrail_not_found",
 		"image_input_unsupported",
 		"pot_route_feature_unsupported",
-		"cost_band_unsatisfiable":
+		"cost_band_unsatisfiable",
+		"waf_method_not_allowed",
+		"waf_uri_too_long",
+		"waf_malformed_path",
+		"waf_malformed_headers",
+		"waf_ambiguous_length",
+		"waf_headers_too_large",
+		"waf_unsupported_media_type",
+		"waf_body_too_large",
+		"waf_body_too_complex",
+		"waf_body_read_timeout":
 		return KindRequest
 	case "guardrail_blocked":
 		return KindGuardrailBlocked
@@ -319,6 +329,8 @@ func classify(code, message string, status int) Kind {
 		if strings.Contains(lower, "guardrail") {
 			return KindGuardrailBlocked
 		}
+		return KindRequest
+	case 405, 413, 414, 415, 431:
 		return KindRequest
 	case 401:
 		return KindAuthentication

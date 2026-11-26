@@ -38,11 +38,20 @@ fn prompt_helpers_do_not_mutate_selections() {
 
 #[test]
 fn guardrails_are_refused_and_cache_false_is_mapped() {
-    assert!(build_extra_body(&FeatureOptions {
+    let err = build_extra_body(&FeatureOptions {
         guardrail_ids: vec!["gr_1".into()],
         ..FeatureOptions::default()
     })
-    .is_err());
+    .unwrap_err();
+    match err {
+        NRouterError::Configuration(msg) => {
+            assert!(
+                msg.contains("nrouter_guardrails"),
+                "guardrail_ids error should direct callers to nrouter_guardrails, got: {msg}"
+            );
+        }
+        other => panic!("expected Configuration error, got {other:?}"),
+    }
     assert!(build_extra_body(&FeatureOptions {
         cache: Some(true),
         ..FeatureOptions::default()

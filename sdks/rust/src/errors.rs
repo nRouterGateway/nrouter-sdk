@@ -102,7 +102,17 @@ impl NRouterError {
             | Some("guardrail_not_found")
             | Some("image_input_unsupported")
             | Some("pot_route_feature_unsupported")
-            | Some("cost_band_unsatisfiable") => Self::Request(body),
+            | Some("cost_band_unsatisfiable")
+            | Some("waf_method_not_allowed")
+            | Some("waf_uri_too_long")
+            | Some("waf_malformed_path")
+            | Some("waf_malformed_headers")
+            | Some("waf_ambiguous_length")
+            | Some("waf_headers_too_large")
+            | Some("waf_unsupported_media_type")
+            | Some("waf_body_too_large")
+            | Some("waf_body_too_complex")
+            | Some("waf_body_read_timeout") => Self::Request(body),
             Some("guardrail_blocked") => Self::GuardrailBlocked(body),
             Some("invalid_api_key") | Some("byok_credential_rejected") => {
                 Self::Authentication(body)
@@ -139,6 +149,7 @@ impl NRouterError {
                         Self::Request(body)
                     }
                 }
+                Some(405) | Some(413) | Some(414) | Some(415) | Some(431) => Self::Request(body),
                 Some(401) => Self::Authentication(body),
                 // A permission or credential-state refusal with no code: no
                 // dedicated variant, so the base `Other` keeps the status.

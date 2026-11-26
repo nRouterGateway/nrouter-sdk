@@ -330,7 +330,13 @@ func knownErrorCode(code string) bool {
 		"image_input_unsupported", "cost_band_unsatisfiable",
 		"insufficient_promo_credit", "insufficient_hack_credit",
 		"pot_spend_limit_exceeded", "pot_route_feature_unsupported",
-		"model_denied_by_org", "model_denied_by_team", "model_denied_by_key":
+		"model_denied_by_org", "model_denied_by_team", "model_denied_by_key",
+		"byok_plan_required", "byok_fair_use_exceeded",
+		"byok_credential_rejected", "byok_credential_unavailable",
+		"waf_method_not_allowed", "waf_uri_too_long", "waf_malformed_path",
+		"waf_malformed_headers", "waf_ambiguous_length", "waf_headers_too_large",
+		"waf_unsupported_media_type", "waf_body_too_large", "waf_body_too_complex",
+		"waf_body_read_timeout":
 		return true
 	default:
 		return false
