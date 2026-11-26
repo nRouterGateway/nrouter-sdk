@@ -224,7 +224,7 @@ enabled:
   and `x-nr-model` names it.
 - **Selection strategies on `nrouter/auto`.** `FeatureOptions.optimize` sets
   `nrouter_optimize` to `"balanced"` (org default across all price bands with
-  no ceiling), `"quality"` (small cost weight across all price bands), or
+  no ceiling), `"quality"` (zero cost weight across all price bands), or
   `"cost"` (restricted to the `cost_band` ceiling). For cost mode, set `FeatureOptions { optimize:
   Some("cost".into()), cost_band: Some("low".into()), ..Default::default() }`
   (`"mid"` is the default band, `"high"` admits every band) and merge

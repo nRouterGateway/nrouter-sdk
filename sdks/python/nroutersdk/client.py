@@ -1123,7 +1123,7 @@ class _nRouterChat:
                 assigned, and a request can never remove or relax one.
             cache: Set false to force provider egress.
             optimize: ``"balanced"`` (org default across all price bands, no
-                ceiling), ``"quality"`` (small cost weight across all price
+                ceiling), ``"quality"`` (zero cost weight across all price
                 bands), or ``"cost"`` (within ``cost_band`` ceiling), for
                 ``nrouter/auto`` only. Overrides the organization's saved
                 strategy for this call; any other model is refused with 400
