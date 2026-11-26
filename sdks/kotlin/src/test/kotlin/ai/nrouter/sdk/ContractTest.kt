@@ -157,6 +157,7 @@ class ContractTest {
             "model_denied_by_team" to NRouterError.Other::class,
             "model_denied_by_key" to NRouterError.Other::class,
             "byok_plan_required" to NRouterError.Credit::class,
+            "budget_exceeded" to NRouterError.BudgetExceeded::class,
             "byok_fair_use_exceeded" to NRouterError.RateLimit::class,
             "byok_credential_rejected" to NRouterError.Authentication::class,
             "byok_credential_unavailable" to NRouterError.Other::class,
@@ -191,6 +192,21 @@ class ContractTest {
             NRouterErrorBody("insufficient credits: 0.01 available", status = 402),
         )
         assertTrue(shortfall is NRouterError.Credit, "got ${shortfall::class.simpleName}")
+
+        val codedBudget = NRouterError.fromCode(
+            NRouterErrorBody(
+                message = "Key budget exceeded",
+                code = "budget_exceeded",
+                type = "budget_exceeded",
+                status = 402,
+                limitSource = "budget",
+                requestId = "req-budget-402",
+            ),
+        )
+        assertTrue(codedBudget is NRouterError.BudgetExceeded, "got ${codedBudget::class.simpleName}")
+        assertEquals("budget_exceeded", codedBudget.body?.code)
+        assertEquals("budget", codedBudget.limitSource)
+        assertFalse(codedBudget.isRetryable)
     }
 
     @Test
@@ -1171,8 +1187,8 @@ class ContractTest {
         val dRetry = NRouterError.computeJitteredBackoff(0, maxDelayMs = 10000L, retryAfterSeconds = 5L, jitterFactor = 0.0)
         assertEquals(5000L, dRetry)
 
-        val dRetryCapped = NRouterError.computeJitteredBackoff(0, maxDelayMs = 10000L, retryAfterSeconds = 50L, jitterFactor = 0.0)
-        assertEquals(10000L, dRetryCapped)
+        val dRetryFloor = NRouterError.computeJitteredBackoff(0, maxDelayMs = 30000L, retryAfterSeconds = 3600L, jitterFactor = 0.5)
+        assertTrue(dRetryFloor in 3_600_000L..5_400_000L, "Retry-After: 3600 was clamped: $dRetryFloor")
 
         val dJitter = NRouterError.computeJitteredBackoff(1, baseDelayMs = 1000L, jitterFactor = 0.4)
         assertTrue(dJitter in 1200L..2000L)

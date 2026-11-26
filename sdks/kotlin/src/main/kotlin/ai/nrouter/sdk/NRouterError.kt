@@ -135,6 +135,7 @@ public sealed class NRouterError(
             "insufficient_promo_credit", "insufficient_hack_credit",
             "byok_plan_required",
             -> Credit(body)
+            "budget_exceeded" -> BudgetExceeded(body)
             "model_not_found" -> NotFound(body)
             "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded",
             "byok_fair_use_exceeded",
@@ -209,7 +210,8 @@ public sealed class NRouterError(
         /**
          * Computes a bounded jittered exponential backoff duration in milliseconds.
          *
-         * Honors `retryAfterSeconds` when non-null and > 0, bounded by `maxDelayMs`.
+         * Honors `retryAfterSeconds` as a server-mandated floor when non-null and > 0
+         * (bounded only by `MAX_RETRY_AFTER_SECONDS`, never clamped to `maxDelayMs`, and jittered upward).
          * Clamps `attempt` to [0, 30] to prevent arithmetic overflow on 2^N.
          * Jitter factor distributes delays to avoid thundering herds.
          */
@@ -226,9 +228,10 @@ public sealed class NRouterError(
             val safeJitter = jitterFactor.coerceIn(0.0, 1.0)
 
             if (retryAfterSeconds != null && retryAfterSeconds > 0) {
-                val retryMs = (retryAfterSeconds * 1000L).coerceAtMost(maxDelayMs)
-                val mult = (1.0 - safeJitter) + Math.random() * safeJitter
-                return (retryMs * mult).toLong().coerceAtLeast(0L)
+                val boundedSeconds = retryAfterSeconds.coerceAtMost(MAX_RETRY_AFTER_SECONDS)
+                val retryMs = boundedSeconds * 1000L
+                val mult = 1.0 + Math.random() * safeJitter
+                return (retryMs * mult).toLong().coerceAtLeast(retryMs)
             }
 
             val exp = 1L shl safeAttempt

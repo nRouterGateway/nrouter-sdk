@@ -80,7 +80,7 @@ keeps working and stays supported. The vendor client owns its own transport and
 discards the raw response, so the `x-nr-*` metadata is out of reach without
 `.WithRawResponse()` plumbing at every call site. This SDK exists for the
 metadata: cost, tokens, cache outcome and limit source come back beside every
-response, and the gateway's thirty-nine error codes arrive as typed values.
+response, and the gateway's forty error codes arrive as typed values.
 
 ## Response metadata
 
@@ -142,6 +142,7 @@ to add money is a wrong answer delivered confidently.
 | `ErrGuardrailBlocked` | `guardrail_blocked` | 400 |
 | `ErrAuthentication` | `invalid_api_key`, `byok_credential_rejected` | 401 |
 | `ErrCredit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
+| `ErrBudgetExceeded` | `budget_exceeded` | 402 |
 | `ErrNotFound` | `model_not_found` | 404 |
 | `ErrRateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
 | `ErrService` | `credit_check_failed`, `service_unavailable`, `rate_limit_unavailable` | 503 |

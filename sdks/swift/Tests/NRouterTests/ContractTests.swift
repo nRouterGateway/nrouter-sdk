@@ -82,6 +82,7 @@ final class ContractTests: XCTestCase {
             ("guardrail_blocked", "guardrailBlocked"),
             ("invalid_api_key", "authentication"),
             ("insufficient_credits", "credit"),
+            ("budget_exceeded", "budgetExceeded"),
             ("model_not_found", "notFound"),
             ("rate_limit_exceeded", "rateLimit"),
             ("tpm_limit_exceeded", "rateLimit"),
@@ -124,6 +125,20 @@ final class ContractTests: XCTestCase {
             NRouterErrorBody(message: "insufficient credits: 0.01 available", status: 402)
         )
         XCTAssertEqual(caseName(shortfall), "credit")
+
+        let codedBudget = NRouterError.fromCode(
+            NRouterErrorBody(
+                message: "Key budget exceeded",
+                code: "budget_exceeded",
+                type: "budget_exceeded",
+                status: 402,
+                requestID: "req-budget-402",
+                limitSource: "budget"
+            )
+        )
+        XCTAssertEqual(caseName(codedBudget), "budgetExceeded")
+        XCTAssertEqual(codedBudget.limitSource, "budget")
+        XCTAssertFalse(codedBudget.isRetryable)
     }
 
     func testACodelessFourZeroFourIsOnlyModelNotFoundWhenItNamesAModel() {
@@ -1031,9 +1046,9 @@ final class ContractTests: XCTestCase {
         let dRetry = computeJitteredBackoff(attempt: 0, maxDelay: 10.0, retryAfterSeconds: 5, jitterFactor: 0.0)
         XCTAssertEqual(dRetry, 5.0)
 
-        // Retry-After capped by maxDelay
-        let dRetryCapped = computeJitteredBackoff(attempt: 0, maxDelay: 10.0, retryAfterSeconds: 50, jitterFactor: 0.0)
-        XCTAssertEqual(dRetryCapped, 10.0)
+        // Retry-After: 3600 is a server-mandated floor and never clamped to maxDelay (30s)
+        let dRetryFloor = computeJitteredBackoff(attempt: 0, maxDelay: 30.0, retryAfterSeconds: 3600, jitterFactor: 0.5)
+        XCTAssertTrue(dRetryFloor >= 3600.0 && dRetryFloor <= 5400.0, "Retry-After: 3600 was clamped: \(dRetryFloor)")
 
         // Jitter bounds
         let dJitter = computeJitteredBackoff(attempt: 1, baseDelay: 1.0, jitterFactor: 0.4)

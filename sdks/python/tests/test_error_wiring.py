@@ -99,6 +99,37 @@ def test_a_429_reports_the_measured_limit_source_not_a_guess():
     assert caught.value.limit_source == "budget"
 
 
+def test_a_402_budget_exceeded_code_wires_to_budget_exceeded_error():
+    from nroutersdk import nRouterBudgetExceededError
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            402,
+            headers={"x-nr-request-id": "req-b402", "x-nr-limit-source": "budget"},
+            json={
+                "error": {
+                    "message": "Key budget exceeded",
+                    "type": "budget_exceeded",
+                    "code": "budget_exceeded",
+                }
+            },
+        )
+
+    c = nRouter(
+        api_key=KEY,
+        base_url="https://api.nrouter.ai/v1",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        max_retries=0,
+    )
+    with c:
+        with pytest.raises(nRouterBudgetExceededError) as caught:
+            chat(c)
+    assert type(caught.value) is nRouterBudgetExceededError
+    assert caught.value.code == "budget_exceeded"
+    assert caught.value.limit_source == "budget"
+    assert caught.value.request_id == "req-b402"
+
+
 def test_an_unclassified_status_still_raises_the_openai_error():
     from openai import APIStatusError
 

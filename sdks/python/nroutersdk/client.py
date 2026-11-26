@@ -432,6 +432,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "insufficient_promo_credit": nRouterCreditError,
         "insufficient_hack_credit": nRouterCreditError,
         "byok_plan_required": nRouterCreditError,
+        "budget_exceeded": nRouterBudgetExceededError,
         "model_not_found": nRouterNotFoundError,
         "credit_check_failed": nRouterServiceError,
         "service_unavailable": nRouterServiceError,
@@ -1727,6 +1728,16 @@ def parse_stream_frame(
             "byok_plan_required",
         ):
             raise nRouterCreditError(
+                str(message),
+                request_id=request_id,
+                code=code,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            )
+        if code == "budget_exceeded":
+            raise nRouterBudgetExceededError(
                 str(message),
                 request_id=request_id,
                 code=code,

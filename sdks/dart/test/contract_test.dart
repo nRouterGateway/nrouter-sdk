@@ -103,6 +103,7 @@ void main() {
       expect(build('guardrail_blocked'), isA<NRouterGuardrailBlockedError>());
       expect(build('invalid_api_key'), isA<NRouterAuthenticationError>());
       expect(build('insufficient_credits'), isA<NRouterCreditError>());
+      expect(build('budget_exceeded'), isA<NRouterBudgetExceededError>());
       expect(build('model_not_found'), isA<NRouterNotFoundError>());
       expect(build('rate_limit_exceeded'), isA<NRouterRateLimitError>());
       expect(build('tpm_limit_exceeded'), isA<NRouterRateLimitError>());
@@ -171,6 +172,25 @@ void main() {
         ),
         isA<NRouterCreditError>(),
       );
+      final codedBudget = NRouterError.fromCode(
+        NRouter.errorBodyFrom(
+          402,
+          {
+            'error': {
+              'message': 'Key budget exceeded',
+              'type': 'budget_exceeded',
+              'code': 'budget_exceeded',
+            }
+          },
+          NRouterResponseMeta.fromHeaders({
+            'x-nr-request-id': 'req-budget-402',
+            'x-nr-limit-source': 'budget',
+          }),
+        ),
+      );
+      expect(codedBudget, isA<NRouterBudgetExceededError>());
+      expect(codedBudget.limitSource, 'budget');
+      expect(codedBudget.isRetryable, isFalse);
     });
 
     test('a codeless 404 is only model_not_found when it names a model', () {
@@ -1056,13 +1076,14 @@ void main() {
       );
       expect(dRetry.inMilliseconds, 5000);
 
-      final dRetryCapped = computeJitteredBackoff(
+      final dRetryFloor = computeJitteredBackoff(
         attempt: 0,
-        retryAfterSeconds: 50,
-        maxDelay: const Duration(seconds: 10),
-        jitterFactor: 0.0,
+        retryAfterSeconds: 3600,
+        maxDelay: const Duration(seconds: 30),
+        jitterFactor: 0.5,
       );
-      expect(dRetryCapped.inMilliseconds, 10000);
+      expect(dRetryFloor.inMilliseconds, greaterThanOrEqualTo(3600000));
+      expect(dRetryFloor.inMilliseconds, lessThanOrEqualTo(5400000));
     });
 
     test('redacts keys and formats gateway error envelopes', () {

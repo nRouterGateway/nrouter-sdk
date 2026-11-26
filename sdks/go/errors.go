@@ -305,6 +305,8 @@ func classify(code, message string, status int) Kind {
 	case "insufficient_credits", "plan_allowance_exhausted", "plan_required",
 		"insufficient_promo_credit", "insufficient_hack_credit", "byok_plan_required":
 		return KindCredit
+	case "budget_exceeded":
+		return KindBudgetExceeded
 	case "model_not_found":
 		return KindNotFound
 	case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded",

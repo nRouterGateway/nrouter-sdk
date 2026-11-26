@@ -962,6 +962,7 @@ private fun isKnownStreamErrorCode(code: String): Boolean = code in setOf(
     "guardrail_blocked",
     "invalid_api_key",
     "insufficient_credits",
+    "budget_exceeded",
     "plan_allowance_exhausted",
     "plan_required",
     "model_not_found",

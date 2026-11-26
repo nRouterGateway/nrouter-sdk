@@ -82,6 +82,8 @@ sealed class NRouterError implements Exception {
       case 'insufficient_hack_credit':
       case 'byok_plan_required':
         return NRouterCreditError(body);
+      case 'budget_exceeded':
+        return NRouterBudgetExceededError(body);
       case 'model_not_found':
         return NRouterNotFoundError(body);
       case 'rate_limit_exceeded':
@@ -423,10 +425,13 @@ Duration computeJitteredBackoff({
   final safeJitter = jitterFactor.clamp(0.0, 1.0);
 
   if (retryAfterSeconds != null && retryAfterSeconds > 0) {
-    final retryDelay = Duration(seconds: retryAfterSeconds);
-    final effectiveDelay = retryDelay > maxDelay ? maxDelay : retryDelay;
-    final mult = (1.0 - safeJitter) + (DateTime.now().microsecond % 1000) / 1000.0 * safeJitter;
-    return Duration(milliseconds: (effectiveDelay.inMilliseconds * mult).round());
+    final boundedSeconds = retryAfterSeconds > maxRetryAfterSeconds
+        ? maxRetryAfterSeconds
+        : retryAfterSeconds;
+    final retryMs = boundedSeconds * 1000;
+    final mult = 1.0 + (DateTime.now().microsecond % 1000) / 1000.0 * safeJitter;
+    final computedMs = (retryMs * mult).round();
+    return Duration(milliseconds: computedMs < retryMs ? retryMs : computedMs);
   }
 
   final exponentialMs = baseDelay.inMilliseconds * (1 << safeAttempt);

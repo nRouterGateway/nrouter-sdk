@@ -144,6 +144,7 @@ do {
 | `.guardrailBlocked` | `guardrail_blocked` | 400 |
 | `.authentication` | `invalid_api_key`, `byok_credential_rejected` | 401 |
 | `.credit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
+| `.budgetExceeded` | `budget_exceeded` | 402 |
 | `.notFound` | `model_not_found` | 404 |
 | `.rateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
 | `.service` | `credit_check_failed`, `service_unavailable`, `rate_limit_unavailable` | 503 |

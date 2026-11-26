@@ -46,7 +46,7 @@ import java.util.stream.StreamSupport;
 /** Native Java 11 client with full gateway-route, metadata, binary and SSE coverage. */
 public final class NRouterHttpClient {
     private static final Set<String> ERROR_CODES = Set.of(
-            "invalid_request", "guardrail_blocked", "invalid_api_key", "insufficient_credits",
+            "invalid_request", "guardrail_blocked", "invalid_api_key", "insufficient_credits", "budget_exceeded",
             "model_not_found", "rate_limit_exceeded", "tpm_limit_exceeded",
             "credit_check_failed", "service_unavailable", "rate_limit_unavailable", "plan_allowance_exhausted", "plan_required",
             "input_too_large", "max_output_tokens_too_large", "fallback_not_allowed", "guardrail_not_found",

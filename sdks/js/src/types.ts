@@ -259,10 +259,9 @@ export interface NRouterFeatureOptions {
    *
    * REPLACES the organization's fallback policy for this one call — it is not
    * merged with it — and `model` stays the primary. A target this key cannot
-   * route, and `nrouter/auto`, `nrouter/promo`, `nrouter/hack`, an allowance
-   * model, a target outside the active `costBand` on cost-mode `nrouter/auto`,
-   * or any other model that is not offered as a fallback target, is refused
-   * with 400 `fallback_not_allowed`.
+   * route, and `nrouter/auto`, an allowance model, a target outside the active
+   * `costBand` on cost-mode `nrouter/auto`, or any other model that is not
+   * offered as a fallback target, is refused with 400 `fallback_not_allowed`.
    *
    * An empty array is OMITTED, not sent: `fallbacks: state.selected` with an
    * empty default means no selection, not an empty chain.

@@ -97,6 +97,7 @@ public final class NRouterException extends RuntimeException {
                 case "insufficient_promo_credit":
                 case "insufficient_hack_credit":
                 case "byok_plan_required": return Kind.CREDIT;
+                case "budget_exceeded": return Kind.BUDGET_EXCEEDED;
                 case "model_not_found": return Kind.NOT_FOUND;
                 case "rate_limit_exceeded":
                 case "tpm_limit_exceeded":
@@ -198,12 +199,10 @@ public final class NRouterException extends RuntimeException {
             maxDelay = java.time.Duration.ofSeconds(30);
         }
         if (retryAfterSeconds != null && retryAfterSeconds > 0) {
-            java.time.Duration retryDur = java.time.Duration.ofSeconds(retryAfterSeconds);
-            if (retryDur.compareTo(maxDelay) > 0) {
-                retryDur = maxDelay;
-            }
-            double factor = 0.5 + 0.5 * Math.random();
-            return java.time.Duration.ofMillis((long) (retryDur.toMillis() * factor));
+            long boundedSeconds = Math.min(retryAfterSeconds, MAX_RETRY_AFTER_SECONDS);
+            long retryMs = boundedSeconds * 1000L;
+            double factor = 1.0 + 0.5 * Math.random();
+            return java.time.Duration.ofMillis(Math.max(retryMs, (long) (retryMs * factor)));
         }
         long exp = 1L << safeAttempt;
         long rawMs = baseDelay.toMillis() * exp;

@@ -68,6 +68,7 @@ test_that("each gateway code maps to its condition class", {
     guardrail_blocked        = "nrouter_guardrail_blocked_error",
     invalid_api_key          = "nrouter_authentication_error",
     insufficient_credits     = "nrouter_credit_error",
+    budget_exceeded          = "nrouter_budget_exceeded_error",
     model_not_found          = "nrouter_not_found_error",
     rate_limit_exceeded      = "nrouter_rate_limit_error",
     tpm_limit_exceeded       = "nrouter_rate_limit_error",
@@ -535,6 +536,20 @@ test_that("retry-after parsing and jittered backoff match contract", {
 
   b_retry <- nrouter_compute_jittered_backoff(0, retry_after_seconds = 5.0, jitter_factor = 0.0)
   expect_equal(b_retry, 5.0)
+
+  b_retry_floor <- nrouter_compute_jittered_backoff(0, max_delay_seconds = 30.0, retry_after_seconds = 3600.0, jitter_factor = 0.5)
+  expect_true(b_retry_floor >= 3600.0 && b_retry_floor <= 5400.0)
+
+  budget_meta <- nrouter_meta(list("x-nr-request-id" = "req-budget-402", "x-nr-limit-source" = "budget"))
+  budget_cond <- nrouter_error_from_payload(
+    402L,
+    list(error = list(message = "Key budget exceeded", type = "budget_exceeded", code = "budget_exceeded")),
+    budget_meta
+  )
+  expect_true("nrouter_budget_exceeded_error" %in% class(budget_cond))
+  expect_equal(budget_cond$code, "budget_exceeded")
+  expect_equal(budget_cond$limit_source, "budget")
+  expect_false(nrouter_is_retryable(budget_cond))
 
   b_jitter <- nrouter_compute_jittered_backoff(2, base_delay_seconds = 1.0, max_delay_seconds = 10.0, jitter_factor = 0.5)
   expect_true(b_jitter >= 2.0 && b_jitter <= 4.0)

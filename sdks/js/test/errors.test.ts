@@ -43,14 +43,15 @@ const SPEC = JSON.parse(fs.readFileSync(SPEC_PATH, 'utf8')) as {
 // Case 3 — the nine spec codes, asserted against the spec file.
 // ---------------------------------------------------------------------------
 
-test('the spec declares thirty-nine error codes including edge WAF, BYOK, rate_limit_unavailable, and cost_band_unsatisfiable', () => {
-  // Twenty-nine through cost_band_unsatisfiable, plus the ten pre-authentication
-  // edge WAF request-shape refusal codes (waf_*).
+test('the spec declares forty error codes including budget_exceeded, edge WAF, BYOK, rate_limit_unavailable, and cost_band_unsatisfiable', () => {
+  // Thirty through budget_exceeded and cost_band_unsatisfiable, plus the ten
+  // pre-authentication edge WAF request-shape refusal codes (waf_*).
   assert.strictEqual(
     Object.keys(SPEC.errors).length,
-    39,
+    40,
     'The gateway shipped a new code. Map it in ERROR_CLASS_BY_CODE and add it here.',
   );
+  assert.strictEqual(ERROR_STATUS_BY_CODE.budget_exceeded, 402);
   assert.strictEqual(ERROR_STATUS_BY_CODE.cost_band_unsatisfiable, 400);
   assert.strictEqual(ERROR_STATUS_BY_CODE.rate_limit_unavailable, 503);
   assert.strictEqual(ERROR_STATUS_BY_CODE.waf_method_not_allowed, 405);
@@ -732,4 +733,49 @@ test('a 402 with plan limit-source maps to credit error with that code', () => {
   const err2 = createError('plan allowance exhausted', { status: 402, limitSource: 'plan_allowance_exhausted' });
   assert.equal(err2.name, 'nRouterCreditError');
   assert.equal(err2.code, 'plan_allowance_exhausted');
+});
+
+test('a 402 budget_exceeded envelope maps to nRouterBudgetExceededError with x-nr-limit-source: budget', () => {
+  const { nRouterBudgetExceededError, parseGatewayErrorEnvelope } = errors;
+  const parsed = parseGatewayErrorEnvelope({
+    error: {
+      message: 'Key budget exceeded',
+      type: 'budget_exceeded',
+      code: 'budget_exceeded',
+    },
+  });
+  const err = createError(parsed.message ?? 'Key budget exceeded', {
+    code: parsed.code,
+    type: parsed.type,
+    status: 402,
+    limitSource: 'budget',
+    requestId: 'req-budget-402',
+  });
+  assert.ok(err instanceof nRouterBudgetExceededError);
+  assert.equal(err.name, 'nRouterBudgetExceededError');
+  assert.equal(err.kind, 'budget_exceeded');
+  assert.equal(err.code, 'budget_exceeded');
+  assert.equal(err.status, 402);
+  assert.equal(err.limitSource, 'budget');
+  assert.equal(isRetryable(err), false);
+});
+
+test('computeJitteredBackoff treats Retry-After: 3600 as a floor and never clamps to maxDelayMs (30s)', () => {
+  for (let i = 0; i < 20; i += 1) {
+    const delayMs = computeJitteredBackoff({
+      attempt: 0,
+      baseDelayMs: 500,
+      maxDelayMs: 30_000,
+      retryAfterSeconds: 3600,
+      jitterFactor: 0.5,
+    });
+    assert.ok(
+      delayMs >= 3_600_000 && delayMs <= 5_400_000,
+      `Retry-After: 3600 was clamped or shortened below floor: ${delayMs}ms`,
+    );
+  }
+  assert.equal(
+    computeJitteredBackoff({ attempt: 0, maxDelayMs: 30_000, retryAfterSeconds: 3600, jitterFactor: 0 }),
+    3_600_000,
+  );
 });

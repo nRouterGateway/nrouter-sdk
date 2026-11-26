@@ -348,6 +348,7 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   guardrail_blocked: nRouterGuardrailBlockedError,
   invalid_api_key: nRouterAuthenticationError,
   insufficient_credits: nRouterCreditError,
+  budget_exceeded: nRouterBudgetExceededError,
   model_not_found: nRouterNotFoundError,
   rate_limit_exceeded: nRouterRateLimitError,
   tpm_limit_exceeded: nRouterRateLimitError,
@@ -362,9 +363,9 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   guardrail_not_found: nRouterRequestError,
   image_input_unsupported: nRouterRequestError,
   cost_band_unsatisfiable: nRouterRequestError,
-  // nrouter/promo and nrouter/hack spend only their own credit, capped per UTC
-  // hour/day/week/month: an empty balance is a credit refusal, a full window a
-  // rate-limit refusal, an unsupported feature a request refusal.
+  // Promo- and hack-labeled models spend their own pot credit first, capped per
+  // UTC hour/day/week/month: an empty balance is a credit refusal, a full
+  // window a rate-limit refusal, an unsupported feature a request refusal.
   insufficient_promo_credit: nRouterCreditError,
   insufficient_hack_credit: nRouterCreditError,
   pot_spend_limit_exceeded: nRouterRateLimitError,
@@ -398,6 +399,7 @@ export const ERROR_STATUS_BY_CODE: Readonly<Record<string, number>> = Object.fre
   guardrail_blocked: 400,
   invalid_api_key: 401,
   insufficient_credits: 402,
+  budget_exceeded: 402,
   model_not_found: 404,
   rate_limit_exceeded: 429,
   tpm_limit_exceeded: 429,

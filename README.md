@@ -369,13 +369,13 @@ not itself the register of which ones exist.
 | `x-nr-limit-source` | string | `key`, `plan`, `team`, `user`, `budget`, `plan_window_h8`, `plan_window_day`, `plan_window_week`, `capacity`, `plan_allowance_exhausted`, `plan_required`, `pot_window`, or `byok_fair_use` on 429 and 402 responses |
 | `x-nr-budget-warning` | string | A soft budget you configured was crossed by this request, which still served; `<scope> soft_budget <spend>/<ceiling>`, e.g. `org soft_budget 80.00/100.00` |
 | `x-nr-guardrails` | string | Pre-call guardrail posture — `none`, `monitor`, `redacted`, `pass`, `partial`, `blocked` or `unavailable`; absent means the response makes no guardrail claim, never `none`, which is an explicit token |
-| `x-nr-auth-reason` | string | On a 401, the gateway's stable reason for refusing the key |
-| `x-nr-response-cache` | string | `hit` or `miss`; absent when the response cache did not participate |
+| `x-nr-auth-reason` | string | On a 401, 403, or 503 auth refusal, the gateway's stable reason for refusing the key |
+| `x-nr-response-cache` | string | `hit`, `miss`, or `bypass`; absent when the response cache did not participate |
 | `x-nr-response-cache-age` | integer | Age of a cache `hit` in seconds |
 | `x-nr-funding-source` | string | Which balance or credential paid for this request: the plan's usage allowance, credits, promotional credit (`promo`-labeled models), hackathon credit (`hack`-labeled models), or saved provider key (`allowance`, `credits`, `promo`, `hack`, or `byok`) |
 | `x-nr-byok-fallback` | string | Present only when a request covered by a saved provider key fell back to prepaid credits (`x-nr-funding-source: credits`) because credit fallback is enabled and either the BYOK plan is inactive pre-provider (`plan_inactive`) or the saved key attempt failed with a non-billable provider refusal (`credential_rejected`, `permission_denied`, `rate_limited`, `overloaded`, or `connect_refused`). Absent otherwise |
 | `x-nr-pot-fallback` | string | Present only when a request for a `promo`- or `hack`-labeled model was charged to prepaid credits because the organization turned on paid fallback in Settings; names why the pot did not fund it (`pot_empty`, `pot_insufficient`, `window_hour`, `window_day`, `window_week`, `window_month`, `platform_day`, `platform_month`, `policy_excluded`, `feature` or `fallbacks_ineligible`). Absent otherwise |
-| `x-nr-allowance-reset` | integer | Seconds until the tightest usage-allowance window resets; sent on allowance-window 429s (equal to `Retry-After`) and the monthly 402 `plan_allowance_exhausted` |
+| `x-nr-allowance-reset` | integer | Seconds until the tightest usage-allowance window resets; emitted on 2xx `allowance`-funded responses, allowance-window 429s (`plan_window_h8`, `plan_window_day`, `plan_window_week`; equal to `Retry-After`), and the monthly 402 `plan_allowance_exhausted` |
 | `x-nr-routing` | string | Which chain entry answered: `direct` for the first, `fallback:<n>` for the entry n fallbacks deep; absent on cache hits and refusals |
 | `x-nr-attempts` | integer | Provider calls made for this request, retries and failovers alike; absent on cache hits and refusals |
 | `x-nr-compression` | string | Prompt compression outcome: `applied`, `not_requested`, `off` or `skipped` |
@@ -383,7 +383,7 @@ not itself the register of which ones exist.
 | `x-nr-model-deprecated` | boolean | Present when the served model is deprecated and will be retired |
 | `x-nr-deprecation-notice` | string | Notice and successor guidance for a deprecated model |
 
-Python SDK captures these automatically in `client.last_response`. Other languages read them from HTTP response headers. The two deprecation headers are the newest: read them from the raw response headers until your SDK version surfaces them as typed metadata.
+Official SDKs parse these headers—including `x-nr-model-deprecated` and `x-nr-deprecation-notice`—into typed response metadata (for example `client.last_response` in Python or `res.meta` / `Response.Meta` in the other SDKs); raw HTTP clients read them directly from response headers.
 
 ---
 
@@ -397,8 +397,9 @@ The gateway classifies refusals into typed error codes:
 | `guardrail_blocked` | 400 | `nRouterGuardrailBlockedError` | A guardrail denied the request (pre-call) or withheld the response (post-call) |
 | `invalid_api_key` | 401 | `nRouterAuthenticationError` | Virtual-key authentication refused; see `x-nr-auth-reason` |
 | `insufficient_credits` | 402 | `nRouterCreditError` | Reserve failed; nothing was spent |
+| `budget_exceeded` | 402 | `nRouterBudgetExceededError` | A key, user, team, or organization USD spend cap (Block mode) was reached before provider egress (HTTP 402; `x-nr-limit-source: budget`, no `Retry-After`). Nothing was reserved and nothing was spent; raise the budget ceiling or wait for its configured reset period |
 | `model_not_found` | 404 | `nRouterNotFoundError` | Model unknown or not visible to this key; a former model alias name is now an unknown model |
-| `rate_limit_exceeded` | 429 | `nRouterRateLimitError` | A rate limit was exceeded (RPM, TPM, RPS or RPD), or an 8-hour/daily/weekly `nrouter/auto` allowance window is used up (`x-nr-limit-source`: `plan_window_h8`, `plan_window_day` or `plan_window_week`; `Retry-After` and `x-nr-allowance-reset` carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see `x-nr-limit-source` |
+| `rate_limit_exceeded` | 429 | `nRouterRateLimitError` | A rate limit was exceeded (RPM, TPM, RPS or RPD), a `Throttle`-mode scoped budget was reached (`x-nr-limit-source: budget`, no `Retry-After`), or an 8-hour/daily/weekly `nrouter/auto` allowance window is used up (`x-nr-limit-source`: `plan_window_h8`, `plan_window_day` or `plan_window_week`; `Retry-After` and `x-nr-allowance-reset` carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see `x-nr-limit-source` |
 | `tpm_limit_exceeded` | 429 | `nRouterRateLimitError` | TPM limit exceeded; see `x-nr-limit-source` |
 | `credit_check_failed` | 503 | `nRouterServiceError` | Credit system unavailable |
 | `service_unavailable` | 503 | `nRouterServiceError` | A required gateway dependency is unavailable |

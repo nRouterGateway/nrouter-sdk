@@ -152,6 +152,7 @@ try {
 | `NRouterError.GuardrailBlocked` | `guardrail_blocked` | 400 |
 | `NRouterError.Authentication` | `invalid_api_key`, `byok_credential_rejected` | 401 |
 | `NRouterError.Credit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
+| `NRouterError.BudgetExceeded` | `budget_exceeded` | 402 |
 | `NRouterError.NotFound` | `model_not_found` | 404 |
 | `NRouterError.RateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
 | `NRouterError.Service` | `credit_check_failed`, `service_unavailable`, `rate_limit_unavailable` | 503 |

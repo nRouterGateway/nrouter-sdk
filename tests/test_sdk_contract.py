@@ -1729,11 +1729,27 @@ class TwoModeRoutingDocsTests(unittest.TestCase):
 
     def test_spec_descriptions_follow_the_two_mode_story(self) -> None:
         spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        self.assertEqual(
+            set(spec["selection_routes"].keys()),
+            {"nrouter/auto"},
+            "retired nrouter/promo and nrouter/hack routes must not appear in selection_routes",
+        )
         fallbacks = spec["extra_body_fields"]["nrouter_fallbacks"]["description"]
         # Sending the field on a request FOR nrouter/auto is itself refused,
         # which is distinct from naming nrouter/auto as a fallback target.
         self.assertRegex(fallbacks, r"request for nrouter/auto")
         self.assertIn("fallback_not_allowed", fallbacks)
+        self.assertNotIn("nrouter/promo", fallbacks)
+        self.assertNotIn("nrouter/hack", fallbacks)
+        allowance_reset = spec["response_headers"]["x-nr-allowance-reset"]["description"]
+        self.assertIn("2xx", allowance_reset)
+        self.assertIn("plan_allowance_exhausted", allowance_reset)
+        budget_err = spec["errors"]["budget_exceeded"]
+        self.assertEqual(budget_err["http"], 402)
+        self.assertEqual(budget_err["class"], "nRouterBudgetExceededError")
+        rate_limit_desc = spec["errors"]["rate_limit_exceeded"]["description"]
+        self.assertIn("Throttle", rate_limit_desc)
+        self.assertIn("x-nr-limit-source: budget", rate_limit_desc)
         blob = json.dumps(spec)
         for stale in ("Smart Router alias", "alias resolution", "Model alias absent"):
             self.assertNotIn(stale, blob, f"spec still describes {stale!r}")

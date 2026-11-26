@@ -123,6 +123,7 @@ impl NRouterError {
             | Some("insufficient_promo_credit")
             | Some("insufficient_hack_credit")
             | Some("byok_plan_required") => Self::Credit(body),
+            Some("budget_exceeded") => Self::BudgetExceeded(body),
             Some("model_not_found") => Self::NotFound(body),
             Some("rate_limit_exceeded")
             | Some("tpm_limit_exceeded")
@@ -426,9 +427,9 @@ pub fn parse_retry_after_at(raw: Option<&str>, now_epoch: u64) -> Option<u64> {
 
 /// Computes a bounded jittered exponential backoff duration.
 ///
-/// Honors `retry_after_seconds` when present and > 0, bounded by `max_delay`.
+/// Honors `retry_after_seconds` as a server-mandated floor when present and > 0
+/// (bounded only by `MAX_RETRY_AFTER_SECONDS`, never clamped to `max_delay`, and jittered upward).
 /// Clamps `attempt` to 30 to prevent arithmetic overflow on `2^attempt`.
-/// Jitter spreads backoff between 50% and 100% of the computed window.
 pub fn compute_jittered_backoff(
     attempt: u32,
     base_delay: std::time::Duration,
@@ -438,12 +439,13 @@ pub fn compute_jittered_backoff(
     let attempt = attempt.min(30);
     if let Some(ra) = retry_after_seconds {
         if ra > 0 {
-            let retry_dur = std::time::Duration::from_secs(ra).min(max_delay);
+            let bounded_secs = ra.min(MAX_RETRY_AFTER_SECONDS);
+            let retry_dur = std::time::Duration::from_secs(bounded_secs);
             let nanos = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.subsec_nanos())
                 .unwrap_or(0);
-            let factor = 0.5 + 0.5 * ((nanos % 1000) as f64 / 1000.0);
+            let factor = 1.0 + 0.5 * ((nanos % 1000) as f64 / 1000.0);
             return std::time::Duration::from_secs_f64(retry_dur.as_secs_f64() * factor);
         }
     }
