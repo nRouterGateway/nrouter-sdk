@@ -93,6 +93,7 @@ fn each_gateway_code_maps_to_its_variant() {
         ("guardrail_blocked", "GuardrailBlocked"),
         ("invalid_api_key", "Authentication"),
         ("insufficient_credits", "Credit"),
+        ("budget_exceeded", "BudgetExceeded"),
         ("model_not_found", "NotFound"),
         ("rate_limit_exceeded", "RateLimit"),
         ("tpm_limit_exceeded", "RateLimit"),
@@ -101,7 +102,7 @@ fn each_gateway_code_maps_to_its_variant() {
         ("model_denied_by_org", "Other"),
         ("model_denied_by_team", "Other"),
         ("model_denied_by_key", "Other"),
-        // nrouter/promo and nrouter/hack refusals.
+        // Promotional and hackathon pot refusals.
         ("insufficient_promo_credit", "Credit"),
         ("insufficient_hack_credit", "Credit"),
         ("pot_spend_limit_exceeded", "RateLimit"),
@@ -112,6 +113,17 @@ fn each_gateway_code_maps_to_its_variant() {
         ("byok_credential_rejected", "Authentication"),
         ("byok_credential_unavailable", "Other"),
         ("rate_limit_unavailable", "Service"),
+        // Pre-authentication edge WAF refusals.
+        ("waf_method_not_allowed", "Request"),
+        ("waf_uri_too_long", "Request"),
+        ("waf_malformed_path", "Request"),
+        ("waf_malformed_headers", "Request"),
+        ("waf_ambiguous_length", "Request"),
+        ("waf_headers_too_large", "Request"),
+        ("waf_unsupported_media_type", "Request"),
+        ("waf_body_too_large", "Request"),
+        ("waf_body_too_complex", "Request"),
+        ("waf_body_read_timeout", "Request"),
     ] {
         let got = match NRouterError::from_code(body(code)) {
             NRouterError::Request(_) => "Request",

@@ -413,6 +413,16 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "image_input_unsupported": nRouterRequestError,
         "pot_route_feature_unsupported": nRouterRequestError,
         "cost_band_unsatisfiable": nRouterRequestError,
+        "waf_method_not_allowed": nRouterRequestError,
+        "waf_uri_too_long": nRouterRequestError,
+        "waf_malformed_path": nRouterRequestError,
+        "waf_malformed_headers": nRouterRequestError,
+        "waf_ambiguous_length": nRouterRequestError,
+        "waf_headers_too_large": nRouterRequestError,
+        "waf_unsupported_media_type": nRouterRequestError,
+        "waf_body_too_large": nRouterRequestError,
+        "waf_body_too_complex": nRouterRequestError,
+        "waf_body_read_timeout": nRouterRequestError,
         "guardrail_blocked": nRouterGuardrailBlockedError,
         "invalid_api_key": nRouterAuthenticationError,
         "byok_credential_rejected": nRouterAuthenticationError,
@@ -422,6 +432,7 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         "insufficient_promo_credit": nRouterCreditError,
         "insufficient_hack_credit": nRouterCreditError,
         "byok_plan_required": nRouterCreditError,
+        "budget_exceeded": nRouterBudgetExceededError,
         "model_not_found": nRouterNotFoundError,
         "credit_check_failed": nRouterServiceError,
         "service_unavailable": nRouterServiceError,
@@ -448,6 +459,17 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
                 message,
                 request_id=request_id,
                 retry_after=parse_retry_after(headers.get("retry-after")),
+                code=gateway_code,
+                status_code=status,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            ) from err
+        if cls is nRouterRequestError:
+            raise cls(
+                message,
+                request_id=request_id,
                 code=gateway_code,
                 status_code=status,
                 param=param,
@@ -530,6 +552,17 @@ def _maybe_raise_nrouter_error(err: APIStatusError) -> None:
         raise nRouterRequestError(
             message,
             request_id=request_id,
+            param=param,
+            type=error_type,
+            guardrails=guardrails,
+            meta=meta,
+        ) from err
+
+    if status in (405, 408, 413, 414, 415, 431):
+        raise nRouterRequestError(
+            message,
+            request_id=request_id,
+            status_code=status,
             param=param,
             type=error_type,
             guardrails=guardrails,
@@ -1090,7 +1123,7 @@ class _nRouterChat:
                 assigned, and a request can never remove or relax one.
             cache: Set false to force provider egress.
             optimize: ``"balanced"`` (org default across all price bands, no
-                ceiling), ``"quality"`` (small cost weight across all price
+                ceiling), ``"quality"`` (zero cost weight across all price
                 bands), or ``"cost"`` (within ``cost_band`` ceiling), for
                 ``nrouter/auto`` only. Overrides the organization's saved
                 strategy for this call; any other model is refused with 400
@@ -1703,6 +1736,16 @@ def parse_stream_frame(
                 guardrails=guardrails,
                 meta=meta,
             )
+        if code == "budget_exceeded":
+            raise nRouterBudgetExceededError(
+                str(message),
+                request_id=request_id,
+                code=code,
+                param=param,
+                type=error_type,
+                guardrails=guardrails,
+                meta=meta,
+            )
         if code in ("invalid_api_key", "byok_credential_rejected"):
             raise nRouterAuthenticationError(
                 str(message),
@@ -1722,6 +1765,16 @@ def parse_stream_frame(
             "image_input_unsupported",
             "pot_route_feature_unsupported",
             "cost_band_unsatisfiable",
+            "waf_method_not_allowed",
+            "waf_uri_too_long",
+            "waf_malformed_path",
+            "waf_malformed_headers",
+            "waf_ambiguous_length",
+            "waf_headers_too_large",
+            "waf_unsupported_media_type",
+            "waf_body_too_large",
+            "waf_body_too_complex",
+            "waf_body_read_timeout",
         ):
             raise nRouterRequestError(
                 str(message),

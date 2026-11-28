@@ -64,7 +64,17 @@ public enum NRouterError: Error, Equatable {
              "guardrail_not_found",
              "image_input_unsupported",
              "pot_route_feature_unsupported",
-             "cost_band_unsatisfiable":
+             "cost_band_unsatisfiable",
+             "waf_method_not_allowed",
+             "waf_uri_too_long",
+             "waf_malformed_path",
+             "waf_malformed_headers",
+             "waf_ambiguous_length",
+             "waf_headers_too_large",
+             "waf_unsupported_media_type",
+             "waf_body_too_large",
+             "waf_body_too_complex",
+             "waf_body_read_timeout":
             return .request(body)
         case "guardrail_blocked": return .guardrailBlocked(body)
         case "invalid_api_key", "byok_credential_rejected": return .authentication(body)
@@ -72,6 +82,7 @@ public enum NRouterError: Error, Equatable {
              "insufficient_promo_credit", "insufficient_hack_credit",
              "byok_plan_required":
             return .credit(body)
+        case "budget_exceeded": return .budgetExceeded(body)
         case "model_not_found": return .notFound(body)
         case "rate_limit_exceeded", "tpm_limit_exceeded", "pot_spend_limit_exceeded",
              "byok_fair_use_exceeded":
@@ -90,6 +101,7 @@ public enum NRouterError: Error, Equatable {
                 return (body.guardrails == "blocked" || body.type == "guardrail_blocked" || body.message.lowercased().contains("guardrail"))
                     ? .guardrailBlocked(body)
                     : .request(body)
+            case 405, 413, 414, 415, 431: return .request(body)
             case 401: return .authentication(body)
             // A permission or credential-state refusal with no code: `.other` keeps the status.
             case 403, 409: return .other(body)
@@ -229,9 +241,9 @@ public func parseRetryAfter(_ raw: String?, now: Date = Date()) -> UInt64? {
 
 /// Computes a bounded jittered exponential backoff duration in seconds.
 ///
-/// Honors `retryAfterSeconds` when present and > 0, bounded by `maxDelay`.
+/// Honors `retryAfterSeconds` as a server-mandated floor when present and > 0
+/// (bounded only by `maxRetryAfterSeconds`, never clamped to `maxDelay`, and jittered upward).
 /// Clamps `attempt` to 30 to avoid floating point overflow.
-/// Jitter factor spreads backoff between (1 - jitterFactor) and 1.0 of the computed delay.
 public func computeJitteredBackoff(
     attempt: UInt32,
     baseDelay: TimeInterval = 0.5,
@@ -243,9 +255,10 @@ public func computeJitteredBackoff(
     let safeJitter = max(0.0, min(jitterFactor, 1.0))
 
     if let ra = retryAfterSeconds, ra > 0 {
-        let retryDelay = min(Double(ra), maxDelay)
-        let multiplier = (1.0 - safeJitter) + Double.random(in: 0.0...1.0) * safeJitter
-        return max(0.0, retryDelay * multiplier)
+        let boundedSeconds = min(ra, maxRetryAfterSeconds)
+        let retryDelay = Double(boundedSeconds)
+        let multiplier = 1.0 + Double.random(in: 0.0...1.0) * safeJitter
+        return max(retryDelay, retryDelay * multiplier)
     }
 
     let exponentialMultiplier = Double(1 << safeAttempt)

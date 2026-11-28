@@ -323,14 +323,20 @@ func streamError(event string, raw map[string]any, fallback string, status int, 
 func knownErrorCode(code string) bool {
 	switch code {
 	case "invalid_request", "guardrail_blocked", "invalid_api_key", "insufficient_credits",
-		"plan_allowance_exhausted", "plan_required",
+		"budget_exceeded", "plan_allowance_exhausted", "plan_required",
 		"model_not_found", "rate_limit_exceeded", "tpm_limit_exceeded",
 		"credit_check_failed", "service_unavailable", "rate_limit_unavailable",
 		"input_too_large", "max_output_tokens_too_large", "fallback_not_allowed", "guardrail_not_found",
 		"image_input_unsupported", "cost_band_unsatisfiable",
 		"insufficient_promo_credit", "insufficient_hack_credit",
 		"pot_spend_limit_exceeded", "pot_route_feature_unsupported",
-		"model_denied_by_org", "model_denied_by_team", "model_denied_by_key":
+		"model_denied_by_org", "model_denied_by_team", "model_denied_by_key",
+		"byok_plan_required", "byok_fair_use_exceeded",
+		"byok_credential_rejected", "byok_credential_unavailable",
+		"waf_method_not_allowed", "waf_uri_too_long", "waf_malformed_path",
+		"waf_malformed_headers", "waf_ambiguous_length", "waf_headers_too_large",
+		"waf_unsupported_media_type", "waf_body_too_large", "waf_body_too_complex",
+		"waf_body_read_timeout":
 		return true
 	default:
 		return false

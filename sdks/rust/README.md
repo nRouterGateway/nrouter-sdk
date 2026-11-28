@@ -133,10 +133,11 @@ match client.chat_completions(&body).await {
 
 | Variant | Code(s) | HTTP |
 |---|---|---|
-| `Request` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable` | 400 |
+| `Request` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable`, `waf_method_not_allowed`, `waf_uri_too_long`, `waf_malformed_path`, `waf_malformed_headers`, `waf_ambiguous_length`, `waf_headers_too_large`, `waf_unsupported_media_type`, `waf_body_too_large`, `waf_body_too_complex`, `waf_body_read_timeout` | 400 / 405 / 408 / 413 / 414 / 415 / 431 |
 | `GuardrailBlocked` | `guardrail_blocked` | 400 |
 | `Authentication` | `invalid_api_key`, `byok_credential_rejected` | 401 |
 | `Credit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
+| `BudgetExceeded` | `budget_exceeded` | 402 |
 | `NotFound` | `model_not_found` | 404 |
 | `RateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
 | `Service` | `credit_check_failed`, `service_unavailable`, `rate_limit_unavailable` | 503 |
@@ -223,7 +224,7 @@ enabled:
   and `x-nr-model` names it.
 - **Selection strategies on `nrouter/auto`.** `FeatureOptions.optimize` sets
   `nrouter_optimize` to `"balanced"` (org default across all price bands with
-  no ceiling), `"quality"` (small cost weight across all price bands), or
+  no ceiling), `"quality"` (zero cost weight across all price bands), or
   `"cost"` (restricted to the `cost_band` ceiling). For cost mode, set `FeatureOptions { optimize:
   Some("cost".into()), cost_band: Some("low".into()), ..Default::default() }`
   (`"mid"` is the default band, `"high"` admits every band) and merge

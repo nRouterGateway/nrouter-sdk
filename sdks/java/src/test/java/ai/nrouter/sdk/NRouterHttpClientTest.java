@@ -427,6 +427,28 @@ class NRouterHttpClientTest {
     }
 
     @Test
+    void wafEdgeRefusalCodesMapToRequestKind() {
+        Map<String, Integer> wafCodes = Map.of(
+                "waf_method_not_allowed", 405,
+                "waf_uri_too_long", 414,
+                "waf_malformed_path", 400,
+                "waf_malformed_headers", 400,
+                "waf_ambiguous_length", 400,
+                "waf_headers_too_large", 431,
+                "waf_unsupported_media_type", 415,
+                "waf_body_too_large", 413,
+                "waf_body_too_complex", 400,
+                "waf_body_read_timeout", 408);
+        for (Map.Entry<String, Integer> entry : wafCodes.entrySet()) {
+            NRouterException err = NRouterException.gateway(
+                    "edge refusal", entry.getKey(), entry.getValue(), null);
+            assertEquals(NRouterException.Kind.REQUEST, err.kind(), entry.getKey());
+            assertEquals(entry.getKey(), err.code());
+            assertEquals(entry.getValue(), err.status());
+        }
+    }
+
+    @Test
     void nonJsonProxyFailureDoesNotExposeItsBody() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/models", exchange -> {
@@ -858,10 +880,41 @@ class NRouterHttpClientTest {
         assertTrue(dHuge.toMillis() >= 4000 && dHuge.toMillis() <= 8000);
 
         Duration dRetry = NRouterException.computeJitteredBackoff(0, Duration.ofSeconds(1), Duration.ofSeconds(10), 5L);
-        assertTrue(dRetry.toMillis() >= 2500 && dRetry.toMillis() <= 5000);
+        assertTrue(dRetry.toMillis() >= 5000 && dRetry.toMillis() <= 7500);
 
-        Duration dRetryCapped = NRouterException.computeJitteredBackoff(0, Duration.ofSeconds(1), Duration.ofSeconds(10), 50L);
-        assertTrue(dRetryCapped.toMillis() >= 5000 && dRetryCapped.toMillis() <= 10000);
+        Duration dRetryFloor = NRouterException.computeJitteredBackoff(0, Duration.ofMillis(500), Duration.ofSeconds(30), 3600L);
+        assertTrue(dRetryFloor.toMillis() >= 3_600_000L && dRetryFloor.toMillis() <= 5_400_000L,
+                "Retry-After: 3600 must not be clamped to 30s, got " + dRetryFloor.toMillis());
+    }
+
+    @Test
+    void budgetExceeded402EnvelopeMapsToBudgetExceededKind() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/models", exchange -> {
+            byte[] body = ("{\"error\":{\"message\":\"Key budget exceeded\"," +
+                    "\"type\":\"budget_exceeded\",\"code\":\"budget_exceeded\"}}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("content-type", "application/json");
+            exchange.getResponseHeaders().set("x-nr-request-id", "req_budget_402");
+            exchange.getResponseHeaders().set("x-nr-limit-source", "budget");
+            exchange.sendResponseHeaders(402, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            String base = "http://127.0.0.1:" + server.getAddress().getPort() + "/v1";
+            NRouterException error = assertThrows(NRouterException.class, () ->
+                    NRouter.httpClient("sk-nrouter-test", base).models());
+            assertEquals(NRouterException.Kind.BUDGET_EXCEEDED, error.kind());
+            assertEquals("budget_exceeded", error.code());
+            assertEquals(402, error.status());
+            assertEquals("budget", error.limitSource());
+            assertEquals("req_budget_402", error.requestId());
+            assertFalse(error.isRetryable());
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test

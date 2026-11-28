@@ -40,6 +40,7 @@ def status_error(
     message: str,
     headers: dict | None = None,
     code: str | None = None,
+    error_type: str = "gateway_error",
 ) -> APIStatusError:
     """An APIStatusError carrying the gateway's real envelope.
 
@@ -47,7 +48,7 @@ def status_error(
     is the shape this SDK saw before 2.1.0 and must keep handling.
     """
     request = httpx.Request("POST", "https://api.nrouter.ai/v1/chat/completions")
-    error: dict = {"type": "gateway_error", "message": message}
+    error: dict = {"type": error_type, "message": message}
     if code is not None:
         error["code"] = code
     response = httpx.Response(
@@ -163,11 +164,15 @@ def test_compute_jittered_backoff_bounds():
     b_retry = compute_jittered_backoff(attempt=0, retry_after_seconds=5, max_delay_ms=10000, jitter_factor=0.0)
     assert b_retry == 5000.0
 
-    # Retry-After capped by max_delay_ms
-    b_retry_capped = compute_jittered_backoff(attempt=0, retry_after_seconds=30, max_delay_ms=10000, jitter_factor=0.0)
-    assert b_retry_capped == 10000.0
+    # Retry-After is a server-mandated floor: never clamped to max_delay_ms (30s)
+    # and never shortened below 1.0 * retry_after by jitter.
+    b_retry_floor = compute_jittered_backoff(attempt=0, retry_after_seconds=3600, max_delay_ms=30000, jitter_factor=0.0)
+    assert b_retry_floor == 3_600_000.0
+    for _ in range(20):
+        b_retry_jitter = compute_jittered_backoff(attempt=0, retry_after_seconds=3600, max_delay_ms=30000, jitter_factor=0.5)
+        assert 3_600_000.0 <= b_retry_jitter <= 5_400_000.0
 
-    # Jitter range
+    # Jitter range on ordinary exponential backoff
     b_jitter = compute_jittered_backoff(attempt=1, base_delay_ms=1000, jitter_factor=0.4)
     assert 1200.0 <= b_jitter <= 2000.0
 
@@ -190,6 +195,28 @@ def test_service_errors_carry_the_actual_status_code():
 def test_an_unmapped_status_is_left_for_the_openai_sdk():
     """Not every failure is ours to reclassify; a 418 stays an APIStatusError."""
     assert _maybe_raise_nrouter_error(status_error(418, "teapot")) is None
+
+
+@pytest.mark.parametrize(
+    ("status", "code"),
+    [
+        (405, "waf_method_not_allowed"),
+        (414, "waf_uri_too_long"),
+        (400, "waf_malformed_path"),
+        (400, "waf_malformed_headers"),
+        (400, "waf_ambiguous_length"),
+        (431, "waf_headers_too_large"),
+        (415, "waf_unsupported_media_type"),
+        (413, "waf_body_too_large"),
+        (400, "waf_body_too_complex"),
+        (408, "waf_body_read_timeout"),
+    ],
+)
+def test_waf_edge_refusal_codes_classify_as_request_error_and_preserve_status(status, code):
+    with pytest.raises(nRouterRequestError) as caught:
+        _maybe_raise_nrouter_error(status_error(status, "edge refusal", code=code))
+    assert caught.value.code == code
+    assert caught.value.status_code == status
 
 
 def test_a_non_json_body_does_not_mask_the_original_error():
@@ -630,7 +657,7 @@ def test_credit_error_preserves_specific_gateway_codes():
     ],
 )
 def test_promo_and_hack_route_refusals_classify_and_keep_their_code(status, code, expected):
-    """nrouter/promo and nrouter/hack refusals reach the class the spec names.
+    """Promotional and hackathon pot refusals reach the class the spec names.
 
     An unmapped code raises the base class on purpose, so a missing entry would
     surface here as the wrong exception, not merely a missing name.
@@ -641,6 +668,29 @@ def test_promo_and_hack_route_refusals_classify_and_keep_their_code(status, code
     assert type(caught.value) is expected
     assert caught.value.code == code
     assert caught.value.request_id == "req-pot-1"
+
+
+def test_budget_exceeded_402_maps_to_budget_exceeded_error_not_generic():
+    """HTTP 402 with code='budget_exceeded' and message 'Key budget exceeded'
+    (which does not begin with 'budget') maps to nRouterBudgetExceededError."""
+    from nroutersdk import is_retryable, nRouterBudgetExceededError
+
+    err = status_error(
+        402,
+        "Key budget exceeded",
+        {"x-nr-request-id": "req-budget-402", "x-nr-limit-source": "budget"},
+        code="budget_exceeded",
+        error_type="budget_exceeded",
+    )
+    with pytest.raises(nRouterBudgetExceededError) as caught:
+        _maybe_raise_nrouter_error(err)
+    assert type(caught.value) is nRouterBudgetExceededError
+    assert caught.value.code == "budget_exceeded"
+    assert caught.value.status_code == 402
+    assert caught.value.limit_source == "budget"
+    assert caught.value.meta.limit_source == "budget"
+    assert caught.value.request_id == "req-budget-402"
+    assert is_retryable(caught.value) is False
 
 
 def test_byok_funding_and_fallback_headers_are_parsed():

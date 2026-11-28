@@ -142,10 +142,11 @@ tryCatch(
 
 | Class | Code(s) | HTTP |
 |---|---|---|
-| `nrouter_request_error` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable` | 400 |
+| `nrouter_request_error` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable`, `waf_method_not_allowed`, `waf_uri_too_long`, `waf_malformed_path`, `waf_malformed_headers`, `waf_ambiguous_length`, `waf_headers_too_large`, `waf_unsupported_media_type`, `waf_body_too_large`, `waf_body_too_complex`, `waf_body_read_timeout` | 400 / 405 / 408 / 413 / 414 / 415 / 431 |
 | `nrouter_guardrail_blocked_error` | `guardrail_blocked` | 400 |
 | `nrouter_authentication_error` | `invalid_api_key`, `byok_credential_rejected` | 401 |
 | `nrouter_credit_error` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
+| `nrouter_budget_exceeded_error` | `budget_exceeded` | 402 |
 | `nrouter_not_found_error` | `model_not_found` | 404 |
 | `nrouter_rate_limit_error` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
 | `nrouter_service_error` | `credit_check_failed`, `service_unavailable`, `rate_limit_unavailable` | 503 |

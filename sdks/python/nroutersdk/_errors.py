@@ -98,6 +98,7 @@ class nRouterRequestError(nRouterError):
         *,
         request_id: str | None = None,
         code: str | None = None,
+        status_code: int | None = 400,
         param: str | None = None,
         type: str | None = None,
         guardrails: str | None = None,
@@ -107,7 +108,7 @@ class nRouterRequestError(nRouterError):
             message,
             request_id=request_id,
             code=code or self.code,
-            status_code=400,
+            status_code=400 if status_code is None else status_code,
             param=param,
             type=type,
             guardrails=guardrails,
@@ -299,6 +300,7 @@ class nRouterBudgetExceededError(nRouterError):
         message: str,
         *,
         request_id: str | None = None,
+        limit_source: str | None = None,
         code: str | None = None,
         param: str | None = None,
         type: str | None = None,
@@ -314,6 +316,11 @@ class nRouterBudgetExceededError(nRouterError):
             type=type,
             guardrails=guardrails,
             meta=meta,
+        )
+        self.limit_source = (
+            limit_source
+            if limit_source is not None
+            else getattr(meta, "limit_source", None)
         )
 
 
@@ -529,7 +536,8 @@ def compute_jittered_backoff(
 ) -> float:
     """Compute jittered exponential backoff in milliseconds.
 
-    Honors Retry-After when present and positive, capped at max_delay_ms.
+    Honors Retry-After as a server-mandated floor when present and positive
+    (never clamped to max_delay_ms and jittered upward only).
     Clamps attempt to [0, 30] to prevent exponential numeric overflow.
     Applies jitter factor to avoid thundering herd.
     """
@@ -537,9 +545,10 @@ def compute_jittered_backoff(
     jitter_factor = max(0.0, min(jitter_factor, 1.0))
 
     if retry_after_seconds is not None and math.isfinite(retry_after_seconds) and retry_after_seconds > 0:
-        retry_ms = min(retry_after_seconds * 1000.0, max_delay_ms)
-        multiplier = (1.0 - jitter_factor) + random.random() * jitter_factor
-        return max(0.0, retry_ms * multiplier)
+        bounded_seconds = min(float(retry_after_seconds), float(MAX_RETRY_AFTER_SECONDS))
+        retry_ms = bounded_seconds * 1000.0
+        multiplier = 1.0 + random.random() * jitter_factor
+        return max(retry_ms, retry_ms * multiplier)
 
     raw_delay = min(max_delay_ms, base_delay_ms * (2.0 ** safe_attempt))
     multiplier = (1.0 - jitter_factor) + random.random() * jitter_factor

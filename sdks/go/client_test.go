@@ -451,7 +451,7 @@ func TestModelDenyCodesKeepCodeAndStatus(t *testing.T) {
 	}
 }
 
-// The nrouter/promo and nrouter/hack refusals. An unrecognized code returns
+// Promotional and hackathon pot refusals. An unrecognized code returns
 // KindOther, so a missing mapping is a wrong kind here, not just a missing name.
 func TestPromoAndHackRouteCodesMapToTheirKinds(t *testing.T) {
 	cases := map[string]struct {
@@ -462,6 +462,7 @@ func TestPromoAndHackRouteCodesMapToTheirKinds(t *testing.T) {
 		"insufficient_hack_credit":      {402, KindCredit},
 		"pot_spend_limit_exceeded":      {429, KindRateLimit},
 		"pot_route_feature_unsupported": {400, KindRequest},
+		"budget_exceeded":               {402, KindBudgetExceeded},
 	}
 	for code, want := range cases {
 		t.Run(code, func(t *testing.T) {
@@ -477,6 +478,30 @@ func TestPromoAndHackRouteCodesMapToTheirKinds(t *testing.T) {
 				t.Fatalf("code %s: kind/code/status not preserved: %+v", code, e)
 			}
 		})
+	}
+}
+
+func TestBudgetExceeded402EnvelopeParsesAsKindBudgetExceeded(t *testing.T) {
+	c := newTestClient(t, jsonHandler(402, map[string]string{
+		"x-nr-request-id":   "req-budget-402",
+		"x-nr-limit-source": "budget",
+	}, map[string]any{
+		"error": map[string]any{
+			"message": "Key budget exceeded",
+			"type":    "budget_exceeded",
+			"code":    "budget_exceeded",
+		},
+	}))
+	_, err := c.Models(context.Background())
+	if !errors.Is(err, ErrBudgetExceeded) {
+		t.Fatalf("got %#v; want ErrBudgetExceeded", err)
+	}
+	var e *Error
+	if !errors.As(err, &e) {
+		t.Fatalf("got %#v; want *Error", err)
+	}
+	if e.Kind != KindBudgetExceeded || e.Code != "budget_exceeded" || e.Status != 402 || e.LimitSource != "budget" || e.IsRetryable() {
+		t.Fatalf("unexpected budget_exceeded error fields: %+v", e)
 	}
 }
 
@@ -512,6 +537,36 @@ func TestByokCodesMapToTheirKinds(t *testing.T) {
 				if !errors.Is(err, ErrService) || !e.IsRetryable() || e.LimitSource != "" {
 					t.Fatalf("rate_limit_unavailable must be retryable ErrService with empty LimitSource: %+v", e)
 				}
+			}
+		})
+	}
+}
+
+func TestWafCodesMapToKindRequest(t *testing.T) {
+	cases := map[string]int{
+		"waf_method_not_allowed":     405,
+		"waf_uri_too_long":           414,
+		"waf_malformed_path":         400,
+		"waf_malformed_headers":      400,
+		"waf_ambiguous_length":       400,
+		"waf_headers_too_large":      431,
+		"waf_unsupported_media_type": 415,
+		"waf_body_too_large":         413,
+		"waf_body_too_complex":       400,
+		"waf_body_read_timeout":      408,
+	}
+	for code, status := range cases {
+		t.Run(code, func(t *testing.T) {
+			c := newTestClient(t, jsonHandler(status, nil, map[string]any{
+				"error": map[string]any{"code": code, "type": "invalid_request_error", "message": "edge refusal"},
+			}))
+			_, err := c.Models(context.Background())
+			var e *Error
+			if !errors.As(err, &e) {
+				t.Fatalf("got %#v; want *Error", err)
+			}
+			if e.Kind != KindRequest || e.Code != code || e.Status != status || !errors.Is(err, ErrRequest) {
+				t.Fatalf("code %s: expected KindRequest with status %d, got %+v", code, status, e)
 			}
 		})
 	}
@@ -942,18 +997,18 @@ func TestComputeJitteredBackoff(t *testing.T) {
 		t.Fatalf("dneg out of range: %v", dneg)
 	}
 
-	// Retry-After priority
+	// Retry-After priority (server-mandated floor, jittered upward [1.0, 1.5))
 	ra := uint64(5)
 	dretry := ComputeJitteredBackoff(0, 1000*time.Millisecond, 10*time.Second, &ra)
-	if dretry < 2500*time.Millisecond || dretry > 5000*time.Millisecond {
+	if dretry < 5*time.Second || dretry > 7500*time.Millisecond {
 		t.Fatalf("dretry out of range: %v", dretry)
 	}
 
-	// Retry-After capped by maxDelay
-	raHuge := uint64(100)
-	dretryCapped := ComputeJitteredBackoff(0, 1000*time.Millisecond, 10*time.Second, &raHuge)
-	if dretryCapped < 5*time.Second || dretryCapped > 10*time.Second {
-		t.Fatalf("dretryCapped out of range: %v", dretryCapped)
+	// Retry-After: 3600 is NEVER clamped down to maxDelay (30s)
+	raWindow := uint64(3600)
+	dretryFloor := ComputeJitteredBackoff(0, 500*time.Millisecond, 30*time.Second, &raWindow)
+	if dretryFloor < 3600*time.Second || dretryFloor > 5400*time.Second {
+		t.Fatalf("Retry-After: 3600 was clamped or shortened below floor: %v", dretryFloor)
 	}
 }
 

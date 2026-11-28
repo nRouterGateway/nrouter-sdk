@@ -49,7 +49,7 @@ a caller ends up handling the wrong failure forever.
 
 | Kind | Status | Class | Means |
 |---|---|---|---|
-| `request` | 400 | `nRouterRequestError` | invalid JSON or request shape |
+| `request` | 400 / 405 / 408 / 413 / 414 / 415 / 431 | `nRouterRequestError` | invalid JSON, edge WAF refusal, or request shape |
 | `guardrail_blocked` | 400 | `nRouterGuardrailBlockedError` | a guardrail denied it |
 | `authentication` | 401 | `nRouterAuthenticationError` | the key was refused; see `err.authReason` |
 | `credit` | 402 | `nRouterCreditError` | reserve failed; **nothing was spent** |

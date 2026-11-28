@@ -237,6 +237,9 @@ class NRouterAndroidTest {
         val delayWithRetryAfter = NRouterAndroid.computeJitteredBackoff(0, retryAfterSeconds = 5L, jitterFactor = 0.0)
         assertEquals(5000L, delayWithRetryAfter)
 
+        val delayRetryAfterFloor = NRouterAndroid.computeJitteredBackoff(0, maxDelayMs = 30000L, retryAfterSeconds = 3600L, jitterFactor = 0.5)
+        assertTrue(delayRetryAfterFloor in 3_600_000L..5_400_000L, "Retry-After: 3600 must not clamp to 30s: $delayRetryAfterFloor")
+
         val jittered = NRouterAndroid.computeJitteredBackoff(2, baseDelayMs = 1000L, maxDelayMs = 10000L, jitterFactor = 0.5)
         assertTrue(jittered in 2000L..4000L, "Backoff should be within jitter factor range: $jittered")
     }
@@ -263,6 +266,18 @@ class NRouterAndroidTest {
 
         val byokPlanError = NRouterError.fromCode(ai.nrouter.sdk.NRouterErrorBody("BYOK plan required", code = "byok_plan_required", status = 402))
         assertEquals("Credit balance or budget limit reached.", NRouterAndroid.formatUserMessage(byokPlanError))
+
+        val budgetExceededError = NRouterError.fromCode(
+            ai.nrouter.sdk.NRouterErrorBody(
+                "Key budget exceeded",
+                code = "budget_exceeded",
+                type = "budget_exceeded",
+                status = 402,
+                limitSource = "budget",
+            ),
+        )
+        assertTrue(budgetExceededError is NRouterError.BudgetExceeded)
+        assertEquals("Credit balance or budget limit reached.", NRouterAndroid.formatUserMessage(budgetExceededError))
 
         val byokMeta = ai.nrouter.sdk.NRouterResponseMeta.fromLookup { if (it == "x-nr-byok-fallback") "plan_inactive" else null }
         assertEquals("plan_inactive", byokMeta.byokFallback)

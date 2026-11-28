@@ -547,6 +547,34 @@ test('syncSnapshotFromCatalogPayload preserves frozen compat constant values whe
   assert.deepEqual(synced.compat, existing.compat);
 });
 
+test('syncSnapshotFromCatalogPayload supersedes retired pre-cutover unslashed IDs when canonical maker/slug maps to the same constant', () => {
+  const existing = {
+    schema_version: 1,
+    catalog_revision: 1,
+    source: '/api/public/models',
+    version: '2026-11-14',
+    models: [
+      { id: 'amazon-nova-lite-v1', namespace: 'canonical', maker_key: 'amazon', retired: false },
+    ],
+    compat: [],
+  };
+  const feedPayload = {
+    catalog_revision: 99,
+    data: [
+      {
+        model_id: 'amazon/nova-lite-v1',
+        model_name: 'amazon/nova-lite-v1',
+        maker: { key: 'amazon', name: 'Amazon' },
+        served: true,
+      },
+    ],
+  };
+  const synced = syncSnapshotFromCatalogPayload(existing, feedPayload, { version: '2026-11-26' });
+  assert.deepEqual(synced.models, [
+    { id: 'amazon/nova-lite-v1', namespace: 'canonical', maker_key: 'amazon', retired: false },
+  ]);
+});
+
 test('HEAD constants, MODELS keys, and WellKnownModel literals keep identical values after generation', () => {
   const headJs = gitShowHead('sdks/js/src/models.ts');
   const headPy = gitShowHead('sdks/python/nroutersdk/models.py');

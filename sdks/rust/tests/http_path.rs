@@ -526,22 +526,57 @@ fn compute_jittered_backoff_bounds() {
             && dhuge <= std::time::Duration::from_millis(8000)
     );
 
-    // Retry-After precedence
+    // Retry-After is a server-mandated floor (upward jitter [1.0, 1.5))
     let d_retry = nrouter::compute_jittered_backoff(0, base, max, Some(5));
     assert!(
-        d_retry >= std::time::Duration::from_millis(2500)
-            && d_retry <= std::time::Duration::from_millis(5000)
+        d_retry >= std::time::Duration::from_secs(5)
+            && d_retry <= std::time::Duration::from_millis(7500)
     );
 
-    // Retry-After capped by max_delay
-    let d_retry_capped = nrouter::compute_jittered_backoff(
+    // Retry-After: 3600 is NEVER clamped down to max_delay (30s)
+    let d_retry_floor = nrouter::compute_jittered_backoff(
         0,
-        base,
-        std::time::Duration::from_millis(4000),
-        Some(20),
+        std::time::Duration::from_millis(500),
+        std::time::Duration::from_secs(30),
+        Some(3600),
     );
     assert!(
-        d_retry_capped >= std::time::Duration::from_millis(2000)
-            && d_retry_capped <= std::time::Duration::from_millis(4000)
+        d_retry_floor >= std::time::Duration::from_secs(3600)
+            && d_retry_floor <= std::time::Duration::from_secs(5400),
+        "Retry-After: 3600 was clamped or shortened: {d_retry_floor:?}"
     );
+}
+
+#[tokio::test]
+async fn budget_exceeded_402_envelope_maps_to_budget_exceeded_variant() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut buf = [0u8; 2048];
+        let _ = socket.read(&mut buf).await;
+        let body = r#"{"error":{"message":"Key budget exceeded","type":"budget_exceeded","code":"budget_exceeded"}}"#;
+        let resp = format!(
+            "HTTP/1.1 402 Payment Required\r\ncontent-type: application/json\r\nx-nr-request-id: req-budget-402\r\nx-nr-limit-source: budget\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        socket.write_all(resp.as_bytes()).await.unwrap();
+    });
+
+    let client = nrouter::http::Client::new("sk-nrouter-test")
+        .unwrap()
+        .with_base_url(format!("http://{addr}/v1"));
+    let err = client.models().await.unwrap_err();
+    match &err {
+        nrouter::NRouterError::BudgetExceeded(b) => {
+            assert_eq!(b.code.as_deref(), Some("budget_exceeded"));
+            assert_eq!(b.status, Some(402));
+            assert_eq!(b.limit_source.as_deref(), Some("budget"));
+            assert_eq!(b.request_id.as_deref(), Some("req-budget-402"));
+        }
+        other => panic!("expected BudgetExceeded, got {other:?}"),
+    }
+    assert!(!err.is_retryable());
 }

@@ -348,6 +348,7 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   guardrail_blocked: nRouterGuardrailBlockedError,
   invalid_api_key: nRouterAuthenticationError,
   insufficient_credits: nRouterCreditError,
+  budget_exceeded: nRouterBudgetExceededError,
   model_not_found: nRouterNotFoundError,
   rate_limit_exceeded: nRouterRateLimitError,
   tpm_limit_exceeded: nRouterRateLimitError,
@@ -362,9 +363,9 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   guardrail_not_found: nRouterRequestError,
   image_input_unsupported: nRouterRequestError,
   cost_band_unsatisfiable: nRouterRequestError,
-  // nrouter/promo and nrouter/hack spend only their own credit, capped per UTC
-  // hour/day/week/month: an empty balance is a credit refusal, a full window a
-  // rate-limit refusal, an unsupported feature a request refusal.
+  // Promo- and hack-labeled models spend their own pot credit first, capped per
+  // UTC hour/day/week/month: an empty balance is a credit refusal, a full
+  // window a rate-limit refusal, an unsupported feature a request refusal.
   insufficient_promo_credit: nRouterCreditError,
   insufficient_hack_credit: nRouterCreditError,
   pot_spend_limit_exceeded: nRouterRateLimitError,
@@ -379,6 +380,17 @@ export const ERROR_CLASS_BY_CODE: Readonly<Record<string, typeof nRouterError>> 
   model_denied_by_org: nRouterError,
   model_denied_by_team: nRouterError,
   model_denied_by_key: nRouterError,
+  // Pre-authentication edge WAF request-shape refusals.
+  waf_method_not_allowed: nRouterRequestError,
+  waf_uri_too_long: nRouterRequestError,
+  waf_malformed_path: nRouterRequestError,
+  waf_malformed_headers: nRouterRequestError,
+  waf_ambiguous_length: nRouterRequestError,
+  waf_headers_too_large: nRouterRequestError,
+  waf_unsupported_media_type: nRouterRequestError,
+  waf_body_too_large: nRouterRequestError,
+  waf_body_too_complex: nRouterRequestError,
+  waf_body_read_timeout: nRouterRequestError,
 });
 
 /** The HTTP status the spec pairs with each code. */
@@ -387,6 +399,7 @@ export const ERROR_STATUS_BY_CODE: Readonly<Record<string, number>> = Object.fre
   guardrail_blocked: 400,
   invalid_api_key: 401,
   insufficient_credits: 402,
+  budget_exceeded: 402,
   model_not_found: 404,
   rate_limit_exceeded: 429,
   tpm_limit_exceeded: 429,
@@ -412,6 +425,16 @@ export const ERROR_STATUS_BY_CODE: Readonly<Record<string, number>> = Object.fre
   model_denied_by_org: 403,
   model_denied_by_team: 403,
   model_denied_by_key: 403,
+  waf_method_not_allowed: 405,
+  waf_uri_too_long: 414,
+  waf_malformed_path: 400,
+  waf_malformed_headers: 400,
+  waf_ambiguous_length: 400,
+  waf_headers_too_large: 431,
+  waf_unsupported_media_type: 415,
+  waf_body_too_large: 413,
+  waf_body_too_complex: 400,
+  waf_body_read_timeout: 408,
 });
 
 /**
@@ -444,6 +467,12 @@ export function classifyErrorClass(
   switch (status) {
     case 400:
       return lower.includes('guardrail') ? nRouterGuardrailBlockedError : nRouterRequestError;
+    case 405:
+    case 413:
+    case 414:
+    case 415:
+    case 431:
+      return nRouterRequestError;
     case 401:
       return nRouterAuthenticationError;
     case 402:

@@ -80,7 +80,7 @@ keeps working and stays supported. The vendor client owns its own transport and
 discards the raw response, so the `x-nr-*` metadata is out of reach without
 `.WithRawResponse()` plumbing at every call site. This SDK exists for the
 metadata: cost, tokens, cache outcome and limit source come back beside every
-response, and the gateway's twenty-nine error codes arrive as typed values.
+response, and the gateway's forty error codes arrive as typed values.
 
 ## Response metadata
 
@@ -138,10 +138,11 @@ to add money is a wrong answer delivered confidently.
 
 | Condition | Code(s) | HTTP |
 |---|---|---|
-| `ErrRequest` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable` | 400 |
+| `ErrRequest` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable`, `waf_method_not_allowed`, `waf_uri_too_long`, `waf_malformed_path`, `waf_malformed_headers`, `waf_ambiguous_length`, `waf_headers_too_large`, `waf_unsupported_media_type`, `waf_body_too_large`, `waf_body_too_complex`, `waf_body_read_timeout` | 400 / 405 / 408 / 413 / 414 / 415 / 431 |
 | `ErrGuardrailBlocked` | `guardrail_blocked` | 400 |
 | `ErrAuthentication` | `invalid_api_key`, `byok_credential_rejected` | 401 |
 | `ErrCredit` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
+| `ErrBudgetExceeded` | `budget_exceeded` | 402 |
 | `ErrNotFound` | `model_not_found` | 404 |
 | `ErrRateLimit` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
 | `ErrService` | `credit_check_failed`, `service_unavailable`, `rate_limit_unavailable` | 503 |
@@ -225,7 +226,7 @@ text wires only (chat completions, completions, messages, responses).
 |---|---|---|
 | `Fallbacks []string` | `nrouter_fallbacks` | Up to **4** model names tried in order when the primary cannot be served. **Replaces** your org fallback policy for this one call; the primary stays whatever `model` names. On `nrouter/auto` it replaces the fallbacks nrouter/auto would choose (an empty list = none). |
 | `Guardrails []string` | `nrouter_guardrails` | Up to **8** guardrail ids or names your org owns. **ADD-ONLY.** |
-| `Optimize string` | `nrouter_optimize` | `nrouter/auto` only: `"balanced"` (org default, all price bands, no ceiling), `"quality"` (small cost weight, all price bands), or `"cost"` (within `CostBand` ceiling). |
+| `Optimize string` | `nrouter_optimize` | `nrouter/auto` only: `"balanced"` (org default, all price bands, no ceiling), `"quality"` (zero cost weight, all price bands), or `"cost"` (within `CostBand` ceiling). |
 | `CostBand string` | `nrouter_cost_band` | Cost-mode `nrouter/auto` only: `"low"` (blended list rate under $1 / 1M), `"mid"` (under $7, the default) or `"high"` (every band). Any other value is refused locally; sent on a Direct model or under `"quality"` or `"balanced"` is refused with `400 invalid_request`, and a band with no eligible model is refused with `cost_band_unsatisfiable` before any spend. |
 
 ```go

@@ -330,11 +330,11 @@ with nRouter() as client:
 
 | Exception | Code(s) | HTTP |
 |---|---|---|
-| `nRouterRequestError` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable` | 400 |
+| `nRouterRequestError` | `invalid_request`, `input_too_large`, `max_output_tokens_too_large`, `fallback_not_allowed`, `guardrail_not_found`, `image_input_unsupported`, `pot_route_feature_unsupported`, `cost_band_unsatisfiable`, `waf_method_not_allowed`, `waf_uri_too_long`, `waf_malformed_path`, `waf_malformed_headers`, `waf_ambiguous_length`, `waf_headers_too_large`, `waf_unsupported_media_type`, `waf_body_too_large`, `waf_body_too_complex`, `waf_body_read_timeout` | 400 / 405 / 408 / 413 / 414 / 415 / 431 |
 | `nRouterGuardrailBlockedError` | `guardrail_blocked` | 400 |
 | `nRouterAuthenticationError` | `invalid_api_key`, `byok_credential_rejected` | 401 |
 | `nRouterCreditError` | `insufficient_credits`, `plan_allowance_exhausted`, `plan_required`, `insufficient_promo_credit`, `insufficient_hack_credit`, `byok_plan_required` | 402 |
-| `nRouterBudgetExceededError` | spend ceiling exceeded (key, team, org) | 402 / 429 |
+| `nRouterBudgetExceededError` | `budget_exceeded` (spend ceiling exceeded: key, user, team, org) | 402 |
 | `nRouterNotFoundError` | `model_not_found` | 404 |
 | `nRouterRateLimitError` | `rate_limit_exceeded`, `tpm_limit_exceeded`, `pot_spend_limit_exceeded`, `byok_fair_use_exceeded` | 429 |
 | `nRouterServiceError` | `credit_check_failed`, `service_unavailable`, `rate_limit_unavailable` | 503 |
@@ -408,7 +408,7 @@ All are text wires only (chat completions, completions, messages, responses).
 |---|---|---|
 | `fallbacks` | `nrouter_fallbacks` | Up to **4** model names tried in order when the primary cannot be served. **Replaces** your org fallback policy for this one call; `model` stays the primary. On `nrouter/auto` it replaces the fallbacks nrouter/auto would choose (`[]` = none). |
 | `guardrails` | `nrouter_guardrails` | Up to **8** guardrail ids or names your org owns. **ADD-ONLY.** |
-| `optimize` | `nrouter_optimize` | `nrouter/auto` only: `"balanced"` (org default, all price bands, no ceiling), `"quality"` (small cost weight, all price bands), or `"cost"` (within `cost_band` ceiling). |
+| `optimize` | `nrouter_optimize` | `nrouter/auto` only: `"balanced"` (org default, all price bands, no ceiling), `"quality"` (zero cost weight, all price bands), or `"cost"` (within `cost_band` ceiling). |
 | `cost_band` | `nrouter_cost_band` | Cost-mode `nrouter/auto` only: `"low"` (blended list rate under $1 / 1M), `"mid"` (under $7, the default) or `"high"` (every band). Any other value raises `nRouterConfigurationError` locally; sent on a Direct model or under `"quality"` or `"balanced"` returns `400 invalid_request`, and a band with no eligible model is refused with `cost_band_unsatisfiable` before any spend. |
 
 ```python

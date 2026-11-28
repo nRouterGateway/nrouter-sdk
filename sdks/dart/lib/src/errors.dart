@@ -57,6 +57,16 @@ sealed class NRouterError implements Exception {
       case 'image_input_unsupported':
       case 'pot_route_feature_unsupported':
       case 'cost_band_unsatisfiable':
+      case 'waf_method_not_allowed':
+      case 'waf_uri_too_long':
+      case 'waf_malformed_path':
+      case 'waf_malformed_headers':
+      case 'waf_ambiguous_length':
+      case 'waf_headers_too_large':
+      case 'waf_unsupported_media_type':
+      case 'waf_body_too_large':
+      case 'waf_body_too_complex':
+      case 'waf_body_read_timeout':
         return (body.guardrails == 'blocked' || body.type == 'guardrail_blocked')
             ? NRouterGuardrailBlockedError(body)
             : NRouterRequestError(body);
@@ -72,6 +82,8 @@ sealed class NRouterError implements Exception {
       case 'insufficient_hack_credit':
       case 'byok_plan_required':
         return NRouterCreditError(body);
+      case 'budget_exceeded':
+        return NRouterBudgetExceededError(body);
       case 'model_not_found':
         return NRouterNotFoundError(body);
       case 'rate_limit_exceeded':
@@ -98,6 +110,12 @@ sealed class NRouterError implements Exception {
                     body.message.toLowerCase().contains('guardrail'))
                 ? NRouterGuardrailBlockedError(body)
                 : NRouterRequestError(body);
+          case 405:
+          case 413:
+          case 414:
+          case 415:
+          case 431:
+            return NRouterRequestError(body);
           case 401:
             return NRouterAuthenticationError(body);
           case 403:
@@ -407,10 +425,13 @@ Duration computeJitteredBackoff({
   final safeJitter = jitterFactor.clamp(0.0, 1.0);
 
   if (retryAfterSeconds != null && retryAfterSeconds > 0) {
-    final retryDelay = Duration(seconds: retryAfterSeconds);
-    final effectiveDelay = retryDelay > maxDelay ? maxDelay : retryDelay;
-    final mult = (1.0 - safeJitter) + (DateTime.now().microsecond % 1000) / 1000.0 * safeJitter;
-    return Duration(milliseconds: (effectiveDelay.inMilliseconds * mult).round());
+    final boundedSeconds = retryAfterSeconds > maxRetryAfterSeconds
+        ? maxRetryAfterSeconds
+        : retryAfterSeconds;
+    final retryMs = boundedSeconds * 1000;
+    final mult = 1.0 + (DateTime.now().microsecond % 1000) / 1000.0 * safeJitter;
+    final computedMs = (retryMs * mult).round();
+    return Duration(milliseconds: computedMs < retryMs ? retryMs : computedMs);
   }
 
   final exponentialMs = baseDelay.inMilliseconds * (1 << safeAttempt);

@@ -6,15 +6,7 @@
   "selection_routes": {
     "nrouter/auto": {
       "funded_by": "subscription plan usage allowance first when active, then prepaid wallet credits at the served model's exact list price",
-      "description": "nRouter chooses the model for the task from the models available for automatic routing: every eligible model is scored with one formula (task suitability from public leaderboard ratings minus a cost weight), honoring nrouter_optimize (\"balanced\" by default across all price bands with no ceiling, \"quality\" with a small cost weight across all price bands, or \"cost\" restricted to the active nrouter_cost_band ceiling). A selection is always made, even when the request assessment is unavailable or Smart model selection is turned off; x-nr-model names the served model and only the model that answered is charged. Draws from the organization's subscription plan usage allowance first when an active plan period exists (x-nr-funding-source: allowance), and falls back to prepaid wallet credits at the served model's exact list price (x-nr-funding-source: credits) for pay-as-you-go (PAYG) or post-allowance organizations. Pay-as-you-go organizations are never refused with 402 plan_required. Promo and Hack are direct promotional/hackathon models that draw from promotional/event pots first and fall back to prepaid credits only when the organization has turned on paid fallback in Settings (x-nr-pot-fallback names why)."
-    },
-    "nrouter/promo": {
-      "funded_by": "promotional credit first, then prepaid wallet credits only when the organization has turned on paid fallback",
-      "description": "Promo-labeled models are direct promotional models that draw from the organization's promotional credit pot first (x-nr-funding-source: promo) within UTC spend windows set by nRouter (by default hourly none, daily $1, weekly $7, monthly $30; a week starts Monday 00:00 UTC). An organization that has never held promotional credit pays for these models from prepaid credits like any other model. An organization that holds promotional credit is charged prepaid credits at the served model's exact list price only after it turns on paid fallback in Settings; the response then carries x-nr-funding-source: credits and x-nr-pot-fallback naming why promotional credit did not fund the request. Without paid fallback, a request promotional credit cannot fund is refused before any provider egress: 402 insufficient_promo_credit when the pot cannot cover the hold, 429 pot_spend_limit_exceeded when a spend window is exhausted, 400 pot_route_feature_unsupported for a feature the pot does not fund. Promotional credit that nRouter has frozen is refused 402 insufficient_promo_credit even with paid fallback on. Promotional credit has no cash value and is spent only on promo-labeled models; nrouter/auto never draws from it."
-    },
-    "nrouter/hack": {
-      "funded_by": "hackathon credit first, then prepaid wallet credits only when the organization has turned on paid fallback",
-      "description": "Hack-labeled models are direct hackathon models that draw from the organization's hackathon credit pot first (x-nr-funding-source: hack) within UTC spend windows set by nRouter (by default hourly none, daily $1, weekly $7, monthly $30; a week starts Monday 00:00 UTC). An organization that has never held hackathon credit pays for these models from prepaid credits like any other model. An organization that holds hackathon credit is charged prepaid credits at the served model's exact list price only after it turns on paid fallback in Settings; the response then carries x-nr-funding-source: credits and x-nr-pot-fallback naming why hackathon credit did not fund the request. Without paid fallback, a request hackathon credit cannot fund is refused before any provider egress: 402 insufficient_hack_credit when the pot cannot cover the hold, 429 pot_spend_limit_exceeded when a spend window is exhausted, 400 pot_route_feature_unsupported for a feature the pot does not fund. Hackathon credit that nRouter has frozen is refused 402 insufficient_hack_credit even with paid fallback on. Hackathon credit has no cash value and is spent only on hack-labeled models; nrouter/auto never draws from it."
+      "description": "nRouter chooses the model for the task from the models available for automatic routing: every eligible model is scored with one formula (task suitability from public leaderboard ratings minus a cost weight), honoring nrouter_optimize (\"balanced\" by default across all price bands with no ceiling, \"quality\" with zero cost weight across all price bands, or \"cost\" restricted to the active nrouter_cost_band ceiling). A selection is always made, even when the request assessment is unavailable or Smart model selection is turned off; x-nr-model names the served model and only the model that answered is charged. Draws from the organization's subscription plan usage allowance first when an active plan period exists (x-nr-funding-source: allowance), and falls back to prepaid wallet credits at the served model's exact list price (x-nr-funding-source: credits) for pay-as-you-go (PAYG) or post-allowance organizations. Pay-as-you-go organizations are never refused with 402 plan_required. Promo and Hack are direct promotional/hackathon models that draw from promotional/event pots first and fall back to prepaid credits only when the organization has turned on paid fallback in Settings (x-nr-pot-fallback names why)."
     }
   },
   "response_headers": {
@@ -107,7 +99,7 @@
     },
     "x-nr-guardrails": {
       "type": "string",
-      "description": "Posture of the PRE-CALL guardrail chain for this request. ABSENT means this response makes no guardrail claim — /v1/models, the control plane, an auth refusal that never reached preflight — exactly as absence works for x-nr-limit-source. Absence is never \"no guardrail applied\"; that is the explicit token `none`. Published on every wire that runs a pre-call guardrail chain: the four text wires `/v1/chat/completions`, `/v1/completions`, `/v1/messages` and `/v1/responses`, and the modality wires `/v1/images/generations`, `/v1/audio/speech`, `/v1/audio/transcriptions`, `/v1/audio/translations`, `/v1/embeddings` and `POST /v1/videos`. It is ABSENT on the two FREE video collection routes, `GET /v1/videos/{id}` and `GET /v1/videos/{id}/content`, which resolve no chain at all \u2014 absence there is the contract, and `none` would wrongly assert that a chain was looked for.",
+      "description": "Posture of the PRE-CALL guardrail chain for this request. ABSENT means this response makes no guardrail claim — /v1/models, the control plane, an auth refusal that never reached preflight — exactly as absence works for x-nr-limit-source. Absence is never \"no guardrail applied\"; that is the explicit token `none`. Published on every wire that runs a pre-call guardrail chain: the four text wires `/v1/chat/completions`, `/v1/completions`, `/v1/messages` and `/v1/responses`, `/v1/messages/count_tokens`, and the modality wires `/v1/images/generations`, `/v1/audio/speech`, `/v1/audio/transcriptions`, `/v1/audio/translations`, `/v1/embeddings` and `POST /v1/videos`. It is ABSENT on the two FREE video collection routes, `GET /v1/videos/{id}` and `GET /v1/videos/{id}/content`, which resolve no chain at all \u2014 absence there is the contract, and `none` would wrongly assert that a chain was looked for.",
       "always": false,
       "values": [
         "none",
@@ -245,7 +237,7 @@
     },
     "x-nr-allowance-reset": {
       "type": "integer",
-      "description": "Seconds until the tightest usage-allowance window resets; sent on allowance-window 429s (equal to Retry-After) and the monthly 402 plan_allowance_exhausted",
+      "description": "Seconds until the tightest usage-allowance window resets; emitted on 2xx allowance-funded responses, allowance-window 429s (plan_window_h8, plan_window_day, plan_window_week; equal to Retry-After), and the monthly 402 plan_allowance_exhausted",
       "always": false,
       "format": "int64"
     }
@@ -375,6 +367,11 @@
       "class": "nRouterCreditError",
       "description": "Reserve failed; nothing was spent"
     },
+    "budget_exceeded": {
+      "http": 402,
+      "class": "nRouterBudgetExceededError",
+      "description": "A key, user, team, or organization USD spend cap (Block mode) was reached before provider egress (HTTP 402; x-nr-limit-source: budget, no Retry-After). Nothing was reserved and nothing was spent; raise the budget ceiling or wait for its configured reset period."
+    },
     "model_not_found": {
       "http": 404,
       "class": "nRouterNotFoundError",
@@ -383,7 +380,7 @@
     "rate_limit_exceeded": {
       "http": 429,
       "class": "nRouterRateLimitError",
-      "description": "A rate limit was exceeded (RPM, TPM, RPS or RPD), or an 8-hour/daily/weekly nrouter/auto allowance window is used up (x-nr-limit-source: plan_window_h8|plan_window_day|plan_window_week; Retry-After and x-nr-allowance-reset carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see x-nr-limit-source. A used-up promo or hack spend window answers pot_spend_limit_exceeded instead"
+      "description": "A rate limit was exceeded (RPM, TPM, RPS or RPD), a Throttle-mode scoped budget was reached (x-nr-limit-source: budget, no Retry-After), or an 8-hour/daily/weekly nrouter/auto allowance window is used up (x-nr-limit-source: plan_window_h8|plan_window_day|plan_window_week; Retry-After and x-nr-allowance-reset carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see x-nr-limit-source. A used-up promo or hack spend window answers pot_spend_limit_exceeded instead"
     },
     "tpm_limit_exceeded": {
       "http": 429,
@@ -499,6 +496,56 @@
       "http": 409,
       "class": "nRouterError",
       "description": "The organization's saved provider API key is currently unavailable (disabled, revoked, or undecryptable) and credit fallback is disabled or cannot cover the request. Re-save the provider key in BYOK settings or enable credit fallback. Refused before any provider egress; nothing was reserved and nothing was spent."
+    },
+    "waf_method_not_allowed": {
+      "http": 405,
+      "class": "nRouterRequestError",
+      "description": "HTTP method is not allowed on this gateway endpoint; see the Allow response header. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_uri_too_long": {
+      "http": 414,
+      "class": "nRouterRequestError",
+      "description": "Request target exceeds the 4,096-byte URI ceiling. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_malformed_path": {
+      "http": 400,
+      "class": "nRouterRequestError",
+      "description": "Request path or query contains invalid characters, double slashes, null bytes, CRLF, or path-traversal sequences. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_malformed_headers": {
+      "http": 400,
+      "class": "nRouterRequestError",
+      "description": "Request header value contains control characters, CRLF, or non-visible ASCII bytes. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_ambiguous_length": {
+      "http": 400,
+      "class": "nRouterRequestError",
+      "description": "Request carries duplicate, comma-separated, or signed Content-Length, Content-Length alongside Transfer-Encoding, or an unsupported transfer coding. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_headers_too_large": {
+      "http": 431,
+      "class": "nRouterRequestError",
+      "description": "Request headers exceed 64 headers, 8 KiB for a single header value, or 32 KiB total header bytes. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_unsupported_media_type": {
+      "http": 415,
+      "class": "nRouterRequestError",
+      "description": "Content-Type is missing, duplicated, or not accepted on this route, or multipart/form-data lacks a valid RFC 2046 boundary. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_body_too_large": {
+      "http": 413,
+      "class": "nRouterRequestError",
+      "description": "Request body exceeds the route class ceiling (8 MiB on JSON inference routes, 25 MiB on audio upload routes, 64 KiB on management and unmapped routes). Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_body_too_complex": {
+      "http": 400,
+      "class": "nRouterRequestError",
+      "description": "JSON request body is malformed or exceeds structural limits (32 nesting levels, 16,384 entries per container, or 200,000 total values). Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
+    },
+    "waf_body_read_timeout": {
+      "http": 408,
+      "class": "nRouterRequestError",
+      "description": "Request body did not finish arriving within the gateway upload read timeout. Refused at the pre-authentication edge; nothing was reserved and nothing was spent."
     }
   },
   "supported_endpoints": [
@@ -519,6 +566,7 @@
       "path": "/v1/completions",
       "sdk": "completions.create()",
       "features": [
+        "guardrails",
         "credits",
         "cache"
       ]
@@ -528,6 +576,7 @@
       "path": "/v1/embeddings",
       "sdk": "embeddings.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -536,6 +585,7 @@
       "path": "/v1/images/generations",
       "sdk": "images.generate()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -544,6 +594,7 @@
       "path": "/v1/videos",
       "sdk": "videos.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -552,6 +603,7 @@
       "path": "/v1/audio/speech",
       "sdk": "audio.speech.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -560,6 +612,7 @@
       "path": "/v1/audio/transcriptions",
       "sdk": "audio.transcriptions.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -591,7 +644,9 @@
       "method": "POST",
       "path": "/v1/messages/count_tokens",
       "sdk": "messages.count_tokens()",
-      "features": []
+      "features": [
+        "guardrails"
+      ]
     },
     {
       "method": "POST",
@@ -610,6 +665,7 @@
       "path": "/v1/audio/translations",
       "sdk": "audio.translations.create()",
       "features": [
+        "guardrails",
         "credits"
       ]
     },
@@ -662,12 +718,12 @@
       "type": "array",
       "items": { "type": "string" },
       "max": 4,
-      "description": "Per-request fallback chain: up to 4 model names, tried in order when the primary cannot be served. `model` stays the primary and is never listed here. This REPLACES the organization's fallback policy for this one call and is not merged with it. A target this virtual key cannot route — and nrouter/auto, nrouter/promo, nrouter/hack, an allowance model, a target outside the active nrouter_cost_band ceiling on a cost-mode nrouter/auto request, or any other model that is not offered as a fallback target — is refused with 400 fallback_not_allowed before any provider egress. On a request for nrouter/auto the list replaces the fallbacks nrouter/auto would choose: the model it chooses is tried first, then these targets in order, and an empty list means no fallback. One hold covers the whole chain, sized to its dearest entry; when the funds cannot cover it the request is refused 402 before any provider call, and a target is never dropped to make it fit. A fallback is tried only when the provider cannot take the request, and the request is charged once, for the model that answered. Text wires only (/v1/chat/completions, /v1/completions, /v1/messages, /v1/responses)."
+      "description": "Per-request fallback chain: up to 4 model names, tried in order when the primary cannot be served. `model` stays the primary and is never listed here. This REPLACES the organization's fallback policy for this one call and is not merged with it. A target this virtual key cannot route — and nrouter/auto, an allowance model, a target outside the active nrouter_cost_band ceiling on a cost-mode nrouter/auto request, or any other model that is not offered as a fallback target — is refused with 400 fallback_not_allowed before any provider egress. On a request for nrouter/auto the list replaces the fallbacks nrouter/auto would choose: the model it chooses is tried first, then these targets in order, and an empty list means no fallback. One hold covers the whole chain, sized to its dearest entry; when the funds cannot cover it the request is refused 402 before any provider call, and a target is never dropped to make it fit. A fallback is tried only when the provider cannot take the request, and the request is charged once, for the model that answered. Text wires only (/v1/chat/completions, /v1/completions, /v1/messages, /v1/responses)."
     },
     "nrouter_optimize": {
       "type": "string",
       "enum": ["quality", "balanced", "cost"],
-      "description": "Selection strategy for a request on nrouter/auto only. All three strategies score every eligible model with the same formula: task suitability from public leaderboard ratings minus a cost weight. \"balanced\" (the organization default across all price bands with no ceiling) weighs task suitability against request cost; \"quality\" weights task suitability with a small cost weight across all price bands; \"cost\" first restricts eligible models to the active nrouter_cost_band ceiling (default \"mid\") and weights cost more heavily. The decision model only assesses the request and never picks the model: when it is turned off, abstains or times out, or when Smart model selection is turned off, nrouter/auto still selects a model with the same formula. Every strategy settles at 0% markup on the served model's exact list price. It overrides the saved Router Settings strategy for this one request. Any other value, a non-string, or sending the field with any model other than nrouter/auto is refused with 400 invalid_request naming the field. Text wires only (/v1/chat/completions, /v1/completions, /v1/messages, /v1/responses)."
+      "description": "Selection strategy for a request on nrouter/auto only. All three strategies score every eligible model with the same formula: task suitability from public leaderboard ratings minus a cost weight. \"balanced\" (the organization default across all price bands with no ceiling) weighs task suitability against request cost; \"quality\" weights task suitability with zero cost weight across all price bands; \"cost\" first restricts eligible models to the active nrouter_cost_band ceiling (default \"mid\") and weights cost more heavily. The decision model only assesses the request and never picks the model: when it is turned off, abstains or times out, or when Smart model selection is turned off, nrouter/auto still selects a model with the same formula. Every strategy settles at 0% markup on the served model's exact list price. It overrides the saved Router Settings strategy for this one request. Any other value, a non-string, or sending the field with any model other than nrouter/auto is refused with 400 invalid_request naming the field. Text wires only (/v1/chat/completions, /v1/completions, /v1/messages, /v1/responses)."
     },
     "nrouter_cost_band": {
       "type": "string",

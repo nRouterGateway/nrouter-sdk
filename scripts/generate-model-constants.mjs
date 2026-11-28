@@ -173,6 +173,7 @@ export function syncSnapshotFromCatalogPayload(existingSnapshot, payload, option
   }
 
   const byId = new Map();
+  const prevIdByConst = new Map();
   for (const prev of base.models) {
     byId.set(prev.id, {
       id: prev.id,
@@ -180,6 +181,7 @@ export function syncSnapshotFromCatalogPayload(existingSnapshot, payload, option
       maker_key: prev.maker_key ?? null,
       retired: true,
     });
+    prevIdByConst.set(deriveConstantName(prev.id), prev.id);
   }
 
   for (const row of rows) {
@@ -245,7 +247,18 @@ export function syncSnapshotFromCatalogPayload(existingSnapshot, payload, option
         }
         continue;
       }
+      const collidingPrevId = prevIdByConst.get(derivedConst);
+      if (collidingPrevId && collidingPrevId !== candidate.id) {
+        const collidingPrev = byId.get(collidingPrevId);
+        if (collidingPrev && collidingPrev.retired === true) {
+          // Pre-cutover unslashed or case-variant ID (e.g. "amazon-nova-lite-v1" vs live
+          // canonical "amazon/nova-lite-v1") maps to the exact same MODEL_* constant and is
+          // no longer in the live feed: supersede the retired pre-cutover ID cleanly.
+          byId.delete(collidingPrevId);
+        }
+      }
       const prev = byId.get(candidate.id);
+      prevIdByConst.set(derivedConst, candidate.id);
       byId.set(candidate.id, {
         id: candidate.id,
         namespace: candidate.namespace === 'canonical' || prev?.namespace === 'canonical' ? 'canonical' : 'moving',

@@ -929,10 +929,10 @@ func cryptoJitterFloat() float64 {
 	return float64(n.Int64()) / 1000000.0
 }
 
-// ComputeJitteredBackoff calculates exponential backoff with full jitter.
-// Honors retryAfterSeconds if provided and non-zero, bounding to maxDelay.
+// ComputeJitteredBackoff calculates exponential backoff with jitter.
+// Honors retryAfterSeconds as a server-mandated floor if provided and non-zero
+// (bounded only by MaxRetryAfterSeconds, never clamped to maxDelay, and jittered upward).
 // Clamps attempt between 0 and 30 to prevent integer overflow.
-// Full jitter spreads backoff between 50% and 100% of the computed window.
 func ComputeJitteredBackoff(attempt int, baseDelay, maxDelay time.Duration, retryAfterSeconds *uint64) time.Duration {
 	if attempt < 0 {
 		attempt = 0
@@ -947,11 +947,12 @@ func ComputeJitteredBackoff(attempt int, baseDelay, maxDelay time.Duration, retr
 	}
 
 	if retryAfterSeconds != nil && *retryAfterSeconds > 0 {
-		retryDur := time.Duration(*retryAfterSeconds) * time.Second
-		if retryDur > maxDelay {
-			retryDur = maxDelay
+		bounded := *retryAfterSeconds
+		if bounded > MaxRetryAfterSeconds {
+			bounded = MaxRetryAfterSeconds
 		}
-		factor := 0.5 + 0.5*cryptoJitterFloat()
+		retryDur := time.Duration(bounded) * time.Second
+		factor := 1.0 + 0.5*cryptoJitterFloat()
 		return time.Duration(float64(retryDur) * factor)
 	}
 

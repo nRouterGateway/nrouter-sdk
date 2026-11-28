@@ -444,7 +444,7 @@ class ContractCurlHealthCheck:
     def check_guardrails_value_in_enum(self) -> Dict[str, Any]:
         name = "guardrails_value_in_enum"
         assertion = (
-            "200; x-nr-guardrails, when present, is one of the six values the spec "
+            "200; x-nr-guardrails, when present, is one of the seven values the spec "
             "enumerates; a served response never reports blocked"
         )
         args, request = self._prepare("POST", self.route, self._chat("guardrail enum probe"))

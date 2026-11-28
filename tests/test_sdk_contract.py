@@ -270,6 +270,53 @@ class SpecContractTests(unittest.TestCase):
         "cost_band_unsatisfiable",
     }
 
+    WAF_REFUSAL_CODES = {
+        "waf_method_not_allowed": 405,
+        "waf_uri_too_long": 414,
+        "waf_malformed_path": 400,
+        "waf_malformed_headers": 400,
+        "waf_ambiguous_length": 400,
+        "waf_headers_too_large": 431,
+        "waf_unsupported_media_type": 415,
+        "waf_body_too_large": 413,
+        "waf_body_too_complex": 400,
+        "waf_body_read_timeout": 408,
+    }
+
+    GUARDRAIL_BEARING_ENDPOINTS = {
+        ("POST", "/v1/chat/completions"),
+        ("POST", "/v1/completions"),
+        ("POST", "/v1/embeddings"),
+        ("POST", "/v1/images/generations"),
+        ("POST", "/v1/videos"),
+        ("POST", "/v1/audio/speech"),
+        ("POST", "/v1/audio/transcriptions"),
+        ("POST", "/v1/messages"),
+        ("POST", "/v1/messages/count_tokens"),
+        ("POST", "/v1/responses"),
+        ("POST", "/v1/audio/translations"),
+    }
+
+    def test_spec_errors_name_every_waf_edge_refusal_code(self) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        missing = sorted(set(self.WAF_REFUSAL_CODES) - set(spec["errors"]))
+        self.assertEqual(missing, [], f"spec missing edge WAF error codes: {missing}")
+        for code, expected_http in sorted(self.WAF_REFUSAL_CODES.items()):
+            entry = spec["errors"][code]
+            self.assertEqual(sorted(entry), ["class", "description", "http"], code)
+            self.assertEqual(entry["http"], expected_http, code)
+            self.assertEqual(entry["class"], "nRouterRequestError", code)
+            self.assertTrue(entry["description"].strip(), code)
+
+    def test_spec_advertises_guardrails_on_all_eleven_guardrail_routes(self) -> None:
+        spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        actual = {
+            (ep["method"], ep["path"])
+            for ep in spec["supported_endpoints"]
+            if "guardrails" in ep["features"]
+        }
+        self.assertEqual(actual, self.GUARDRAIL_BEARING_ENDPOINTS)
+
     def test_spec_errors_name_every_refusal_code_on_the_wire(self) -> None:
         spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
         missing = sorted(self.WIRE_REFUSAL_CODES - set(spec["errors"]))
@@ -1682,11 +1729,27 @@ class TwoModeRoutingDocsTests(unittest.TestCase):
 
     def test_spec_descriptions_follow_the_two_mode_story(self) -> None:
         spec = json.loads((SDK_ROOT / "spec" / "nrouter-sdk-spec.json").read_text())
+        self.assertEqual(
+            set(spec["selection_routes"].keys()),
+            {"nrouter/auto"},
+            "retired nrouter/promo and nrouter/hack routes must not appear in selection_routes",
+        )
         fallbacks = spec["extra_body_fields"]["nrouter_fallbacks"]["description"]
         # Sending the field on a request FOR nrouter/auto is itself refused,
         # which is distinct from naming nrouter/auto as a fallback target.
         self.assertRegex(fallbacks, r"request for nrouter/auto")
         self.assertIn("fallback_not_allowed", fallbacks)
+        self.assertNotIn("nrouter/promo", fallbacks)
+        self.assertNotIn("nrouter/hack", fallbacks)
+        allowance_reset = spec["response_headers"]["x-nr-allowance-reset"]["description"]
+        self.assertIn("2xx", allowance_reset)
+        self.assertIn("plan_allowance_exhausted", allowance_reset)
+        budget_err = spec["errors"]["budget_exceeded"]
+        self.assertEqual(budget_err["http"], 402)
+        self.assertEqual(budget_err["class"], "nRouterBudgetExceededError")
+        rate_limit_desc = spec["errors"]["rate_limit_exceeded"]["description"]
+        self.assertIn("Throttle", rate_limit_desc)
+        self.assertIn("x-nr-limit-source: budget", rate_limit_desc)
         blob = json.dumps(spec)
         for stale in ("Smart Router alias", "alias resolution", "Model alias absent"):
             self.assertNotIn(stale, blob, f"spec still describes {stale!r}")

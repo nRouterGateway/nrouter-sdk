@@ -54,7 +54,7 @@ pub struct FeatureOptions {
     pub cache: Option<bool>,
     /// Strategy for a request on `nrouter/auto` only: `"balanced"` (the
     /// organization default across all price bands with no ceiling),
-    /// `"quality"` (small cost weight across all price bands), or `"cost"`
+    /// `"quality"` (zero cost weight across all price bands), or `"cost"`
     /// (restricted to the `cost_band` ceiling). All three score every eligible
     /// model with one formula; a model is always selected. Pairing it with any
     /// other model is refused by the gateway with 400 `invalid_request`.
@@ -112,8 +112,9 @@ fn normalize_names(
 pub fn build_extra_body(opts: &FeatureOptions) -> Result<Map<String, Value>, NRouterError> {
     if !opts.guardrail_ids.is_empty() {
         return Err(NRouterError::Configuration(
-            "guardrail_ids is not supported: guardrails are assigned per key, team, or organization \
-             in the nRouter dashboard and already apply automatically to every call."
+            "guardrail_ids is not supported: use FeatureOptions.guardrails (or .guardrails(...), \
+             mapping to nrouter_guardrails) to pass up to 8 organization-owned guardrail IDs or \
+             names in addition to assigned guardrails."
                 .into(),
         ));
     }

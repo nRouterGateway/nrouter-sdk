@@ -77,7 +77,17 @@ public final class NRouterException extends RuntimeException {
                 case "guardrail_not_found":
                 case "image_input_unsupported":
                 case "pot_route_feature_unsupported":
-                case "cost_band_unsatisfiable": return Kind.REQUEST;
+                case "cost_band_unsatisfiable":
+                case "waf_method_not_allowed":
+                case "waf_uri_too_long":
+                case "waf_malformed_path":
+                case "waf_malformed_headers":
+                case "waf_ambiguous_length":
+                case "waf_headers_too_large":
+                case "waf_unsupported_media_type":
+                case "waf_body_too_large":
+                case "waf_body_too_complex":
+                case "waf_body_read_timeout": return Kind.REQUEST;
                 case "guardrail_blocked": return Kind.GUARDRAIL_BLOCKED;
                 case "invalid_api_key":
                 case "byok_credential_rejected": return Kind.AUTHENTICATION;
@@ -87,6 +97,7 @@ public final class NRouterException extends RuntimeException {
                 case "insufficient_promo_credit":
                 case "insufficient_hack_credit":
                 case "byok_plan_required": return Kind.CREDIT;
+                case "budget_exceeded": return Kind.BUDGET_EXCEEDED;
                 case "model_not_found": return Kind.NOT_FOUND;
                 case "rate_limit_exceeded":
                 case "tpm_limit_exceeded":
@@ -110,6 +121,12 @@ public final class NRouterException extends RuntimeException {
                 if (lower.contains("guardrail") || (meta != null && "blocked".equals(meta.guardrails()))) {
                     return Kind.GUARDRAIL_BLOCKED;
                 }
+                return Kind.REQUEST;
+            case 405:
+            case 413:
+            case 414:
+            case 415:
+            case 431:
                 return Kind.REQUEST;
             case 401: return Kind.AUTHENTICATION;
             case 402: return lower.startsWith("budget") ? Kind.BUDGET_EXCEEDED : Kind.CREDIT;
@@ -182,12 +199,10 @@ public final class NRouterException extends RuntimeException {
             maxDelay = java.time.Duration.ofSeconds(30);
         }
         if (retryAfterSeconds != null && retryAfterSeconds > 0) {
-            java.time.Duration retryDur = java.time.Duration.ofSeconds(retryAfterSeconds);
-            if (retryDur.compareTo(maxDelay) > 0) {
-                retryDur = maxDelay;
-            }
-            double factor = 0.5 + 0.5 * Math.random();
-            return java.time.Duration.ofMillis((long) (retryDur.toMillis() * factor));
+            long boundedSeconds = Math.min(retryAfterSeconds, MAX_RETRY_AFTER_SECONDS);
+            long retryMs = boundedSeconds * 1000L;
+            double factor = 1.0 + 0.5 * Math.random();
+            return java.time.Duration.ofMillis(Math.max(retryMs, (long) (retryMs * factor)));
         }
         long exp = 1L << safeAttempt;
         long rawMs = baseDelay.toMillis() * exp;

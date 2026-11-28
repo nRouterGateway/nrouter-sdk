@@ -20,6 +20,7 @@ NROUTER_ERROR_CLASSES <- c(
   guardrail_blocked        = "nrouter_guardrail_blocked_error",
   invalid_api_key          = "nrouter_authentication_error",
   insufficient_credits     = "nrouter_credit_error",
+  budget_exceeded          = "nrouter_budget_exceeded_error",
   plan_allowance_exhausted = "nrouter_credit_error",
   plan_required            = "nrouter_credit_error",
   model_not_found          = "nrouter_not_found_error",
@@ -46,7 +47,17 @@ NROUTER_ERROR_CLASSES <- c(
   # code and the status.
   model_denied_by_org      = "nrouter_other_error",
   model_denied_by_team     = "nrouter_other_error",
-  model_denied_by_key      = "nrouter_other_error"
+  model_denied_by_key      = "nrouter_other_error",
+  waf_method_not_allowed   = "nrouter_request_error",
+  waf_uri_too_long         = "nrouter_request_error",
+  waf_malformed_path       = "nrouter_request_error",
+  waf_malformed_headers    = "nrouter_request_error",
+  waf_ambiguous_length     = "nrouter_request_error",
+  waf_headers_too_large    = "nrouter_request_error",
+  waf_unsupported_media_type = "nrouter_request_error",
+  waf_body_too_large       = "nrouter_request_error",
+  waf_body_too_complex     = "nrouter_request_error",
+  waf_body_read_timeout    = "nrouter_request_error"
 )
 
 NROUTER_STATUS_CLASSES <- c(
@@ -55,10 +66,15 @@ NROUTER_STATUS_CLASSES <- c(
   "402" = "nrouter_credit_error",
   "403" = "nrouter_other_error",
   "404" = "nrouter_not_found_error",
+  "405" = "nrouter_request_error",
   "408" = "nrouter_transport_error",
   "409" = "nrouter_other_error",
+  "413" = "nrouter_request_error",
+  "414" = "nrouter_request_error",
+  "415" = "nrouter_request_error",
   "425" = "nrouter_service_error",
   "429" = "nrouter_rate_limit_error",
+  "431" = "nrouter_request_error",
   "502" = "nrouter_service_error",
   "503" = "nrouter_service_error",
   "504" = "nrouter_service_error"
@@ -281,10 +297,10 @@ nrouter_compute_jittered_backoff <- function(attempt,
   safe_attempt <- max(0L, min(as.integer(attempt), 30L))
   safe_jitter <- max(0.0, min(as.numeric(jitter_factor), 1.0))
 
-  if (!is.null(retry_after_seconds) && !is.na(retry_after_seconds) && retry_after_seconds > 0) {
-    retry_secs <- min(as.numeric(retry_after_seconds), max_delay_seconds)
-    mult <- (1.0 - safe_jitter) + stats::runif(1, 0, safe_jitter)
-    return(max(0.0, retry_secs * mult))
+  if (!is.null(retry_after_seconds) && !is.na(retry_after_seconds) && is.finite(as.numeric(retry_after_seconds)) && retry_after_seconds > 0) {
+    bounded_secs <- min(as.numeric(retry_after_seconds), as.numeric(NROUTER_MAX_RETRY_AFTER_SECONDS))
+    mult <- 1.0 + stats::runif(1, 0, safe_jitter)
+    return(max(bounded_secs, bounded_secs * mult))
   }
 
   raw_secs <- min(base_delay_seconds * (2^safe_attempt), max_delay_seconds)

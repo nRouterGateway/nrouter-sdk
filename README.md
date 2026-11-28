@@ -264,16 +264,16 @@ provider key. This table is derived from `spec/nrouter-sdk-spec.json` › `suppo
 | Endpoint | SDK Method | nRouter Features |
 |----------|-----------|---------------|
 | `POST /v1/chat/completions` | `chat.completions.create()` | Guardrails + Prompts + A/B Testing + Credits + Response cache |
-| `POST /v1/completions` | `completions.create()` | Credits + Response cache |
-| `POST /v1/embeddings` | `embeddings.create()` | Credits |
-| `POST /v1/images/generations` | `images.generate()` | Credits |
-| `POST /v1/audio/speech` | `audio.speech.create()` | Credits (text to speech) |
-| `POST /v1/audio/transcriptions` | `audio.transcriptions.create()` | Credits (speech to text) |
-| `POST /v1/audio/translations` | `audio.translations.create()` | Credits |
+| `POST /v1/completions` | `completions.create()` | Guardrails + Credits + Response cache |
+| `POST /v1/embeddings` | `embeddings.create()` | Guardrails + Credits |
+| `POST /v1/images/generations` | `images.generate()` | Guardrails + Credits |
+| `POST /v1/audio/speech` | `audio.speech.create()` | Guardrails + Credits (text to speech) |
+| `POST /v1/audio/transcriptions` | `audio.transcriptions.create()` | Guardrails + Credits (speech to text) |
+| `POST /v1/audio/translations` | `audio.translations.create()` | Guardrails + Credits |
 | `POST /v1/messages` | `messages.create()` | Anthropic Messages wire; Guardrails + Prompts + A/B Testing + Credits + Response cache |
-| `POST /v1/messages/count_tokens` | `messages.count_tokens()` | Count before spending (free) |
+| `POST /v1/messages/count_tokens` | `messages.count_tokens()` | Guardrails + Count before spending (free) |
 | `POST /v1/responses` | `responses.create()` | OpenAI Responses wire; Guardrails + Prompts + A/B Testing + Credits + Response cache |
-| `POST /v1/videos` | `videos.create()` | Start a video job (billed) |
+| `POST /v1/videos` | `videos.create()` | Guardrails + Start a video job (billed) |
 | `GET /v1/videos/{id}` | `videos.retrieve()` | Poll job status (free) |
 | `GET /v1/videos/{id}/content` | `videos.download_content()` | Download the video (free) |
 | `GET /v1/models` | `models.list()` | Tenant-filtered model list |
@@ -289,7 +289,7 @@ Also from the spec (`request_headers`, `extra_body_fields`). The body fields app
 |---|---|---|
 | `nrouter_cache` | body, boolean, default `true` | Use the tenant-isolated response cache for buffered text requests. `false` forces a provider call; streams are never cached |
 | `nrouter_fallbacks` | body, up to 4 model names | Per-request fallback chain, tried in order. Replaces the organization's fallback policy for this call. On `nrouter/auto` it replaces the fallbacks nrouter/auto would choose (`[]` = none). An invalid or out-of-band target is refused with `400 fallback_not_allowed` |
-| `nrouter_optimize` | body, `"quality"`, `"balanced"`, or `"cost"` | `nrouter/auto` only: the selection strategy for this one request (`"balanced"` by default across all price bands with no ceiling, `"quality"` with a small cost weight across all price bands, or `"cost"` restricted to the `nrouter_cost_band` ceiling; all three score every eligible model with one formula), overriding the organization's Router Settings strategy. Any other value, or the field on another model, is refused with `400 invalid_request` |
+| `nrouter_optimize` | body, `"quality"`, `"balanced"`, or `"cost"` | `nrouter/auto` only: the selection strategy for this one request (`"balanced"` by default across all price bands with no ceiling, `"quality"` with zero cost weight across all price bands, or `"cost"` restricted to the `nrouter_cost_band` ceiling; all three score every eligible model with one formula), overriding the organization's Router Settings strategy. Any other value, or the field on another model, is refused with `400 invalid_request` |
 | `nrouter_cost_band` | body, `"low"`, `"mid"`, or `"high"`, default `"mid"` | Cost-mode `nrouter/auto` only: sets a ceiling on each model's blended list rate `(3 * input + 1 * output) / 4` per 1M tokens: `"low"` admits models under `$1`, `"mid"` (the default) models under `$7` including the low band, and `"high"` every band including `$7+`. Sent on a Direct model, with an invalid value, or under `"quality"` or `"balanced"` returns `400 invalid_request`; zero eligible models in the band returns `400 cost_band_unsatisfiable` (`$0` spent) |
 | `nrouter_guardrails` | body, up to 8 ids or names | Guardrails to run in addition to the assigned ones; it can never remove one. An unknown id is refused with `400 guardrail_not_found` |
 | `nrouter_host` | body, `"openai"`, `"anthropic"`, `"azure"`, `"bedrock"`, `"vertex"`, `"alibaba"`, `"deepinfra"`, `"meta"`, `"typesafe"`, `"deepseek"`, `"mistral"`, `"groq"`, or `"together"` | Pin the upstream host offering for this request (precedence: per-request `nrouter_host` / `x-nr-host` -> virtual-key host -> organization BYOK `host_priority`). Unknown values return `400 invalid_request` |
@@ -307,7 +307,7 @@ Also from the spec (`request_headers`, `extra_body_fields`). The body fields app
 Routing is a gateway concern; what you put in `model` chooses the mode:
 
 - **Direct — you choose the model.** Name it in `model`. nRouter never swaps it for another: a concrete model is never re-routed and inherits no hidden fallback. A different model answers only through a fallback you configured yourself — in Router Settings or `nrouter_fallbacks` on the request (up to 4) — and only when the provider fails (`429`, `503`, `529`, connection or first-byte stall). You are charged once, for the model that answered.
-- **`nrouter/auto` — nRouter chooses an eligible model for you.** Scores every eligible model with one formula — task suitability from public leaderboard ratings minus a cost weight — under the `balanced` strategy across all price bands with no ceiling (`nrouter_optimize: "balanced"`, default), the `quality` strategy with a small cost weight across all price bands (`nrouter_optimize: "quality"`), or the `cost` strategy restricted to a blended-rate ceiling (`nrouter_optimize: "cost"`, `nrouter_cost_band: "low" | "mid" | "high"`, default `"mid"`). The decision model only assesses the request; it never picks. If it is off, abstains or times out, or your organization turned off Smart model selection, `nrouter/auto` still selects a model. Former Smart Router alias names return `404`. `nrouter_fallbacks` on a request for `nrouter/auto` replaces the fallbacks it would choose.
+- **`nrouter/auto` — nRouter chooses an eligible model for you.** Scores every eligible model with one formula — task suitability from public leaderboard ratings minus a cost weight — under the `balanced` strategy across all price bands with no ceiling (`nrouter_optimize: "balanced"`, default), the `quality` strategy with zero cost weight across all price bands (`nrouter_optimize: "quality"`), or the `cost` strategy restricted to a blended-rate ceiling (`nrouter_optimize: "cost"`, `nrouter_cost_band: "low" | "mid" | "high"`, default `"mid"`). The decision model only assesses the request; it never picks. If it is off, abstains or times out, or your organization turned off Smart model selection, `nrouter/auto` still selects a model. Former Smart Router alias names return `404`. `nrouter_fallbacks` on a request for `nrouter/auto` replaces the fallbacks it would choose.
 
 In both modes you pay 0% markup on the served model's exact list price: `x-nr-model` always names the concrete model that served the request, and `x-nr-routing` indicates `direct` or `fallback:<n>`.
 
@@ -369,13 +369,13 @@ not itself the register of which ones exist.
 | `x-nr-limit-source` | string | `key`, `plan`, `team`, `user`, `budget`, `plan_window_h8`, `plan_window_day`, `plan_window_week`, `capacity`, `plan_allowance_exhausted`, `plan_required`, `pot_window`, or `byok_fair_use` on 429 and 402 responses |
 | `x-nr-budget-warning` | string | A soft budget you configured was crossed by this request, which still served; `<scope> soft_budget <spend>/<ceiling>`, e.g. `org soft_budget 80.00/100.00` |
 | `x-nr-guardrails` | string | Pre-call guardrail posture — `none`, `monitor`, `redacted`, `pass`, `partial`, `blocked` or `unavailable`; absent means the response makes no guardrail claim, never `none`, which is an explicit token |
-| `x-nr-auth-reason` | string | On a 401, the gateway's stable reason for refusing the key |
-| `x-nr-response-cache` | string | `hit` or `miss`; absent when the response cache did not participate |
+| `x-nr-auth-reason` | string | On a 401, 403, or 503 auth refusal, the gateway's stable reason for refusing the key |
+| `x-nr-response-cache` | string | `hit`, `miss`, or `bypass`; absent when the response cache did not participate |
 | `x-nr-response-cache-age` | integer | Age of a cache `hit` in seconds |
 | `x-nr-funding-source` | string | Which balance or credential paid for this request: the plan's usage allowance, credits, promotional credit (`promo`-labeled models), hackathon credit (`hack`-labeled models), or saved provider key (`allowance`, `credits`, `promo`, `hack`, or `byok`) |
 | `x-nr-byok-fallback` | string | Present only when a request covered by a saved provider key fell back to prepaid credits (`x-nr-funding-source: credits`) because credit fallback is enabled and either the BYOK plan is inactive pre-provider (`plan_inactive`) or the saved key attempt failed with a non-billable provider refusal (`credential_rejected`, `permission_denied`, `rate_limited`, `overloaded`, or `connect_refused`). Absent otherwise |
 | `x-nr-pot-fallback` | string | Present only when a request for a `promo`- or `hack`-labeled model was charged to prepaid credits because the organization turned on paid fallback in Settings; names why the pot did not fund it (`pot_empty`, `pot_insufficient`, `window_hour`, `window_day`, `window_week`, `window_month`, `platform_day`, `platform_month`, `policy_excluded`, `feature` or `fallbacks_ineligible`). Absent otherwise |
-| `x-nr-allowance-reset` | integer | Seconds until the tightest usage-allowance window resets; sent on allowance-window 429s (equal to `Retry-After`) and the monthly 402 `plan_allowance_exhausted` |
+| `x-nr-allowance-reset` | integer | Seconds until the tightest usage-allowance window resets; emitted on 2xx `allowance`-funded responses, allowance-window 429s (`plan_window_h8`, `plan_window_day`, `plan_window_week`; equal to `Retry-After`), and the monthly 402 `plan_allowance_exhausted` |
 | `x-nr-routing` | string | Which chain entry answered: `direct` for the first, `fallback:<n>` for the entry n fallbacks deep; absent on cache hits and refusals |
 | `x-nr-attempts` | integer | Provider calls made for this request, retries and failovers alike; absent on cache hits and refusals |
 | `x-nr-compression` | string | Prompt compression outcome: `applied`, `not_requested`, `off` or `skipped` |
@@ -383,7 +383,7 @@ not itself the register of which ones exist.
 | `x-nr-model-deprecated` | boolean | Present when the served model is deprecated and will be retired |
 | `x-nr-deprecation-notice` | string | Notice and successor guidance for a deprecated model |
 
-Python SDK captures these automatically in `client.last_response`. Other languages read them from HTTP response headers. The two deprecation headers are the newest: read them from the raw response headers until your SDK version surfaces them as typed metadata.
+Official SDKs parse these headers—including `x-nr-model-deprecated` and `x-nr-deprecation-notice`—into typed response metadata (for example `client.last_response` in Python or `res.meta` / `Response.Meta` in the other SDKs); raw HTTP clients read them directly from response headers.
 
 ---
 
@@ -397,8 +397,9 @@ The gateway classifies refusals into typed error codes:
 | `guardrail_blocked` | 400 | `nRouterGuardrailBlockedError` | A guardrail denied the request (pre-call) or withheld the response (post-call) |
 | `invalid_api_key` | 401 | `nRouterAuthenticationError` | Virtual-key authentication refused; see `x-nr-auth-reason` |
 | `insufficient_credits` | 402 | `nRouterCreditError` | Reserve failed; nothing was spent |
+| `budget_exceeded` | 402 | `nRouterBudgetExceededError` | A key, user, team, or organization USD spend cap (Block mode) was reached before provider egress (HTTP 402; `x-nr-limit-source: budget`, no `Retry-After`). Nothing was reserved and nothing was spent; raise the budget ceiling or wait for its configured reset period |
 | `model_not_found` | 404 | `nRouterNotFoundError` | Model unknown or not visible to this key; a former model alias name is now an unknown model |
-| `rate_limit_exceeded` | 429 | `nRouterRateLimitError` | A rate limit was exceeded (RPM, TPM, RPS or RPD), or an 8-hour/daily/weekly `nrouter/auto` allowance window is used up (`x-nr-limit-source`: `plan_window_h8`, `plan_window_day` or `plan_window_week`; `Retry-After` and `x-nr-allowance-reset` carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see `x-nr-limit-source` |
+| `rate_limit_exceeded` | 429 | `nRouterRateLimitError` | A rate limit was exceeded (RPM, TPM, RPS or RPD), a `Throttle`-mode scoped budget was reached (`x-nr-limit-source: budget`, no `Retry-After`), or an 8-hour/daily/weekly `nrouter/auto` allowance window is used up (`x-nr-limit-source`: `plan_window_h8`, `plan_window_day` or `plan_window_week`; `Retry-After` and `x-nr-allowance-reset` carry the wait in seconds). With extra usage turned on in Billing, allowance overflow is funded from credits instead of refused; see `x-nr-limit-source` |
 | `tpm_limit_exceeded` | 429 | `nRouterRateLimitError` | TPM limit exceeded; see `x-nr-limit-source` |
 | `credit_check_failed` | 503 | `nRouterServiceError` | Credit system unavailable |
 | `service_unavailable` | 503 | `nRouterServiceError` | A required gateway dependency is unavailable |
@@ -422,6 +423,16 @@ The gateway classifies refusals into typed error codes:
 | `byok_fair_use_exceeded` | 429 | `nRouterRateLimitError` | The monthly BYOK token fair-use allowance is reached (`x-nr-limit-source: byok_fair_use`); models paid from prepaid credits keep working |
 | `byok_credential_rejected` | 401 | `nRouterAuthenticationError` | The saved provider API key was rejected by the upstream provider and credit fallback is disabled |
 | `byok_credential_unavailable` | 409 | `nRouterError` | The saved provider API key is unavailable and credit fallback is disabled or cannot cover the request |
+| `waf_method_not_allowed` | 405 | `nRouterRequestError` | HTTP method is not allowed on this gateway endpoint; see the `Allow` response header. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_uri_too_long` | 414 | `nRouterRequestError` | Request target exceeds the 4,096-byte URI ceiling. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_malformed_path` | 400 | `nRouterRequestError` | Request path or query contains invalid characters, double slashes, null bytes, CRLF, or path-traversal sequences. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_malformed_headers` | 400 | `nRouterRequestError` | Request header value contains control characters, CRLF, or non-visible ASCII bytes. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_ambiguous_length` | 400 | `nRouterRequestError` | Request carries duplicate, comma-separated, or signed `Content-Length`, `Content-Length` alongside `Transfer-Encoding`, or an unsupported transfer coding. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_headers_too_large` | 431 | `nRouterRequestError` | Request headers exceed 64 headers, 8 KiB for a single header value, or 32 KiB total header bytes. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_unsupported_media_type` | 415 | `nRouterRequestError` | `Content-Type` is missing, duplicated, or not accepted on this route, or `multipart/form-data` lacks a valid RFC 2046 boundary. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_body_too_large` | 413 | `nRouterRequestError` | Request body exceeds the route class ceiling (8 MiB on JSON inference routes, 25 MiB on audio upload routes, 64 KiB on management and unmapped routes). Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_body_too_complex` | 400 | `nRouterRequestError` | JSON request body is malformed or exceeds structural limits (32 nesting levels, 16,384 entries per container, or 200,000 total values). Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
+| `waf_body_read_timeout` | 408 | `nRouterRequestError` | Request body did not finish arriving within the gateway upload read timeout. Refused at the pre-authentication edge; nothing was reserved and nothing was spent |
 
 ---
 
